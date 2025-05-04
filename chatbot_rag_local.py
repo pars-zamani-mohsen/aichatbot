@@ -22,11 +22,7 @@ class RAGChatbot:
         self.model_name = model_name
 
         # Set the correct API endpoint based on model
-        if "gemma3" in model_name.lower():
-            # Use the standard Ollama API instead of any custom endpoint
-            self.ollama_api = "http://localhost:11434/api/generate"
-        else:
-            self.ollama_api = "http://localhost:11434/api/generate"
+        self.ollama_api = "http://localhost:11434/api/generate"
 
         # خواندن اطلاعات پایگاه دانش
         db_info_file = os.path.join(db_directory, 'db_info.json')
