@@ -1,3 +1,5 @@
+# chatbot_rag_local.py
+
 import chromadb
 import json
 import os
@@ -5,71 +7,80 @@ import requests
 from sentence_transformers import SentenceTransformer
 import argparse
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 class RAGChatbot:
     def __init__(self, db_directory="knowledge_base", collection_name="website_data",
-                 model_name="gemma3:latest"):
+                 model_name="llama3.2:latest"):
         """مقداردهی اولیه چت‌بات RAG با استفاده از مدل محلی Ollama"""
 
-        # تنظیم مدل و API
+        # تنظیم مدل
         self.model_name = model_name
-        self.base_url = "http://localhost:11434"
 
-        # بررسی دسترسی به Ollama
-        self.check_ollama_connection()
+        # Set the correct API endpoint based on model
+        if "gemma3" in model_name.lower():
+            # Use the standard Ollama API instead of any custom endpoint
+            self.ollama_api = "http://localhost:11434/api/generate"
+        else:
+            self.ollama_api = "http://localhost:11434/api/generate"
 
         # خواندن اطلاعات پایگاه دانش
         db_info_file = os.path.join(db_directory, 'db_info.json')
-        try:
+        if os.path.exists(db_info_file):
             with open(db_info_file, 'r', encoding='utf-8') as f:
                 self.db_info = json.load(f)
-            print("اطلاعات پایگاه دانش بارگذاری شد.")
-        except FileNotFoundError:
+            print(f"اطلاعات پایگاه دانش بارگذاری شد.")
+        else:
             self.db_info = {'model': 'all-MiniLM-L6-v2'}
             print("هشدار: فایل اطلاعات پایگاه دانش یافت نشد. از مدل پیش‌فرض استفاده می‌شود.")
 
-        # بارگذاری مدل امبدینگ و اتصال به پایگاه دانش
-        self.setup_embedding_model()
-        self.setup_database(db_directory, collection_name)
-
-        # تنظیم پرامپت سیستم
-        self.system_prompt = """شما یک دستیار هوشمند هستید که به سوالات کاربران پاسخ می‌دهید.
-برای پاسخ به سوالات کاربر، از اطلاعات زیر استفاده کنید. اگر اطلاعات کافی در منابع نیست، این را صادقانه به کاربر بگویید.
-پاسخ‌های خود را به زبان فارسی ارائه دهید و به صورت طبیعی و محاوره‌ای صحبت کنید."""
-
-    def check_ollama_connection(self):
-        """بررسی اتصال به Ollama"""
-        try:
-            response = requests.get(f"{self.base_url}/api/tags")
-            if response.status_code != 200:
-                raise ConnectionError("خطا در اتصال به Ollama")
-        except requests.exceptions.RequestException as e:
-            raise ConnectionError(f"خطا در اتصال به Ollama: {e}")
-
-    def setup_embedding_model(self):
-        """راه‌اندازی مدل امبدینگ"""
+        # بارگذاری مدل امبدینگ
         self.embedding_model_name = self.db_info.get('model', 'all-MiniLM-L6-v2')
         print(f"بارگذاری مدل امبدینگ {self.embedding_model_name}...")
         self.embedding_model = SentenceTransformer(self.embedding_model_name)
 
-    def setup_database(self, db_directory, collection_name):
-        """راه‌اندازی پایگاه داده"""
+        # اتصال به پایگاه دانش
         self.db_client = chromadb.PersistentClient(path=db_directory)
+
+        # بررسی وجود کالکشن
         try:
             self.collection = self.db_client.get_collection(name=collection_name)
             print(f"کالکشن {collection_name} با موفقیت بارگذاری شد.")
         except Exception as e:
-            raise Exception(f"خطا در بارگذاری کالکشن: {e}")
+            print(f"خطا در بارگذاری کالکشن: {e}")
+            raise
 
-    def get_relevant_context(self, query, n_results=5):
-        """استخراج متن مرتبط با پرس‌وجو از پایگاه دانش"""
+        # دستورالعمل‌های پایه برای مدل
+        self.system_prompt = """شما یک دستیار هوشمند هستید که به سوالات کاربران پاسخ می‌دهید.
+برای پاسخ به سوالات کاربر، از اطلاعات زیر استفاده کنید. اگر اطلاعات کافی در منابع نیست، این را صادقانه به کاربر بگویید.
+پاسخ‌های خود را به زبان فارسی ارائه دهید و به صورت طبیعی و محاوره‌ای صحبت کنید.
+"""
+
+    def search_knowledge_base(self, query, n_results=5):
+        """جستجو در پایگاه دانش با استفاده از پرس‌وجو متنی"""
+
+        # تبدیل پرس‌وجو به امبدینگ
         query_embedding = self.embedding_model.encode(query).tolist()
+
+        # انجام جستجو
         results = self.collection.query(
             query_embeddings=[query_embedding],
             n_results=n_results,
             include=["documents", "metadatas", "distances"]
         )
 
-        if not results["documents"] or not results["documents"][0]:
+        return results
+
+    def get_relevant_context(self, query, n_results=5):
+        """استخراج متن مرتبط با پرس‌وجو از پایگاه دانش"""
+
+        results = self.search_knowledge_base(query, n_results)
+
+        if not results or not results["documents"] or not results["documents"][0]:
             return "اطلاعاتی یافت نشد."
 
         context = ""
@@ -82,63 +93,71 @@ class RAGChatbot:
 
     def answer_question(self, query, chat_history=None, n_results=5):
         """پاسخ به پرس‌وجوی کاربر با استفاده از RAG"""
+
+        # استخراج اطلاعات مرتبط از پایگاه دانش
         relevant_context = self.get_relevant_context(query, n_results)
-        prompt = self._build_prompt(query, relevant_context, chat_history)
 
-        try:
-            response = requests.post(
-                f"{self.base_url}/api/generate",
-                json={
-                    "model": self.model_name,
-                    "prompt": prompt,
-                    "stream": False
-                },
-                headers={'Content-Type': 'application/json'},
-                timeout=60
-            )
+        # ساخت پرامپت کامل
+        system_message = self.system_prompt + f"\n\nاطلاعات مرتبط:\n{relevant_context}"
 
-            if response.status_code == 200:
-                answer = response.json().get("response", "").strip()
-                return answer, relevant_context
-            else:
-                raise Exception(f"خطا از سمت Ollama: {response.text}")
-
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"خطا در ارتباط با Ollama: {e}")
-
-    def _build_prompt(self, query, context, chat_history=None):
-        """ساخت پرامپت کامل"""
-        prompt = self.system_prompt + f"\n\nاطلاعات مرتبط:\n{context}\n\n"
+        # آماده‌سازی پیام با تاریخچه چت
+        full_prompt = system_message + "\n\n"
 
         if chat_history:
             for msg in chat_history:
-                role = msg["role"]
-                content = msg["content"]
-                prompt += f"{'User' if role == 'user' else 'Assistant'}: {content}\n"
+                if msg["role"] == "user":
+                    full_prompt += f"User: {msg['content']}\n"
+                else:
+                    full_prompt += f"Assistant: {msg['content']}\n"
 
-        prompt += f"User: {query}\nAssistant:"
-        return prompt
+        full_prompt += f"User: {query}\nAssistant:"
+
+        # ارسال پرامپت به Ollama
+        response = requests.post(
+            self.ollama_api,
+            json={
+                "model": self.model_name,
+                "prompt": full_prompt,
+                "stream": False
+            }
+        )
+
+        if response.status_code == 200:
+            answer = response.json().get("response", "").strip()
+            return answer, relevant_context
+        else:
+            raise Exception(f"خطا در درخواست Ollama: {response.text}")
 
     def chat_loop(self, n_results=5):
         """حلقه اصلی تعامل با کاربر"""
-        print(f"\n=== چت‌بات RAG (با استفاده از مدل {self.model_name}) ===")
+
+        print(f"\n=== چت‌بات RAG (با استفاده از مدل محلی {self.model_name}) ===")
         print("برای خروج، عبارت 'exit' یا 'quit' را وارد کنید.\n")
 
         chat_history = []
+
         while True:
-            query = input("\nشما: ").strip()
+            # دریافت پرس‌وجو از کاربر
+            query = input("\nشما: ")
+
+            # بررسی خروج
             if query.lower() in ['exit', 'quit', 'خروج']:
                 print("\nخداحافظ!")
                 break
 
+            # پاسخ به پرس‌وجو
             try:
-                answer, _ = self.answer_question(query, chat_history, n_results)
+                answer, relevant_context = self.answer_question(query, chat_history, n_results)
+
+                # چاپ پاسخ
                 print(f"\nچت‌بات: {answer}")
 
+                # افزودن به تاریخچه چت
                 chat_history.append({"role": "user", "content": query})
                 chat_history.append({"role": "assistant", "content": answer})
 
-                if len(chat_history) > 6:
+                # محدود کردن طول تاریخچه چت
+                if len(chat_history) > 6:  # حفظ 3 پرسش و پاسخ آخر
                     chat_history = chat_history[-6:]
             except Exception as e:
                 print(f"\nخطا در پاسخگویی: {e}")
@@ -147,7 +166,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='چت‌بات RAG با مدل محلی')
     parser.add_argument('--db_dir', default='knowledge_base', help='مسیر پایگاه دانش')
     parser.add_argument('--collection', default='website_data', help='نام کالکشن')
-    parser.add_argument('--model', default='gemma3:latest', help='نام مدل Ollama')
+    parser.add_argument('--model', default='llama3.2:latest', help='نام مدل Ollama')
 
     args = parser.parse_args()
 
