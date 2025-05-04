@@ -1,0 +1,7 @@
+{
+  "collection_name": "website_data",
+  "total_documents": 2387,
+  "model": "all-MiniLM-L6-v2",
+  "embedding_dimension": 384,
+  "created_at": "2025-05-03 12:05:50"
+}
