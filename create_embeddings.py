@@ -1,111 +1,169 @@
-# create_embeddings.py  
+import pandas as pd
+import numpy as np
+from sentence_transformers import SentenceTransformer
+import json
+from pathlib import Path
+from datetime import datetime
+from tqdm import tqdm
+import logging
+import sys
 
-import pandas as pd  
-import numpy as np  
-import os  
-from sentence_transformers import SentenceTransformer  
-from tqdm import tqdm  
-import json  
-import time  
+class EmbeddingCreator:
+    def __init__(self, model_name='all-MiniLM-L6-v2'):
+        self.model_name = model_name
+        self.output_dir = Path('embeddings')
+        self.output_dir.mkdir(exist_ok=True)
 
-class EmbeddingCreator:  
-    def __init__(self, model_name="all-MiniLM-L6-v2"):  
-        """مقداردهی اولیه کلاس با مدل امبدینگ مناسب"""  
-        print(f"بارگذاری مدل امبدینگ {model_name}...")  
-        self.model = SentenceTransformer(model_name)  
-        self.model_name = model_name  
-        print("مدل با موفقیت بارگذاری شد.")  
-    
-    def create_embeddings(self, input_csv='processed_data/final_processed_data.csv',   
-                           output_dir='embeddings'):  
-        """ایجاد امبدینگ‌ها برای داده‌های پردازش شده"""  
-        
-        # اطمینان از وجود پوشه خروجی  
-        os.makedirs(output_dir, exist_ok=True)  
-        
-        # خواندن داده‌های پردازش شده  
-        print(f"خواندن داده‌ها از {input_csv}...")  
-        df = pd.read_csv(input_csv)  
-        
-        # نمایش اطلاعات داده‌ها  
-        print(f"تعداد رکوردها: {len(df)}")  
-        print(f"ستون‌ها: {df.columns.tolist()}")  
-        
-        # ایجاد ستون شناسه منحصربه‌فرد اگر وجود ندارد  
-        if 'id' not in df.columns and 'chunk_id' in df.columns:  
-            df['id'] = df['chunk_id']  
-        elif 'id' not in df.columns:  
-            df['id'] = [f"doc_{i}" for i in range(len(df))]  
-        
-        # ذخیره داده‌های اصلی در JSON  
-        metadata_file = os.path.join(output_dir, 'metadata.json')  
-        metadata = df[['id', 'url', 'title', 'content']].to_dict(orient='records')  
-        with open(metadata_file, 'w', encoding='utf-8') as f:  
-            json.dump(metadata, f, ensure_ascii=False, indent=2)  
-        
-        print(f"داده‌های متادیتا در {metadata_file} ذخیره شدند.")  
-        
-        # ایجاد امبدینگ‌ها برای محتوا  
-        print("شروع ایجاد امبدینگ‌ها...")  
-        start_time = time.time()  
-        
-        embeddings = []  
-        
-        # پردازش هر چانک متن  
-        for i, row in tqdm(df.iterrows(), total=len(df), desc="ایجاد امبدینگ‌ها"):  
-            # اطمینان از اینکه محتوا رشته متنی است  
-            if isinstance(row['content'], str) and len(row['content'].strip()) > 0:  
-                # ایجاد امبدینگ  
-                try:  
-                    embedding = self.model.encode(row['content'])  
-                    embeddings.append({  
-                        'id': row['id'],  
-                        'embedding': embedding.tolist()  
-                    })  
-                except Exception as e:  
-                    print(f"خطا در ایجاد امبدینگ برای رکورد {i}: {e}")  
-            else:  
-                print(f"هشدار: محتوای نامعتبر برای رکورد {i} یافت شد")  
-        
-        # محاسبه زمان سپری شده  
-        elapsed_time = time.time() - start_time  
-        print(f"ایجاد امبدینگ‌ها در {elapsed_time:.2f} ثانیه به پایان رسید.")  
-        
-        # ذخیره امبدینگ‌ها  
-        embeddings_file = os.path.join(output_dir, 'embeddings.json')  
-        with open(embeddings_file, 'w', encoding='utf-8') as f:  
-            json.dump(embeddings, f)  
-        
-        print(f"امبدینگ‌ها در {embeddings_file} ذخیره شدند.")  
-        
-        # ذخیره اطلاعات مدل  
-        model_info = {  
-            'model_name': self.model_name,  
-            'embedding_dimension': len(embeddings[0]['embedding']) if embeddings else 0,  
-            'total_embeddings': len(embeddings),  
-            'created_at': time.strftime('%Y-%m-%d %H:%M:%S')  
-        }  
-        
-        model_info_file = os.path.join(output_dir, 'model_info.json')  
-        with open(model_info_file, 'w', encoding='utf-8') as f:  
-            json.dump(model_info, f, ensure_ascii=False, indent=2)  
-        
-        print(f"اطلاعات مدل در {model_info_file} ذخیره شدند.")  
-        
-        return embeddings, metadata  
+        # Setup logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+        self.logger = logging.getLogger(__name__)
 
-if __name__ == "__main__":  
-    import argparse  
-    
-    parser = argparse.ArgumentParser(description='ایجاد امبدینگ‌ها برای داده‌های پردازش شده')  
-    parser.add_argument('--input', default='processed_data/final_processed_data.csv',   
-                        help='مسیر فایل CSV حاوی داده‌های پردازش شده')  
-    parser.add_argument('--output', default='embeddings',   
-                        help='پوشه خروجی برای ذخیره امبدینگ‌ها')  
-    parser.add_argument('--model', default='all-MiniLM-L6-v2',   
-                        help='نام مدل sentence-transformers')  
-    
-    args = parser.parse_args()  
-    
-    creator = EmbeddingCreator(model_name=args.model)  
-    creator.create_embeddings(input_csv=args.input, output_dir=args.output)  
+    def load_model(self):
+        """Load the embedding model"""
+        print(f"بارگذاری مدل امبدینگ {self.model_name}...")
+        self.model = SentenceTransformer(self.model_name)
+        print("مدل با موفقیت بارگذاری شد.")
+        return self.model
+
+    def prepare_data(self):
+        """Load and prepare data from processed CSV"""
+        input_paths = [
+            'processed_data/processed_data.csv',
+            'processed_data/final_processed_data.csv',
+            'analysis_results/processed_data.csv'
+        ]
+
+        df = None
+        for path in input_paths:
+            if Path(path).exists():
+                print(f"خواندن داده‌ها از {path}...")
+                try:
+                    df = pd.read_csv(path)
+                    if not df.empty:
+                        print(f"داده‌ها با موفقیت از {path} خوانده شدند.")
+                        print(f"تعداد رکوردها: {len(df)}")
+                        print(f"ستون‌ها: {list(df.columns)}")
+                        print(f"نمونه داده:\n{df.head(1)}")
+                        break
+                    else:
+                        print(f"فایل {path} خالی است.")
+                except Exception as e:
+                    print(f"خطا در خواندن {path}: {str(e)}")
+                    continue
+
+        if df is None or df.empty:
+            raise FileNotFoundError("هیچ داده معتبری یافت نشد!")
+
+        required_columns = ['url', 'title', 'content']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            raise ValueError(f"ستون‌های ضروری یافت نشد: {missing_columns}")
+
+        # Clean and prepare content
+        df['content'] = df['content'].fillna('')
+        df['title'] = df['title'].fillna('')
+
+        # Filter out empty content
+        df = df[df['content'].str.strip().str.len() > 0].copy()
+
+        if df.empty:
+            raise ValueError("پس از پاکسازی داده‌ها، هیچ محتوای معتبری باقی نماند!")
+
+        # Create chunks
+        chunks = []
+        chunk_size = 512
+
+        for idx, row in df.iterrows():
+            content = str(row['content'])
+            title = str(row['title'])
+
+            # Split content into chunks
+            words = content.split()
+            for i in range(0, len(words), chunk_size):
+                chunk = ' '.join(words[i:i + chunk_size])
+                if len(chunk.strip()) > 0:
+                    chunks.append({
+                        'url': row['url'],
+                        'title': title,
+                        'chunk_id': f"{idx}-{i//chunk_size}",
+                        'content': chunk,
+                        'content_length': len(chunk),
+                        'processed_timestamp': datetime.now().isoformat()
+                    })
+
+        chunks_df = pd.DataFrame(chunks)
+        print(f"\nاطلاعات چانک‌ها:")
+        print(f"تعداد چانک‌ها: {len(chunks_df)}")
+        print(f"ستون‌ها: {list(chunks_df.columns)}")
+        print(f"نمونه چانک:\n{chunks_df.head(1)}")
+
+        # Save metadata
+        metadata_file = self.output_dir / 'metadata.json'
+        chunks_df.to_json(metadata_file, orient='records', force_ascii=False, indent=2)
+        print(f"داده‌های متادیتا در {metadata_file} ذخیره شدند.")
+
+        return chunks_df
+
+    def create_embeddings(self, df):
+        """Create embeddings for the prepared chunks"""
+        if df.empty:
+            raise ValueError("هیچ داده‌ای برای ایجاد امبدینگ وجود ندارد!")
+
+        print("شروع ایجاد امبدینگ‌ها...")
+        start_time = datetime.now()
+
+        texts = df['content'].tolist()
+        embeddings = []
+
+        for text in tqdm(texts, desc="ایجاد امبدینگ‌ها"):
+            try:
+                embedding = self.model.encode(text)
+                embeddings.append(embedding.tolist())
+            except Exception as e:
+                self.logger.error(f"خطا در ایجاد امبدینگ برای متن: {text[:100]}...")
+                self.logger.error(f"خطا: {str(e)}")
+                embeddings.append([0] * self.model.get_sentence_embedding_dimension())
+
+        duration = (datetime.now() - start_time).total_seconds()
+        print(f"ایجاد امبدینگ‌ها در {duration:.2f} ثانیه به پایان رسید.")
+
+        # Save embeddings
+        embeddings_file = self.output_dir / 'embeddings.json'
+        with open(embeddings_file, 'w') as f:
+            json.dump(embeddings, f)
+        print(f"امبدینگ‌ها در {embeddings_file} ذخیره شدند.")
+
+        # Save model info
+        model_info = {
+            'model_name': self.model_name,
+            'embedding_dimension': self.model.get_sentence_embedding_dimension(),
+            'total_embeddings': len(embeddings),
+            'created_at': datetime.now().isoformat()
+        }
+
+        with open(self.output_dir / 'model_info.json', 'w') as f:
+            json.dump(model_info, f, indent=2)
+        print(f"اطلاعات مدل در {self.output_dir / 'model_info.json'} ذخیره شدند.")
+
+        return embeddings
+
+    def run(self):
+        """Run the complete embedding creation pipeline"""
+        try:
+            self.load_model()
+            df = self.prepare_data()
+            self.create_embeddings(df)
+        except Exception as e:
+            self.logger.error(f"خطا در ایجاد امبدینگ‌ها: {str(e)}")
+            raise
+
+if __name__ == "__main__":
+    try:
+        creator = EmbeddingCreator()
+        creator.run()
+    except Exception as e:
+        print(f"\nخطای اصلی: {str(e)}")
+        sys.exit(1)
