@@ -1,1 +1,10 @@
 .env
+embeddings/
+knowledge_base/
+processed_data/
+embeddings/*
+knowledge_base/*
+processed_data/*
+*.json
+*.csv
+*.png
