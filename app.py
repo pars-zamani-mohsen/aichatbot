@@ -8,25 +8,33 @@ from utils.file_manager import create_static_files
 
 app = Flask(__name__, static_folder='static')
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # تنظیمات پایه
 DB_DIRECTORY = "knowledge_base"
 COLLECTION_NAME = "website_data"
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 
 # متغیرهای سراسری
 chatbot = None
 chat_histories = {}
 
 def initialize_chatbot(chatbot_type="online"):
-    """راه‌اندازی چت‌بات با نوع مشخص شده"""
     global chatbot
-
     try:
+        # انتخاب API key مناسب بر اساس نوع چت‌بات
+        api_key = GOOGLE_API_KEY if chatbot_type == "gemini" else OPENAI_API_KEY
+
         chatbot = ChatbotFactory.create_chatbot(
             chatbot_type=chatbot_type,
             db_directory=DB_DIRECTORY,
             collection_name=COLLECTION_NAME,
-            api_key=OPENAI_API_KEY
+            api_key=api_key
         )
         print(f"چت‌بات با موفقیت در حالت {chatbot_type} راه‌اندازی شد.")
         return True
@@ -117,8 +125,8 @@ def extract_sources(context):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='سرور چت‌بات')
-    parser.add_argument('--type', choices=['local', 'online'], default='online',
-                       help='نوع چت‌بات (local یا online)')
+    parser.add_argument('--type', choices=['local', 'online', 'gemini'], default='online',
+                       help='نوع چت‌بات (local، online یا gemini)')
     parser.add_argument('--port', type=int, default=5000,
                        help='پورت سرور')
     args = parser.parse_args()
