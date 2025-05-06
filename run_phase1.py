@@ -1,3 +1,6 @@
+from uuid import uuid4
+from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
 import sys
 import os
 import json
@@ -68,90 +71,181 @@ class WebCrawlerPipeline:
                 return i
         return len(self.priority_patterns)
 
+    def process_url(self, url_info):
+        """پردازش یک URL"""
+        url, depth = url_info
+        if url in self.visited_urls:
+            return None
+
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0...',
+                'Connection': 'keep-alive'
+            }
+            response = requests.get(url, headers=headers, timeout=5)
+            if response.status_code == 200:
+                # ... کد پردازش محتوا ...
+                return {'url': url, 'title': title, 'content': content}
+        except Exception as e:
+            self.logger.error(f"خطا در {url}: {str(e)}")
+        return None
+
     def crawl(self):
-        """خزش وبسایت با اولویت‌بندی صفحات"""
+        """خزش موازی وبسایت با اولویت‌بندی صفحات"""
         to_visit = [(self.start_url, 0)]  # (url, depth)
+        max_workers = 10  # تعداد threads همزمان
 
-        print(f"\n=== شروع خزش از {self.start_url} ===")
-        print("صفحات مهم در اولویت خزش قرار دارند.")
+        print(f"\n=== شروع خزش موازی از {self.start_url} ===")
+        print(f"تعداد threads همزمان: {max_workers}")
 
-        while to_visit and len(self.visited_urls) < self.max_pages:
-            to_visit.sort(key=lambda x: (self.get_priority_score(x[0]), x[1]))
-            current_url, depth = to_visit.pop(0)
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Connection': 'keep-alive'
+        })
 
-            if current_url in self.visited_urls:
-                continue
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            while to_visit and len(self.visited_urls) < self.max_pages:
+                # مرتب‌سازی URLs براساس اولویت
+                to_visit.sort(key=lambda x: (self.get_priority_score(x[0]), x[1]))
 
-            try:
-                print(f"\nدریافت: {current_url}")
-                print(f"اولویت: {self.get_priority_score(current_url)}")
+                # انتخاب URLs برای پردازش موازی
+                current_batch = []
+                while to_visit and len(current_batch) < max_workers:
+                    url, depth = to_visit.pop(0)
+                    clean_url = self._clean_url(url)  # نرمال‌سازی URL
+                    if clean_url not in self.visited_urls:
+                        current_batch.append((clean_url, depth))
+                        self.visited_urls.add(clean_url)
 
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                if not current_batch:
+                    continue
+
+                # اجرای موازی درخواست‌ها
+                future_to_url = {
+                    executor.submit(self._process_page, session, url, depth): (url, depth)
+                    for url, depth in current_batch
                 }
 
-                response = requests.get(current_url, headers=headers, timeout=10)
-                self.visited_urls.add(current_url)
+                # جمع‌آوری نتایج
+                for future in concurrent.futures.as_completed(future_to_url):
+                    url, depth = future_to_url[future]
+                    try:
+                        result = future.result()
+                        if result:
+                            self.data.append(result['data'])
+                            # اضافه کردن URLهای جدید با نرمال‌سازی
+                            for new_url in result.get('new_urls', []):
+                                clean_new_url = self._clean_url(new_url)
+                                if clean_new_url not in self.visited_urls:
+                                    to_visit.append((clean_new_url, depth + 1))
+                    except Exception as e:
+                        self.logger.error(f"خطا در پردازش {url}: {str(e)}")
 
-                if response.status_code == 200:
-                    soup = BeautifulSoup(response.text, 'html.parser')
+                time.sleep(0.1)
 
-                    # استخراج عنوان
-                    title = soup.title.string if soup.title else ''
+        print(f"\n=== خزش به پایان رسید ===")
+        print(f"تعداد صفحات پردازش شده: {len(self.data)}")
+        print(f"تعداد URLs بازدید شده: {len(self.visited_urls)}")
 
-                    # استخراج محتوا با الگوی جامع‌تر
-                    content_elements = soup.find_all(['p', 'article', 'section', 'div', 'main', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
-                    content = ' '.join([elem.get_text(strip=True) for elem in content_elements if elem.get_text(strip=True)])
+    def _clean_url(self, url):
+        """نرمال‌سازی URL"""
+        parsed = urlparse(url)
+        # حذف fragment و query
+        cleaned = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+        # حذف / اضافی از انتها
+        return cleaned.rstrip('/')
 
-                    # فقط اگر محتوای معنی‌دار داشته باشیم ذخیره می‌کنیم
-                    if len(content.strip()) > 100:  # حداقل 100 کاراکتر
-                        self.data.append({
-                            'url': current_url,
-                            'title': self._clean_text(title),
-                            'content': self._clean_text(content),
-                            'chunk_id': len(self.data),
-                            'timestamp': datetime.now().isoformat()
-                        })
-                        print(f"محتوا با {len(content)} کاراکتر استخراج شد.")
-                    else:
-                        print("محتوای کافی یافت نشد.")
+    def _process_page(self, session, url, depth):
+        """پردازش یک صفحه وب"""
+        # بررسی پسوند URL قبل از پردازش
+        ignored_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.pdf', '.mp4', '.webp',
+                             '.css', '.js', '.ico', '.xml', '.mp3', '.wav', '.webm')
+        if url.lower().endswith(ignored_extensions):
+            return None
 
-                    # جمع‌آوری لینک‌های جدید
-                    if depth < 2:
-                        links = soup.find_all('a', href=True)
-                        new_urls = []
-                        for link in links:
-                            url = urljoin(current_url, link['href'])
-                            parsed_url = urlparse(url)
-                            # فقط لینک‌های معتبر داخلی را اضافه می‌کنیم
-                            if (parsed_url.netloc == self.domain and
-                                parsed_url.scheme in ['http', 'https'] and
-                                not any(ext in url.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.pdf']) and
-                                url not in self.visited_urls):
-                                new_urls.append((url, depth + 1))
+        clean_url = self._clean_url(url)
+        try:
+            response = session.get(clean_url, timeout=10)
+            response.raise_for_status()
 
-                        # مرتب‌سازی لینک‌های جدید براساس اولویت
-                        new_urls.sort(key=lambda x: self.get_priority_score(x[0]))
-                        to_visit.extend(new_urls)
+            # بررسی Content-Type
+            content_type = response.headers.get('content-type', '').lower()
+            if not content_type.startswith('text/html'):
+                return None
 
-                    time.sleep(1)  # رعایت ادب در خزش
+            soup = BeautifulSoup(response.text, 'html.parser')
 
-                else:
-                    self.logger.warning(f"خطای {response.status_code} برای {current_url}")
+            # استخراج عنوان
+            title = soup.title.string if soup.title else ''
 
-            except Exception as e:
-                self.logger.error(f"خطا در دریافت {current_url}: {str(e)}")
+            # حذف تگ‌های نامربوط
+            for tag in soup(['script', 'style', 'iframe', 'noscript']):
+                tag.decompose()
 
-        print(f"\nتعداد صفحات پردازش شده: {len(self.data)}")
+            # استخراج محتوا
+            content = ""
+
+            # اول از محتوای اصلی
+            main_content = soup.find(['main', 'article', '#content', '.content', '[role="main"]'])
+            if main_content:
+                content = main_content.get_text(separator=' ', strip=True)
+            else:
+                # اگر محتوای اصلی پیدا نشد، از کل body استفاده کن
+                body = soup.find('body')
+                if body:
+                    content = body.get_text(separator=' ', strip=True)
+
+            # تمیزسازی محتوا
+            content = self._clean_text(content)
+
+            if len(content) > 100:  # حداقل 100 کاراکتر
+                # استخراج لینک‌های جدید
+                new_urls = []
+                if depth < 3:  # افزایش عمق خزش به 3
+                    for link in soup.find_all('a', href=True):
+                        href = link['href']
+                        if href.startswith('/') or href.startswith(self.start_url):
+                            full_url = urljoin(clean_url, href)
+                            if self.domain in full_url and not full_url.endswith(('.jpg', '.jpeg', '.png', '.gif', '.pdf')):
+                                new_urls.append(full_url)
+
+                chunk_id = f"{len(self.data)}_{int(time.time())}_{uuid4().hex[:8]}"
+                print(f"✓ پردازش {url} - {len(content)} کاراکتر")
+
+                return {
+                    'data': {
+                        'url': url,
+                        'title': self._clean_text(title),
+                        'content': content,
+                        'chunk_id': chunk_id,
+                        'timestamp': datetime.now().isoformat()
+                    },
+                    'new_urls': list(set(new_urls))  # حذف URLهای تکراری
+                }
+            else:
+                print(f"× رد {url} - محتوای ناکافی ({len(content)} کاراکتر)")
+                return None
+
+        except Exception as e:
+            self.logger.error(f"خطا در دریافت {url}: {str(e)}")
+            return None
 
     def _clean_text(self, text):
         """تمیزسازی متن"""
         if not isinstance(text, str):
             return ""
 
-        text = re.sub(r'<[^>]+>', '', text)
+        # حذف کاراکترهای خاص
+        text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
+
+        # حذف فاصله‌های اضافی
         text = re.sub(r'\s+', ' ', text)
-        text = re.sub(r'[\n\r\t]', ' ', text)
+
+        # حذف خطوط خالی
+        text = re.sub(r'\n\s*\n', '\n', text)
+
+        # تمیز کردن نهایی
         return text.strip()
 
     def save_results(self):
