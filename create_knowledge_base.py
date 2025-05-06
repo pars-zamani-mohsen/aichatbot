@@ -1,113 +1,126 @@
-import chromadb
+import sys
 import json
-from pathlib import Path
-import argparse
 from datetime import datetime
+import argparse
+from pathlib import Path
+import chromadb
+from chromadb.config import Settings
 import logging
-from tqdm import tqdm
+import pandas as pd
 
-class KnowledgeBaseCreator:
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-    def load_data(self, embeddings_dir):
-        """Load embeddings and metadata from files"""
-        embeddings_path = Path(embeddings_dir) / 'embeddings.json'
-        metadata_path = Path(embeddings_dir) / 'metadata.json'
-        model_info_path = Path(embeddings_dir) / 'model_info.json'
+def create_knowledge_base(embeddings_dir, collection_name):
+    """ایجاد پایگاه دانش با استفاده از ChromaDB"""
+    try:
+        embeddings_dir = Path(embeddings_dir)
+        if not embeddings_dir.exists():
+            raise ValueError(f"پوشه امبدینگ‌ها یافت نشد: {embeddings_dir}")
 
-        if not all(p.exists() for p in [embeddings_path, metadata_path, model_info_path]):
-            raise FileNotFoundError("فایل‌های مورد نیاز یافت نشدند!")
-
-        with open(embeddings_path) as f:
+        # خواندن فایل‌های امبدینگ
+        with open(embeddings_dir / 'embeddings.json', 'r') as f:
             embeddings = json.load(f)
-        with open(metadata_path) as f:
+
+        with open(embeddings_dir / 'metadata.json', 'r', encoding='utf-8') as f:
             metadata = json.load(f)
-        with open(model_info_path) as f:
+
+        with open(embeddings_dir / 'model_info.json', 'r', encoding='utf-8') as f:
             model_info = json.load(f)
 
-        return embeddings, metadata, model_info
+        # بررسی و چاپ ساختار داده‌ها برای دیباگ
+        logger.info(f"ساختار metadata: {list(metadata[0].keys()) if metadata else 'خالی'}")
 
-    def create_knowledge_base(self, embeddings_dir='embeddings', collection_name='website_data'):
-        """Create and populate the knowledge base"""
-        try:
-            # Load data
-            embeddings, metadata, model_info = self.load_data(embeddings_dir)
+        # تنظیم مسیر پایگاه دانش
+        db_path = embeddings_dir.parent / 'knowledge_base'
+        db_path.mkdir(parents=True, exist_ok=True)
 
-            if not metadata or not embeddings:
-                raise ValueError("داده‌های ورودی خالی هستند!")
-
-            # Create client and collection
-            client = chromadb.PersistentClient(path="knowledge_base")
-            print("کلاینت ChromaDB در مسیر knowledge_base ایجاد شد.")
-
-            # Delete collection if exists
-            try:
-                client.delete_collection(collection_name)
-            except:
-                pass
-
-            collection = client.create_collection(
-                name=collection_name,
-                metadata={"hnsw:space": "cosine"}
+        # ایجاد کلاینت ChromaDB
+        client = chromadb.PersistentClient(
+            path=str(db_path),
+            settings=Settings(
+                anonymized_telemetry=False,
+                is_persistent=True
             )
+        )
 
-            print(f"مدل استفاده شده: {model_info['model_name']}")
-            print(f"ابعاد امبدینگ: {model_info['embedding_dimension']}")
+        # حذف کالکشن قبلی با همین نام (اگر وجود داشت)
+        try:
+            client.delete_collection(collection_name)
+            logger.info(f"کالکشن قبلی {collection_name} حذف شد")
+        except:
+            pass
 
-            # Prepare data for insertion
-            ids = [str(i) for i in range(len(metadata))]
-            documents = [item['content'] for item in metadata]
-            metadatas = [{
-                'url': item['url'],
-                'title': item['title'],
-                'chunk_id': item['chunk_id'],
-                'content_length': item['content_length']
-            } for item in metadata]
+        # ایجاد کالکشن جدید
+        collection = client.create_collection(name=collection_name)
 
-            # Add data to collection in batches
-            batch_size = 100
-            for i in tqdm(range(0, len(ids), batch_size), desc="افزودن به پایگاه دانش"):
-                batch_end = min(i + batch_size, len(ids))
-                collection.add(
-                    ids=ids[i:batch_end],
-                    embeddings=embeddings[i:batch_end],
-                    documents=documents[i:batch_end],
-                    metadatas=metadatas[i:batch_end]
-                )
+        # خواندن داده‌های اصلی برای دسترسی به محتوا
+        data_df = pd.read_csv(embeddings_dir.parent / 'processed_data.csv')
+        content_map = dict(zip(data_df['url'], data_df['content']))
 
-            # Save database info
-            db_info = {
-                'collection_name': collection_name,
-                'total_documents': len(ids),
-                'model': model_info['model_name'],
-                'embedding_dimension': model_info['embedding_dimension'],
-                'created_at': datetime.now().isoformat()
-            }
+        # تهیه لیست‌ها با بررسی وجود کلیدها
+        ids = []
+        documents = []
+        metadatas = []
 
-            with open('knowledge_base/db_info.json', 'w') as f:
-                json.dump(db_info, f, indent=2)
+        for i, m in enumerate(metadata):
+            # بررسی و استخراج فیلدهای اصلی
+            doc_id = str(m.get('chunk_id', i))
+            title = m.get('title', '')
+            url = m.get('url', '')
+            timestamp = m.get('timestamp', datetime.now().isoformat())
 
-            print(f"پایگاه دانش با {len(ids)} امبدینگ ایجاد شد.")
-            print("اطلاعات پایگاه دانش در knowledge_base/db_info.json ذخیره شدند.")
+            # استخراج محتوا از دیتافریم اصلی
+            content = content_map.get(url, title)
 
-        except Exception as e:
-            self.logger.error(f"خطا در ایجاد پایگاه دانش: {str(e)}")
-            raise
+            ids.append(doc_id)
+            documents.append(f"{title}\n\n{content}")
+            metadatas.append({
+                'url': url,
+                'title': title,
+                'timestamp': timestamp
+            })
+
+        # افزودن داده‌ها به کالکشن
+        collection.add(
+            embeddings=embeddings,
+            documents=documents,
+            metadatas=metadatas,
+            ids=ids
+        )
+
+        # ذخیره اطلاعات پایگاه دانش
+        db_info = {
+            'collection_name': collection_name,
+            'num_documents': len(documents),
+            'model_info': model_info,
+            'embedding_size': model_info['embedding_size']
+        }
+
+        with open(db_path / 'db_info.json', 'w', encoding='utf-8') as f:
+            json.dump(db_info, f, ensure_ascii=False, indent=2)
+
+        print(f"\n=== پایگاه دانش با موفقیت ایجاد شد ===")
+        print(f"نام کالکشن: {collection_name}")
+        print(f"تعداد اسناد: {len(documents)}")
+        print(f"مسیر پایگاه دانش: {db_path}")
+
+        return True
+
+    except Exception as e:
+        logger.error(f"خطا در ایجاد پایگاه دانش: {str(e)}")
+        raise
 
 def parse_args():
     parser = argparse.ArgumentParser(description='ایجاد پایگاه دانش از امبدینگ‌ها')
-    parser.add_argument('--embeddings_dir', type=str, default='embeddings',
-                      help='مسیر دایرکتوری امبدینگ‌ها')
-    parser.add_argument('--collection', type=str, default='website_data',
-                      help='نام کالکشن در پایگاه دانش')
+    parser.add_argument('--embeddings_dir', required=True, help='مسیر پوشه امبدینگ‌ها')
+    parser.add_argument('--collection', required=True, help='نام کالکشن در پایگاه دانش')
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
-    creator = KnowledgeBaseCreator()
-    creator.create_knowledge_base(embeddings_dir=args.embeddings_dir, collection_name=args.collection)
+    success = create_knowledge_base(args.embeddings_dir, args.collection)
+    sys.exit(0 if success else 1)
