@@ -116,7 +116,7 @@ class RAGChatbot:
             model=self.model_name,
             messages=messages,
             temperature=0.7,
-            max_tokens=1000
+            max_tokens=8000
         )
 
         # دسترسی به محتوای پاسخ با ساختار جدید
