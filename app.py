@@ -87,7 +87,7 @@ def chat():
         ])
 
         # Keep only last 10 messages
-        chat_histories[session_id] = chat_histories[session_id][-10:]
+        chat_histories[session_id] = chat_histories[session_id][-5:]
 
         # Extract sources from context
         sources = extract_sources(context)

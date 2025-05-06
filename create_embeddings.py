@@ -19,6 +19,7 @@ def create_embeddings(input_file, output_dir, model_name='all-MiniLM-L6-v2', chu
         # خواندن داده‌ها
         logger.info(f"خواندن داده‌ها از {input_file}")
         df = pd.read_csv(input_file)
+        df['content'] = df['content'].apply(lambda x: x[:1000])
 
         if df.empty:
             raise ValueError("فایل ورودی خالی است")

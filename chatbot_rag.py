@@ -77,7 +77,7 @@ class RAGChatbot:
 
         return results
 
-    def get_relevant_context(self, query, n_results=5):
+    def get_relevant_context(self, query, n_results=3):
         """استخراج متن مرتبط با پرس‌وجو از پایگاه دانش"""
 
         results = self.search_knowledge_base(query, n_results)
@@ -116,7 +116,7 @@ class RAGChatbot:
             model=self.model_name,
             messages=messages,
             temperature=0.7,
-            max_tokens=8000
+            max_tokens=2000
         )
 
         # دسترسی به محتوای پاسخ با ساختار جدید

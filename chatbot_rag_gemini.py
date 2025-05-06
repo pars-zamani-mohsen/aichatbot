@@ -54,7 +54,7 @@ class RAGChatbot:
             include=["documents", "metadatas", "distances"]
         )
 
-    def get_relevant_context(self, query, n_results=5):
+    def get_relevant_context(self, query, n_results=3):
         """استخراج متن مرتبط"""
         results = self.search_knowledge_base(query, n_results)
         if not results["documents"][0]:

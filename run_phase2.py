@@ -20,7 +20,8 @@ def run_phase2(domain,
                test_queries=None,
                start_server=False,
                server_type='default',
-               port=5000):
+               port=5000,
+               chunk_size=500):
     """اجرای فاز 2 برای یک سایت مشخص"""
 
     # تنظیم مسیرها
@@ -148,7 +149,8 @@ if __name__ == "__main__":
             test_queries=default_queries if args.test else None,
             start_server=args.server,
             server_type=args.type,
-            port=args.port
+            port=args.port,
+            chunk_size=500
         )
     except KeyboardInterrupt:
         print("\nعملیات توسط کاربر متوقف شد.")

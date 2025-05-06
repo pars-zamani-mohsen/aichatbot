@@ -71,7 +71,7 @@ class RAGChatbot:
 
         return results
 
-    def get_relevant_context(self, query, n_results=5):
+    def get_relevant_context(self, query, n_results=3):
         """استخراج متن مرتبط با پرس‌وجو از پایگاه دانش"""
 
         results = self.search_knowledge_base(query, n_results)
