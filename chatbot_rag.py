@@ -1,5 +1,3 @@
-# chatbot_rag.py (نسخه سازگار با OpenAI >= 1.0.0)
-
 import chromadb
 import json
 import os
@@ -7,6 +5,7 @@ from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 from text_processor import TextProcessor
 from hybrid_searcher import HybridSearcher
+from prompt_manager import PromptManager
 import argparse
 
 try:
@@ -65,6 +64,7 @@ class RAGChatbot:
 """
         self.text_processor = TextProcessor()
         self.searcher = HybridSearcher(self.collection)
+        self.prompt_manager = PromptManager()
 
     def search_knowledge_base(self, query, n_results=5):
         """جستجو با موتور جستجوی هیبرید"""
@@ -91,6 +91,10 @@ class RAGChatbot:
 
         # استخراج اطلاعات مرتبط از پایگاه دانش
         relevant_context = self.get_relevant_context(query, n_results)
+
+        # استفاده از PromptManager برای ساخت پرامپت
+        query_type = self.prompt_manager.detect_query_type(query)
+        prompt = self.prompt_manager.get_prompt(query, relevant_context, query_type)
 
         # ساخت پیام‌های چت
         messages = [

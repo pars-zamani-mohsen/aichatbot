@@ -1,5 +1,3 @@
-# chatbot_rag_gemini.py
-
 import chromadb
 import json
 import os
@@ -10,6 +8,7 @@ from google.generativeai.types import content_types
 import argparse
 from text_processor import TextProcessor
 from hybrid_searcher import HybridSearcher
+from prompt_manager import PromptManager
 
 class RAGChatbot:
     def __init__(self, db_directory="knowledge_base", collection_name="website_data",
@@ -48,6 +47,7 @@ class RAGChatbot:
 پاسخ‌های خود را به زبان فارسی ارائه دهید و به صورت طبیعی و محاوره‌ای صحبت کنید."""
         self.text_processor = TextProcessor()
         self.searcher = HybridSearcher(self.collection)
+        self.prompt_manager = PromptManager()
 
     def search_knowledge_base(self, query, n_results=5):
         """جستجو با موتور جستجوی هیبرید"""
@@ -70,6 +70,10 @@ class RAGChatbot:
         """پاسخ به پرس‌وجو با Gemini"""
         try:
             relevant_context = self.get_relevant_context(query, n_results)
+
+            # استفاده از PromptManager برای ساخت پرامپت
+            query_type = self.prompt_manager.detect_query_type(query)
+            prompt = self.prompt_manager.get_prompt(query, relevant_context, query_type)
             prompt = f"{self.system_prompt}\n\nاطلاعات مرتبط:\n{relevant_context}\n\nسوال: {query}"
 
             # ارسال پرامپت به Gemini
