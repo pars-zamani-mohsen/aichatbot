@@ -159,8 +159,23 @@ class WebCrawlerPipeline:
     def _process_page(self, session, url, depth):
         """پردازش یک صفحه وب"""
         # بررسی پسوند URL قبل از پردازش
-        ignored_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.pdf', '.mp4', '.webp',
-                             '.css', '.js', '.ico', '.xml', '.mp3', '.wav', '.webm')
+        ignored_extensions = (
+            # Images
+            '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.bmp', '.tiff',
+            # Media
+            '.mp4', '.webm', '.ogg', '.mp3', '.wav', '.avi', '.mov', '.wmv',
+            # Documents
+            '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+            # Web assets
+            '.css', '.js', '.map', '.json', '.xml',
+            # Fonts
+            '.ttf', '.woff', '.woff2', '.eot',
+            # Archives
+            '.zip', '.rar', '.tar', '.gz',
+            # Other
+            '.php', '.aspx', '.ashx'
+        )
+
         if url.lower().endswith(ignored_extensions):
             return None
 
@@ -207,7 +222,13 @@ class WebCrawlerPipeline:
                         href = link['href']
                         if href.startswith('/') or href.startswith(self.start_url):
                             full_url = urljoin(clean_url, href)
-                            if self.domain in full_url and not full_url.endswith(('.jpg', '.jpeg', '.png', '.gif', '.pdf')):
+                            if (self.domain in full_url and
+                                not full_url.lower().endswith(ignored_extensions) and
+                                '/wp-content/uploads/' not in full_url and  # WordPress uploads
+                                '/assets/' not in full_url and  # Static assets
+                                '/static/' not in full_url and  # Static files
+                                '/media/' not in full_url and   # Media files
+                                '/download/' not in full_url):   # Downloads
                                 new_urls.append(full_url)
 
                 chunk_id = f"{len(self.data)}_{int(time.time())}_{uuid4().hex[:8]}"
