@@ -3,13 +3,15 @@ from chromadb.api import Collection
 import numpy as np
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
+import re
 
 class HybridSearcher:
     def __init__(self, collection: Collection):
         self.collection = collection
         self.documents = []
         self.bm25 = None
-        self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2')  # مدل قوی‌تر
+        # مدل قوی‌تر برای رتبه‌بندی مجدد
+        self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
         self._initialize()
 
     def _initialize(self):
@@ -26,9 +28,12 @@ class HybridSearcher:
             else:
                 self.documents = [str(doc) for doc in docs]
 
-            # آماده‌سازی BM25
+            # حذف اسناد خالی یا کوتاه
+            self.documents = [doc for doc in self.documents if len(doc.strip()) > 50]
+
+            # آماده‌سازی BM25 با توکن‌های بهتر
             if self.documents:
-                tokenized_docs = [doc.split() for doc in self.documents]
+                tokenized_docs = [self._tokenize_text(doc) for doc in self.documents]
                 self.bm25 = BM25Okapi(tokenized_docs)
                 print(f"تعداد اسناد بارگذاری شده: {len(self.documents)}")
 
@@ -37,64 +42,72 @@ class HybridSearcher:
             self.documents = []
             self.bm25 = None
 
+    def _tokenize_text(self, text: str) -> List[str]:
+        """تقسیم متن به توکن‌ها با حفظ کلمات فارسی"""
+        # حذف کاراکترهای خاص
+        text = re.sub(r'[^\w\s\u0600-\u06FF]', ' ', str(text))
+        # تبدیل به حروف کوچک برای متون انگلیسی
+        text = text.lower()
+        # حذف فاصله‌های اضافی
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text.split()
+
     def search(self, query: str, n_results: int = 5) -> Dict:
         """جستجوی ترکیبی بهبود یافته"""
         if not self.documents:
             return {'documents': [], 'metadatas': [], 'distances': [[]]}
 
         try:
-            # جستجوی معنایی با تعداد نتایج بیشتر
+            # جستجوی معنایی با ChromaDB
             semantic_results = self.collection.query(
                 query_texts=[query],
-                n_results=min(n_results * 3, len(self.documents))
+                n_results=min(n_results * 2, len(self.documents))
             )
 
-            # جستجوی لغوی
-            bm25_scores = self.bm25.get_scores(query.split())
-            bm25_indices = np.argsort(bm25_scores)[-n_results*3:][::-1]
+            # جستجوی لغوی با BM25
+            tokenized_query = self._tokenize_text(query)
+            bm25_scores = self.bm25.get_scores(tokenized_query)
+            bm25_scores_normalized = bm25_scores / (np.max(bm25_scores) + 1e-6)
+            bm25_indices = np.argsort(bm25_scores)[-n_results*2:][::-1]
 
-            # ترکیب نتایج با حذف تکرار
-            seen_docs = set()
+            # ترکیب نتایج با وزن‌دهی
             combined_docs = []
             combined_meta = []
-            doc_pairs = []
+            combined_scores = []
 
-            # اولویت با نتایج معنایی
-            for doc, meta in zip(semantic_results['documents'][0], semantic_results['metadatas'][0]):
-                doc_id = meta.get('chunk_id', doc[:100])
-                if doc_id not in seen_docs:
-                    seen_docs.add(doc_id)
-                    combined_docs.append(doc)
-                    combined_meta.append(meta)
-                    doc_pairs.append((doc, query))
+            # اضافه کردن نتایج معنایی با وزن 0.7
+            semantic_weight = 0.7
+            for doc, meta, distance in zip(semantic_results['documents'][0],
+                                         semantic_results['metadatas'][0],
+                                         semantic_results['distances'][0]):
+                score_normalized = 1 - (distance / max(semantic_results['distances'][0]))
+                combined_docs.append(doc)
+                combined_meta.append(meta)
+                combined_scores.append(score_normalized * semantic_weight)
 
-            # اضافه کردن نتایج BM25
+            # اضافه کردن نتایج BM25 با وزن 0.3
+            bm25_weight = 0.3
             for idx in bm25_indices:
                 doc = self.documents[idx]
-                if doc not in seen_docs:
-                    seen_docs.add(doc)
+                doc_hash = hash(doc)
+                if doc not in combined_docs:
                     combined_docs.append(doc)
                     combined_meta.append({'url': '', 'title': '', 'chunk_id': f'bm25_{idx}'})
-                    doc_pairs.append((doc, query))
+                    combined_scores.append(bm25_scores_normalized[idx] * bm25_weight)
 
-            # رتبه‌بندی مجدد با امتیازدهی دقیق‌تر
-            if doc_pairs:
-                scores = self.reranker.predict(
-                    doc_pairs,
-                    batch_size=32,
-                    show_progress_bar=False
-                )
+            # رتبه‌بندی نهایی با Cross-Encoder
+            if combined_docs:
+                doc_pairs = [(doc, query) for doc in combined_docs]
+                cross_scores = self.reranker.predict(doc_pairs, batch_size=32)
 
-                # نرمال‌سازی امتیازها
-                scores = (scores - scores.min()) / (scores.max() - scores.min() + 1e-6)
-
-                # انتخاب بهترین نتایج
-                sorted_indices = np.argsort(scores)[-n_results:][::-1]
+                # ترکیب امتیازها
+                final_scores = 0.6 * np.array(cross_scores) + 0.4 * np.array(combined_scores)
+                top_indices = np.argsort(final_scores)[-n_results:][::-1]
 
                 return {
-                    'documents': [[combined_docs[i] for i in sorted_indices]],
-                    'metadatas': [[combined_meta[i] for i in sorted_indices]],
-                    'distances': [[float(scores[i]) for i in sorted_indices]]
+                    'documents': [[combined_docs[i] for i in top_indices]],
+                    'metadatas': [[combined_meta[i] for i in top_indices]],
+                    'distances': [[float(final_scores[i]) for i in top_indices]]
                 }
 
             return semantic_results
