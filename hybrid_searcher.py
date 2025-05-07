@@ -108,18 +108,18 @@ class HybridSearcher:
 
             # رتبه‌بندی نهایی با Cross-Encoder
             if doc_pairs:
-                scores = self.reranker.predict(doc_pairs, batch_size=32, show_progress_bar=False)
+                cross_scores = self.reranker.predict(doc_pairs, batch_size=32)
 
                 # نرمال‌سازی امتیازها
-                scores = (scores - np.min(scores)) / (np.max(scores) - np.min(scores) + 1e-6)
+                cross_scores = (cross_scores - np.min(cross_scores)) / (np.max(cross_scores) - np.min(cross_scores) + 1e-6)
 
                 # انتخاب بهترین نتایج
-                sorted_indices = np.argsort(scores)[-n_results:][::-1]
+                sorted_indices = np.argsort(cross_scores)[-n_results:][::-1]
 
                 return {
                     'documents': [[combined_docs[i] for i in sorted_indices]],
                     'metadatas': [[combined_meta[i] for i in sorted_indices]],
-                    'distances': [[float(scores[i]) for i in sorted_indices]]
+                    'distances': [[float(cross_scores[i]) for i in sorted_indices]]
                 }
 
             return semantic_results
