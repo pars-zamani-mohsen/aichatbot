@@ -14,6 +14,7 @@ import re
 import logging
 from pathlib import Path
 import argparse
+from text_processor import TextProcessor
 
 class WebCrawlerPipeline:
     def __init__(self, start_url, max_pages=10):
@@ -62,6 +63,8 @@ class WebCrawlerPipeline:
             # صفحه تیم
             '/team', '/our-team', '/تیم-ما', '/تیم'
         ]
+        self.text_processor = TextProcessor()
+
 
     def get_priority_score(self, url):
         """تعیین اولویت URL"""
@@ -158,21 +161,14 @@ class WebCrawlerPipeline:
 
     def _process_page(self, session, url, depth):
         """پردازش یک صفحه وب"""
-        # بررسی پسوند URL قبل از پردازش
+        # بررسی پسوند URL
         ignored_extensions = (
-            # Images
             '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.bmp', '.tiff',
-            # Media
             '.mp4', '.webm', '.ogg', '.mp3', '.wav', '.avi', '.mov', '.wmv',
-            # Documents
             '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-            # Web assets
             '.css', '.js', '.map', '.json', '.xml',
-            # Fonts
             '.ttf', '.woff', '.woff2', '.eot',
-            # Archives
             '.zip', '.rar', '.tar', '.gz',
-            # Other
             '.php', '.aspx', '.ashx'
         )
 
@@ -181,32 +177,41 @@ class WebCrawlerPipeline:
 
         clean_url = self._clean_url(url)
         try:
+            # درخواست HTTP
             response = session.get(clean_url, timeout=10)
             response.raise_for_status()
 
-            # بررسی Content-Type
+            # بررسی نوع محتوا
             content_type = response.headers.get('content-type', '').lower()
             if not content_type.startswith('text/html'):
                 return None
 
+            # تجزیه HTML
             soup = BeautifulSoup(response.text, 'html.parser')
 
-            # استخراج عنوان
-            title = soup.title.string if soup.title else ''
+            # جمع‌آوری لینک‌های جدید
+            new_urls = []
+            for link in soup.find_all('a', href=True):
+                href = link['href']
+                absolute_url = urljoin(url, href)
+                parsed_url = urlparse(absolute_url)
+                # فقط لینک‌های همان دامنه
+                if parsed_url.netloc == self.domain:
+                    new_urls.append(absolute_url)
 
             # حذف تگ‌های نامربوط
             for tag in soup(['script', 'style', 'iframe', 'noscript']):
                 tag.decompose()
 
+            # استخراج عنوان
+            title = soup.title.string if soup.title else ''
+
             # استخراج محتوا
             content = ""
-
-            # اول از محتوای اصلی
             main_content = soup.find(['main', 'article', '#content', '.content', '[role="main"]'])
             if main_content:
                 content = main_content.get_text(separator=' ', strip=True)
             else:
-                # اگر محتوای اصلی پیدا نشد، از کل body استفاده کن
                 body = soup.find('body')
                 if body:
                     content = body.get_text(separator=' ', strip=True)
@@ -215,38 +220,26 @@ class WebCrawlerPipeline:
             content = self._clean_text(content)
 
             if len(content) > 100:  # حداقل 100 کاراکتر
-                # استخراج لینک‌های جدید
-                new_urls = []
-                if depth < 3:  # افزایش عمق خزش به 3
-                    for link in soup.find_all('a', href=True):
-                        href = link['href']
-                        if href.startswith('/') or href.startswith(self.start_url):
-                            full_url = urljoin(clean_url, href)
-                            if (self.domain in full_url and
-                                not full_url.lower().endswith(ignored_extensions) and
-                                '/wp-content/uploads/' not in full_url and  # WordPress uploads
-                                '/assets/' not in full_url and  # Static assets
-                                '/static/' not in full_url and  # Static files
-                                '/media/' not in full_url and   # Media files
-                                '/download/' not in full_url):   # Downloads
-                                new_urls.append(full_url)
-
-                chunk_id = f"{len(self.data)}_{int(time.time())}_{uuid4().hex[:8]}"
-                print(f"✓ پردازش {url} - {len(content)} کاراکتر")
-
-                return {
-                    'data': {
-                        'url': url,
-                        'title': self._clean_text(title),
-                        'content': content,
-                        'chunk_id': chunk_id,
-                        'timestamp': datetime.now().isoformat()
-                    },
-                    'new_urls': list(set(new_urls))  # حذف URLهای تکراری
+                chunk = {
+                    'url': url,
+                    'title': self._clean_text(title),
+                    'content': content,
+                    'chunk_id': f"{len(self.data)}_{int(time.time())}_{uuid4().hex[:8]}",
+                    'timestamp': datetime.now().isoformat()
                 }
-            else:
-                print(f"× رد {url} - محتوای ناکافی ({len(content)} کاراکتر)")
-                return None
+
+                # پردازش chunk با TextProcessor
+                processed_chunk = self.text_processor.process_chunk(chunk)
+
+                if processed_chunk:
+                    print(f"✓ پردازش {url} - {len(content)} کاراکتر - زبان: {processed_chunk['language']}")
+                    return {
+                        'data': processed_chunk,
+                        'new_urls': new_urls  # اضافه کردن لینک‌های جدید
+                    }
+
+            print(f"× رد {url} - محتوا نامعتبر یا تکراری")
+            return None
 
         except Exception as e:
             self.logger.error(f"خطا در دریافت {url}: {str(e)}")

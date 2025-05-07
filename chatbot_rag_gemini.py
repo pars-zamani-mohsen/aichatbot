@@ -8,6 +8,8 @@ from sentence_transformers import SentenceTransformer
 import google.generativeai as genai
 from google.generativeai.types import content_types
 import argparse
+from text_processor import TextProcessor
+from hybrid_searcher import HybridSearcher
 
 class RAGChatbot:
     def __init__(self, db_directory="knowledge_base", collection_name="website_data",
@@ -44,15 +46,12 @@ class RAGChatbot:
         self.system_prompt = """شما یک دستیار هوشمند هستید که به سوالات کاربران پاسخ می‌دهید.
 برای پاسخ به سوالات کاربر، از اطلاعات زیر استفاده کنید. اگر اطلاعات کافی در منابع نیست، این را صادقانه به کاربر بگویید.
 پاسخ‌های خود را به زبان فارسی ارائه دهید و به صورت طبیعی و محاوره‌ای صحبت کنید."""
+        self.text_processor = TextProcessor()
+        self.searcher = HybridSearcher(self.collection)
 
     def search_knowledge_base(self, query, n_results=5):
-        """جستجو در پایگاه دانش"""
-        query_embedding = self.embedding_model.encode(query).tolist()
-        return self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            include=["documents", "metadatas", "distances"]
-        )
+        """جستجو با موتور جستجوی هیبرید"""
+        return self.searcher.search(query, n_results)
 
     def get_relevant_context(self, query, n_results=3):
         """استخراج متن مرتبط"""

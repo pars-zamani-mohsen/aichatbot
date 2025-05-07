@@ -5,6 +5,8 @@ import json
 import os
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
+from text_processor import TextProcessor
+from hybrid_searcher import HybridSearcher
 import argparse
 
 try:
@@ -61,21 +63,12 @@ class RAGChatbot:
 برای پاسخ به سوالات کاربر، از اطلاعات زیر استفاده کنید. اگر اطلاعات کافی در منابع نیست، این را صادقانه به کاربر بگویید.
 پاسخ‌های خود را به زبان فارسی ارائه دهید و به صورت طبیعی و محاوره‌ای صحبت کنید.
 """
+        self.text_processor = TextProcessor()
+        self.searcher = HybridSearcher(self.collection)
 
     def search_knowledge_base(self, query, n_results=5):
-        """جستجو در پایگاه دانش با استفاده از پرس‌وجو متنی"""
-
-        # تبدیل پرس‌وجو به امبدینگ
-        query_embedding = self.embedding_model.encode(query).tolist()
-
-        # انجام جستجو
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            include=["documents", "metadatas", "distances"]
-        )
-
-        return results
+        """جستجو با موتور جستجوی هیبرید"""
+        return self.searcher.search(query, n_results)
 
     def get_relevant_context(self, query, n_results=3):
         """استخراج متن مرتبط با پرس‌وجو از پایگاه دانش"""
