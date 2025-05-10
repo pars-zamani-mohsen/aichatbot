@@ -1,11 +1,18 @@
 from typing import Dict, List, Optional, Tuple
-from chromadb.api import Collection
-import numpy as np
-from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
+from chromadb.api import Collection
+from rank_bm25 import BM25Okapi
 from langdetect import detect
-import re
+import numpy as np
+import logging
 import time
+import re
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 class HybridSearcher:
     def __init__(self, collection: Collection):
@@ -133,68 +140,111 @@ class HybridSearcher:
             return {'documents': [], 'metadatas': [], 'distances': [[]]}
 
     def _perform_search(self, query: str, n_results: int) -> Dict:
-        """انجام عملیات جستجو"""
+        """انجام عملیات جستجو با وزن‌دهی پویا"""
         try:
-            # جستجوی معنایی با تعداد نتایج بیشتر
+            # جستجوی معنایی
             semantic_results = self.collection.query(
                 query_texts=[query],
                 n_results=min(n_results * 2, len(self.documents))
             )
 
-            # جستجوی BM25 با وزن‌دهی
+            # جستجوی BM25
             bm25_scores = self.bm25.get_scores(self._tokenize_text(query))
-            bm25_scores_normalized = bm25_scores / (np.max(bm25_scores) + 1e-6)
-            bm25_indices = np.argsort(bm25_scores)[-n_results*2:][::-1]
 
-            # ترکیب نتایج با وزن‌دهی
-            combined_docs = []
-            combined_meta = []
-            doc_pairs = []
-            seen_docs = set()
-
-            # اضافه کردن نتایج معنایی با وزن 0.7
-            semantic_weight = 0.7
-            for doc, meta in zip(semantic_results['documents'][0], semantic_results['metadatas'][0]):
-                doc_hash = hash(doc)
-                if doc_hash not in seen_docs:
-                    seen_docs.add(doc_hash)
-                    combined_docs.append(doc)
-                    combined_meta.append(meta)
-                    doc_pairs.append((doc, query))
-
-            # اضافه کردن نتایج BM25 با وزن 0.3
-            bm25_weight = 0.3
-            for idx in bm25_indices:
-                doc = self.documents[idx]
-                doc_hash = hash(doc)
-                if doc_hash not in seen_docs:
-                    seen_docs.add(doc_hash)
-                    combined_docs.append(doc)
-                    combined_meta.append({'url': '', 'chunk_id': f'bm25_{idx}'})
-                    doc_pairs.append((doc, query))
-
-            # رتبه‌بندی نهایی با Cross-Encoder
-            if doc_pairs:
-                cross_scores = self.reranker.predict(doc_pairs, batch_size=32)
-
-                # نرمال‌سازی امتیازها
-                cross_scores = (cross_scores - np.min(cross_scores)) / (np.max(cross_scores) - np.min(cross_scores) + 1e-6)
-
-                # انتخاب بهترین نتایج
-                sorted_indices = np.argsort(cross_scores)[-n_results:][::-1]
-
+            # اگر هیچ نتیجه‌ای نداریم
+            if len(bm25_scores) == 0:
                 return {
-                    'documents': [[combined_docs[i] for i in sorted_indices]],
-                    'metadatas': [[combined_meta[i] for i in sorted_indices]],
-                    'distances': [[float(cross_scores[i]) for i in sorted_indices]]
+                    'documents': [[]],
+                    'metadatas': [[]],
+                    'distances': [[]]
                 }
 
-            return semantic_results
+            # نرمال‌سازی و مرتب‌سازی نتایج BM25
+            bm25_scores_normalized = bm25_scores / (np.max(bm25_scores) + 1e-6)
+            bm25_indices = np.argsort(bm25_scores)[-n_results:][::-1]
+
+            # ترکیب نتایج
+            combined_docs = []
+            combined_meta = []
+            seen_docs = set()
+
+            # افزودن نتایج معنایی
+            if semantic_results.get('documents') and semantic_results['documents'][0]:
+                for i, doc in enumerate(semantic_results['documents'][0]):
+                    doc_hash = hash(str(doc))
+                    if doc_hash not in seen_docs and i < len(semantic_results['metadatas'][0]):
+                        seen_docs.add(doc_hash)
+                        combined_docs.append(str(doc))
+                        combined_meta.append(semantic_results['metadatas'][0][i])
+
+            # افزودن نتایج BM25
+            for idx in bm25_indices:
+                if idx < len(self.documents):
+                    doc = str(self.documents[idx])
+                    doc_hash = hash(doc)
+                    if doc_hash not in seen_docs:
+                        seen_docs.add(doc_hash)
+                        combined_docs.append(doc)
+                        combined_meta.append({'url': '', 'chunk_id': f'bm25_{idx}'})
+
+            # اگر هیچ نتیجه‌ای نداریم
+            if not combined_docs:
+                return {
+                    'documents': [[]],
+                    'metadatas': [[]],
+                    'distances': [[]]
+                }
+
+            # رتبه‌بندی نهایی
+            doc_pairs = [(doc, query) for doc in combined_docs]
+            cross_scores = self.reranker.predict(doc_pairs, batch_size=32)
+
+            # محدود کردن تعداد نتایج
+            top_k = min(n_results, len(combined_docs))
+            sorted_indices = np.argsort(cross_scores)[-top_k:][::-1]
+
+            return {
+                'documents': [[combined_docs[i] for i in sorted_indices]],
+                'metadatas': [[combined_meta[i] for i in sorted_indices]],
+                'distances': [[float(cross_scores[i]) for i in sorted_indices]]
+            }
 
         except Exception as e:
-            print(f"خطا در جستجوی ترکیبی: {str(e)}")
+            logger.error(f"خطا در جستجوی ترکیبی: {str(e)}")
             return {
-                'documents': [],
-                'metadatas': [],
+                'documents': [[]],
+                'metadatas': [[]],
                 'distances': [[]]
             }
+
+    def _dynamic_weighting(self, query: str, semantic_results: Dict, bm25_scores: np.ndarray) -> Tuple[float, float]:
+        """تعیین وزن‌های پویا برای نتایج جستجوی معنایی و BM25"""
+        try:
+            # محاسبه کیفیت نتایج معنایی با بررسی وجود distances
+            semantic_quality = 0.0
+            if (semantic_results.get('distances') and
+                len(semantic_results['distances']) > 0 and
+                len(semantic_results['distances'][0]) > 0):
+                semantic_quality = np.mean(semantic_results['distances'][0])
+
+            # محاسبه کیفیت نتایج BM25
+            bm25_quality = np.mean(bm25_scores) if len(bm25_scores) > 0 else 0.0
+
+            # تنظیم وزن‌ها بر اساس کیفیت نتایج
+            total_quality = semantic_quality + bm25_quality
+            if total_quality < 1e-6:  # از صفر مطلق اجتناب کنیم
+                return 0.7, 0.3  # وزن‌های پیش‌فرض
+
+            semantic_weight = semantic_quality / total_quality
+            bm25_weight = bm25_quality / total_quality
+
+            # محدود کردن وزن‌ها در بازه معقول
+            semantic_weight = max(0.3, min(0.8, semantic_weight))
+            bm25_weight = 1 - semantic_weight
+
+            logger.info(f"Dynamic weights - Semantic: {semantic_weight:.2f}, BM25: {bm25_weight:.2f}")
+            return semantic_weight, bm25_weight
+
+        except Exception as e:
+            logger.warning(f"خطا در محاسبه وزن‌های پویا: {str(e)}")
+            return 0.7, 0.3
