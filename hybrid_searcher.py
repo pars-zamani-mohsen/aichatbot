@@ -195,9 +195,9 @@ class HybridSearcher:
                     'distances': [[]]
                 }
 
-            # رتبه‌بندی نهایی
+            # رتبه‌بندی نهایی با استفاده از متد جدید
             doc_pairs = [(doc, query) for doc in combined_docs]
-            cross_scores = self.reranker.predict(doc_pairs, batch_size=32)
+            cross_scores = self._rerank_results(doc_pairs)
 
             # محدود کردن تعداد نتایج
             top_k = min(n_results, len(combined_docs))
@@ -248,3 +248,21 @@ class HybridSearcher:
         except Exception as e:
             logger.warning(f"خطا در محاسبه وزن‌های پویا: {str(e)}")
             return 0.7, 0.3
+
+    def _rerank_results(self, doc_pairs: List[Tuple[str, str]], batch_size: int = 32) -> np.ndarray:
+        """بازمرتب‌سازی نتایج با مدیریت بهتر حافظه و پردازش دسته‌ای"""
+        try:
+            # تقسیم‌بندی به دسته‌های کوچکتر برای مدیریت حافظه
+            n_pairs = len(doc_pairs)
+            scores = np.zeros(n_pairs)
+
+            for i in range(0, n_pairs, batch_size):
+                batch = doc_pairs[i:min(i + batch_size, n_pairs)]
+                batch_scores = self.reranker.predict(batch)
+                scores[i:i + len(batch)] = batch_scores
+
+            return scores
+
+        except Exception as e:
+            logger.error(f"خطا در بازمرتب‌سازی نتایج: {str(e)}")
+            return np.zeros(n_pairs)
