@@ -3,6 +3,7 @@ from chromadb.api import Collection
 import numpy as np
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
+from langdetect import detect
 import re
 import time
 
@@ -68,25 +69,45 @@ class HybridSearcher:
             self.documents = []
             self.bm25 = None
 
-    def _tokenize_text(self, text: str) -> List[str]:
-        """تقسیم متن به توکن‌ها با حفظ کلمات فارسی"""
-        # حذف کاراکترهای خاص
-        text = re.sub(r'[^\w\s\u0600-\u06FF]', ' ', str(text))
-        # تبدیل به حروف کوچک برای متون انگلیسی
-        text = text.lower()
-        # حذف فاصله‌های اضافی
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text.split()
+    def _normalize_text(self, text: str) -> str:
+        """نرمال‌سازی متن با پشتیبانی از فارسی و انگلیسی"""
+        try:
+            text = str(text).strip()
+
+            # تشخیص زبان
+            lang = detect(text)
+
+            # حذف کاراکترهای خاص با حفظ حروف فارسی و انگلیسی
+            text = re.sub(r'[^\w\s\u0600-\u06FF]', ' ', text)
+
+            if lang == 'fa':
+                # نرمال‌سازی کاراکترهای فارسی
+                replacements = {
+                    'ي': 'ی',
+                    'ك': 'ک',
+                    '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
+                    '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+                    '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4',
+                    '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9'
+                }
+                for old, new in replacements.items():
+                    text = text.replace(old, new)
+            else:
+                # نرمال‌سازی متن انگلیسی
+                text = text.lower()
+
+            # حذف فاصله‌های اضافی
+            text = re.sub(r'\s+', ' ', text)
+            return text.strip()
+
+        except Exception as e:
+            logger.warning(f"خطا در نرمال‌سازی متن: {str(e)}")
+            return text.lower().strip()
 
     def _tokenize_text(self, text: str) -> List[str]:
-        """تقسیم متن به توکن‌ها با حفظ کلمات فارسی و انگلیسی"""
-        # حذف کاراکترهای خاص
-        text = re.sub(r'[^\w\s\u0600-\u06FF]', ' ', str(text))
-        # تبدیل به حروف کوچک برای متون انگلیسی
-        text = text.lower()
-        # حذف فاصله‌های اضافی
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text.split()
+        """تقسیم متن به توکن‌ها با استفاده از نرمال‌سازی بهبود یافته"""
+        normalized_text = self._normalize_text(text)
+        return normalized_text.split()
 
     def search(self, query: str, n_results: int = 5) -> Dict:
         """جستجوی ترکیبی با قابلیت کش"""
