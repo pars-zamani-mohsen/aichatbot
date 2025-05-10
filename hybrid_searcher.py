@@ -1,18 +1,44 @@
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 from chromadb.api import Collection
 import numpy as np
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
 import re
+import time
 
 class HybridSearcher:
     def __init__(self, collection: Collection):
         self.collection = collection
         self.documents = []
         self.bm25 = None
-        # مدل قوی‌تر برای رتبه‌بندی مجدد
         self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+        # اضافه کردن کش
+        self.cache = {}
+        self.cache_ttl = 3600  # یک ساعت
+        self.max_cache_size = 1000
         self._initialize()
+
+    def _get_from_cache(self, query: str, n_results: int) -> Optional[Dict]:
+        """بازیابی نتیجه از کش"""
+        cache_key = f"{query}_{n_results}"
+        if cache_key in self.cache:
+            result, timestamp = self.cache[cache_key]
+            if time.time() - timestamp < self.cache_ttl:
+                return result
+            # حذف نتیجه منقضی شده
+            del self.cache[cache_key]
+        return None
+
+    def _add_to_cache(self, query: str, n_results: int, result: Dict):
+        """افزودن نتیجه به کش"""
+        cache_key = f"{query}_{n_results}"
+        self.cache[cache_key] = (result, time.time())
+
+        # حذف قدیمی‌ترین نتایج اگر کش پر شده
+        if len(self.cache) > self.max_cache_size:
+            oldest_key = min(self.cache.keys(),
+                           key=lambda k: self.cache[k][1])
+            del self.cache[oldest_key]
 
     def _initialize(self):
         """آماده‌سازی موتور جستجو"""
@@ -63,10 +89,30 @@ class HybridSearcher:
         return text.split()
 
     def search(self, query: str, n_results: int = 5) -> Dict:
-        """جستجوی ترکیبی بهبود یافته"""
+        """جستجوی ترکیبی با قابلیت کش"""
         if not self.documents:
             return {'documents': [], 'metadatas': [], 'distances': [[]]}
 
+        try:
+            # بررسی کش
+            cached_result = self._get_from_cache(query, n_results)
+            if cached_result:
+                return cached_result
+
+            # اجرای جستجو
+            result = self._perform_search(query, n_results)
+
+            # ذخیره در کش
+            self._add_to_cache(query, n_results, result)
+
+            return result
+
+        except Exception as e:
+            print(f"خطا در جستجو: {str(e)}")
+            return {'documents': [], 'metadatas': [], 'distances': [[]]}
+
+    def _perform_search(self, query: str, n_results: int) -> Dict:
+        """انجام عملیات جستجو"""
         try:
             # جستجوی معنایی با تعداد نتایج بیشتر
             semantic_results = self.collection.query(
@@ -125,5 +171,9 @@ class HybridSearcher:
             return semantic_results
 
         except Exception as e:
-            print(f"خطا در جستجو: {str(e)}")
-            return {'documents': [], 'metadatas': [], 'distances': [[]]}
+            print(f"خطا در جستجوی ترکیبی: {str(e)}")
+            return {
+                'documents': [],
+                'metadatas': [],
+                'distances': [[]]
+            }
