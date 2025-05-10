@@ -112,9 +112,29 @@ class HybridSearcher:
             return text.lower().strip()
 
     def _tokenize_text(self, text: str) -> List[str]:
-        """تقسیم متن به توکن‌ها با استفاده از نرمال‌سازی بهبود یافته"""
-        normalized_text = self._normalize_text(text)
-        return normalized_text.split()
+        """تقسیم متن به توکن‌ها با پشتیبانی بهتر از فارسی و انگلیسی"""
+        try:
+            normalized = self._normalize_text(text)
+
+            # جداسازی کلمات فارسی و انگلیسی
+            tokens = []
+            words = re.findall(r'[\u0600-\u06FF]+|[a-zA-Z]+|\d+', normalized)
+
+            for word in words:
+                # حذف کلمات خیلی کوتاه
+                if len(word) > 1:
+                    tokens.append(word)
+
+                    # اضافه کردن ان‌گرم‌ها برای کلمات فارسی
+                    if re.search(r'[\u0600-\u06FF]', word) and len(word) > 3:
+                        for i in range(len(word)-2):
+                            tokens.append(word[i:i+3])
+
+            return tokens
+
+        except Exception as e:
+            logger.warning(f"خطا در توکن‌سازی: {str(e)}")
+            return normalized.split()
 
     def search(self, query: str, n_results: int = 5) -> Dict:
         """جستجوی ترکیبی با قابلیت کش"""
