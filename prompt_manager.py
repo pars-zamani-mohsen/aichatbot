@@ -1,59 +1,85 @@
+from typing import Dict, Optional
+import logging
+import re
+
+logger = logging.getLogger(__name__)
+
 class PromptManager:
     def __init__(self):
-        # پرامپت‌های پایه برای موقعیت‌های مختلف
-        self.base_prompts = {
-            'general': """شما یک دستیار هوشمند برای پاسخگویی به سوالات هستید.
-برای پاسخ به سوالات کاربر، از اطلاعات زیر استفاده کنید.
-اگر اطلاعات کافی در منابع نیست، این را صادقانه به کاربر بگویید.
-پاسخ‌های خود را به زبان فارسی ارائه دهید و به صورت طبیعی و محاوره‌ای صحبت کنید.""",
-
-            'faq': """به عنوان دستیار پاسخگوی سوالات متداول،
-پاسخ را کوتاه و مفید ارائه دهید.
-فقط به موضوع اصلی سوال بپردازید.
-اطلاعات و منابع داده شده:""",
-
-            'technical': """به عنوان یک دستیار فنی متخصص،
-پاسخ‌های دقیق و تخصصی ارائه دهید.
-با استناد به منابع موثق پاسخ دهید.
-در صورت نیاز به اطلاعات بیشتر، به منابع تکمیلی ارجاع دهید.
-اطلاعات و منابع داده شده:"""
+        # تعریف انواع پرسش و الگوهای آن‌ها
+        self.query_patterns = {
+            'procedural': r'(چگونه|چطور|روش|نحوه)',
+            'comparative': r'(تفاوت|مقایسه|فرق|بهتر|بدتر)',
+            'reasoning': r'(چرا|دلیل|علت)',
+            'faq': r'(متداول|رایج|معمول|سوال)',
+            'technical': r'(فنی|تخصصی|مشخصات|ویژگی)',
         }
 
-    def get_prompt(self, query: str, context: str, prompt_type: str = 'general') -> str:
-        """ساخت پرامپت نهایی براساس نوع درخواست"""
+        # پرامپت‌های پایه
+        self.base_prompts = {
+            'general': """به عنوان دستیار هوشمند فارسی‌زبان:
+- از اطلاعات ارائه شده برای پاسخگویی استفاده کنید
+- در صورت نبود اطلاعات کافی، صادقانه اعلام کنید
+- به زبان طبیعی و محاوره‌ای پاسخ دهید
+- از اطلاعات خارج از متن استفاده نکنید""",
 
-        # انتخاب پرامپت پایه
-        base_prompt = self.base_prompts.get(prompt_type, self.base_prompts['general'])
+            'faq': """به عنوان دستیار پاسخگوی سوالات متداول:
+- پاسخ را کوتاه و مفید ارائه دهید
+- فقط به موضوع اصلی سوال بپردازید
+- از مثال‌های کاربردی استفاده کنید""",
 
-        # تشخیص نوع سوال و افزودن دستورالعمل مناسب
-        instruction = self._get_instruction(query)
+            'technical': """به عنوان دستیار فنی متخصص:
+- پاسخ‌های دقیق و تخصصی ارائه دهید
+- با جزئیات کافی توضیح دهید
+- در صورت نیاز، مراحل را گام به گام شرح دهید
+- به منابع و مستندات استناد کنید"""
+        }
 
-        # ساخت پرامپت نهایی
-        return f"{base_prompt}{instruction}\n\nاطلاعات مرتبط:\n{context}\n\nسوال: {query}\nپاسخ:"
-
-    def _get_instruction(self, query: str) -> str:
-        """تعیین دستورالعمل براساس نوع سوال"""
-        query_lower = query.lower()
-
-        if any(keyword in query_lower for keyword in ['چگونه', 'چطور', 'روش']):
-            return "\nلطفاً مراحل را به صورت گام به گام توضیح دهید."
-        elif any(keyword in query_lower for keyword in ['تفاوت', 'مقایسه']):
-            return "\nلطفاً مقایسه را به صورت نکته به نکته انجام دهید."
-        elif any(keyword in query_lower for keyword in ['چرا', 'دلیل']):
-            return "\nلطفاً دلایل را با جزئیات کافی توضیح دهید."
-        else:
-            return "\nلطفاً پاسخ را مختصر و مفید ارائه دهید."
+        # دستورالعمل‌های خاص برای هر نوع پرسش
+        self.instructions = {
+            'procedural': "\nلطفاً مراحل را به صورت گام به گام توضیح دهید:",
+            'comparative': "\nلطفاً مقایسه را با ذکر نکات کلیدی انجام دهید:",
+            'reasoning': "\nلطفاً دلایل را با جزئیات کافی شرح دهید:",
+            'general': "\nلطفاً پاسخ را مختصر و مفید ارائه دهید:"
+        }
 
     def detect_query_type(self, query: str) -> str:
-        """تشخیص نوع پرامپت مناسب براساس پرسش"""
-        query_lower = query.lower()
+        """تشخیص نوع پرسش با استفاده از الگوهای منظم"""
+        try:
+            query = query.strip().replace('؟', '').lower()
 
-        # تشخیص سوالات متداول
-        if any(keyword in query_lower for keyword in ['متداول', 'رایج', 'معمول', 'سوال']):
-            return 'faq'
+            for q_type, pattern in self.query_patterns.items():
+                if re.search(pattern, query):
+                    logger.info(f"Query type detected: {q_type}")
+                    return q_type
 
-        # تشخیص سوالات فنی
-        elif any(keyword in query_lower for keyword in ['فنی', 'تخصصی', 'مشخصات', 'ویژگی']):
-            return 'technical'
+            return 'general'
 
-        return 'general'
+        except Exception as e:
+            logger.error(f"Error in query type detection: {str(e)}")
+            return 'general'
+
+    def get_prompt(self, query: str, context: str, prompt_type: Optional[str] = None) -> str:
+        """ساخت پرامپت نهایی با ترکیب اجزای مختلف"""
+        try:
+            # تشخیص نوع پرامپت اگر مشخص نشده باشد
+            if not prompt_type:
+                prompt_type = 'technical' if 'technical' in self.detect_query_type(query) else 'general'
+
+            # انتخاب پرامپت پایه
+            base_prompt = self.base_prompts.get(prompt_type, self.base_prompts['general'])
+
+            # تشخیص نوع سوال برای دستورالعمل
+            query_type = self.detect_query_type(query)
+            instruction = self.instructions.get(query_type, self.instructions['general'])
+
+            # ساخت پرامپت نهایی
+            prompt = f"{base_prompt}\n\nمتن مرجع:\n{context}\n{instruction}\n\nسوال: {query}\nپاسخ:"
+
+            logger.info(f"Generated prompt for type: {prompt_type}, query type: {query_type}")
+            return prompt
+
+        except Exception as e:
+            logger.error(f"Error in prompt generation: {str(e)}")
+            # بازگشت به ساده‌ترین حالت در صورت بروز خطا
+            return f"لطفاً با توجه به این اطلاعات:\n{context}\n\nبه این سوال پاسخ دهید:\n{query}"
