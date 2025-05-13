@@ -7,6 +7,12 @@ import numpy as np
 import logging
 import time
 import re
+from settings import (
+    MAX_TOKENS,
+    TOKENS_PER_MIN,
+    CHUNK_SIZE,
+    EMBEDDING_MODEL_NAME
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -15,14 +21,29 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class HybridSearcher:
-    def __init__(self, collection: Collection):
+    def __init__(
+        self,
+        collection: Collection,
+        chunk_size: int = int(CHUNK_SIZE),
+        max_tokens: int = int(MAX_TOKENS),
+        tokens_per_min: int = int(TOKENS_PER_MIN),
+        embedding_model: str = EMBEDDING_MODEL_NAME
+    ):
         self.collection = collection
         self.documents = []
         self.bm25 = None
+        self.chunk_size = chunk_size
+        self.max_tokens = max_tokens
+        self.tokens_per_min = tokens_per_min
+        self.embedding_model = embedding_model
+
         self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+
+        # تنظیمات کش
         self.cache = {}
         self.cache_ttl = 3600  # یک ساعت
         self.max_cache_size = 1000
+
         self._initialize()
 
     def _initialize(self):

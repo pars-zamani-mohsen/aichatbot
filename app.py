@@ -3,15 +3,15 @@ import os
 import argparse
 from chatbot_factory import ChatbotFactory
 from utils.file_manager import create_static_files
+from settings import (
+    OPENAI_API_KEY, GOOGLE_API_KEY,
+    PORT, HOST, DEBUG,
+    DB_DIRECTORY, COLLECTION_NAME,
+    MAX_TOKENS, TOKENS_PER_MIN
+)
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static')
-
-# Global variables
-COLLECTION_NAME = "website_data"  # Default collection name
-DB_DIRECTORY = "knowledge_base"    # Default database directory
-MAX_TOKENS = 8000                 # Maximum tokens per request
-TOKENS_PER_MIN = 30000           # Rate limit tokens per minute
 
 # Store chat histories for different sessions
 chat_histories = {}
@@ -19,29 +19,24 @@ chat_histories = {}
 # Initialize chatbot as None
 chatbot = None
 
-# Load API keys from environment
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
-except ImportError:
-    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-    GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
-
-def initialize_chatbot(chatbot_type="online"):
+def initialize_chatbot(chatbot_type="online", collection_name=COLLECTION_NAME, db_directory=DB_DIRECTORY):
     """Initialize chatbot with specified type"""
     global chatbot
     try:
-        # Select API key based on chatbot type
-        api_key = GOOGLE_API_KEY if chatbot_type == "gemini" else OPENAI_API_KEY
+        # اگر مسیر کامل دایرکتوری داده شده باشد
+        if os.path.exists(db_directory):
+            full_db_path = db_directory
+        else:
+            # ساخت مسیر کامل با توجه به نام کالکشن
+            domain = collection_name.replace('_', '.')
+            full_db_path = f"processed_data/{domain}/knowledge_base"
 
-        # Create chatbot instance
+        print(f"Using database directory: {full_db_path}")
+
         chatbot = ChatbotFactory.create_chatbot(
             chatbot_type=chatbot_type,
-            db_directory=DB_DIRECTORY,
-            collection_name=COLLECTION_NAME,
-            api_key=api_key
+            db_directory=full_db_path,
+            collection_name=collection_name
         )
         print(f"Chatbot initialized successfully in {chatbot_type} mode")
         return True
@@ -139,20 +134,20 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Chatbot Server')
     parser.add_argument('--type', choices=['local', 'online', 'gemini'],
                        default='online', help='Chatbot type')
-    parser.add_argument('--port', type=int, default=5000,
+    parser.add_argument('--port', type=int, default=PORT,
                        help='Server port')
-    parser.add_argument('--collection', type=str, default='website_data',
+    parser.add_argument('--collection', type=str, default=COLLECTION_NAME,
                        help='Knowledge base collection name')
-    parser.add_argument('--db-dir', type=str, default='knowledge_base',
+    parser.add_argument('--db-dir', type=str, default=DB_DIRECTORY,
                        help='Knowledge base directory path')
 
     args = parser.parse_args()
 
-    # Update global variables
-    COLLECTION_NAME = args.collection
-    DB_DIRECTORY = args.db_dir
-
     # Initialize application
     create_static_files()
-    if initialize_chatbot(args.type):
-        app.run(debug=True, host='0.0.0.0', port=args.port)
+    if initialize_chatbot(
+        chatbot_type=args.type,
+        collection_name=args.collection,
+        db_directory=args.db_dir
+    ):
+        app.run(debug=DEBUG, host=HOST, port=args.port)

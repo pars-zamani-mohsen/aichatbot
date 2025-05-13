@@ -7,6 +7,10 @@ import chromadb
 from chromadb.config import Settings
 import logging
 import pandas as pd
+from settings import (
+    DB_DIRECTORY,
+    COLLECTION_NAME
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -14,12 +18,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def create_knowledge_base(embeddings_dir, collection_name):
-    """ایجاد پایگاه دانش با استفاده از ChromaDB"""
+def create_knowledge_base(
+    embeddings_dir,
+    collection_name=COLLECTION_NAME,
+    db_path=DB_DIRECTORY
+):
     try:
         embeddings_dir = Path(embeddings_dir)
-        if not embeddings_dir.exists():
-            raise ValueError(f"پوشه امبدینگ‌ها یافت نشد: {embeddings_dir}")
+        # ساخت مسیر پایگاه داده در کنار embeddings
+        db_path = embeddings_dir.parent / 'knowledge_base'
+        db_path.mkdir(parents=True, exist_ok=True)
 
         # خواندن فایل‌های امبدینگ
         with open(embeddings_dir / 'embeddings.json', 'r') as f:
@@ -35,7 +43,7 @@ def create_knowledge_base(embeddings_dir, collection_name):
         logger.info(f"ساختار metadata: {list(metadata[0].keys()) if metadata else 'خالی'}")
 
         # تنظیم مسیر پایگاه دانش
-        db_path = embeddings_dir.parent / 'knowledge_base'
+        db_path = Path(db_path)
         db_path.mkdir(parents=True, exist_ok=True)
 
         # ایجاد کلاینت ChromaDB
@@ -117,10 +125,15 @@ def create_knowledge_base(embeddings_dir, collection_name):
 def parse_args():
     parser = argparse.ArgumentParser(description='ایجاد پایگاه دانش از امبدینگ‌ها')
     parser.add_argument('--embeddings_dir', required=True, help='مسیر پوشه امبدینگ‌ها')
-    parser.add_argument('--collection', required=True, help='نام کالکشن در پایگاه دانش')
+    parser.add_argument('--collection', default=COLLECTION_NAME, help='نام کالکشن در پایگاه دانش')
+    parser.add_argument('--db-path', default=DB_DIRECTORY, help='مسیر پایگاه دانش')
     return parser.parse_args()
 
 if __name__ == "__main__":
     args = parse_args()
-    success = create_knowledge_base(args.embeddings_dir, args.collection)
+    success = create_knowledge_base(
+        args.embeddings_dir,
+        args.collection,
+        args.db_path
+    )
     sys.exit(0 if success else 1)

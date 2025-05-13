@@ -6,6 +6,11 @@ import json
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
 import logging
+from settings import (
+    EMBEDDING_MODEL_NAME,
+    CHUNK_SIZE,
+    DB_DIRECTORY
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -13,7 +18,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def create_embeddings(input_file, output_dir, model_name='all-MiniLM-L6-v2', chunk_size=1000):
+def create_embeddings(
+    input_file,
+    output_dir=DB_DIRECTORY,
+    model_name=EMBEDDING_MODEL_NAME,
+    chunk_size=int(CHUNK_SIZE)
+):
     """ایجاد امبدینگ برای متن‌های استخراج شده"""
     try:
         # خواندن داده‌ها
@@ -107,9 +117,9 @@ def create_embeddings(input_file, output_dir, model_name='all-MiniLM-L6-v2', chu
 def parse_args():
     parser = argparse.ArgumentParser(description='ایجاد امبدینگ برای متن‌های استخراج شده')
     parser.add_argument('--input', required=True, help='مسیر فایل CSV ورودی')
-    parser.add_argument('--output', required=True, help='مسیر پوشه خروجی')
-    parser.add_argument('--model', default='all-MiniLM-L6-v2', help='نام مدل امبدینگ')
-    parser.add_argument('--chunk-size', type=int, default=1000, help='اندازه هر دسته برای پردازش')
+    parser.add_argument('--output', default=DB_DIRECTORY, help='مسیر پوشه خروجی')
+    parser.add_argument('--model', default=EMBEDDING_MODEL_NAME, help='نام مدل امبدینگ')
+    parser.add_argument('--chunk-size', type=int, default=int(CHUNK_SIZE), help='اندازه هر دسته برای پردازش')
     return parser.parse_args()
 
 if __name__ == "__main__":

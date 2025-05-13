@@ -1,6 +1,7 @@
 import json
 import pandas as pd
 import re
+from settings import DB_DIRECTORY
 from nltk.tokenize import sent_tokenize
 import nltk
 nltk.download('punkt')
@@ -47,7 +48,7 @@ def save_to_csv(data, output_file='processed_data.csv'):
         # ایجاد فایل خالی
         pd.DataFrame(columns=['url', 'title', 'content', 'timestamp']).to_csv(output_file, index=False)
 
-def main(input_file='output.json', output_file='processed_data.csv'):
+def main(input_file='output.json', output_file=f'{DB_DIRECTORY}/processed_data.csv'):
     data = process_json_data(input_file)
     if data:
         save_to_csv(data, output_file)
