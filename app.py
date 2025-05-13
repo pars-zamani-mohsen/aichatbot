@@ -7,7 +7,8 @@ from settings import (
     OPENAI_API_KEY, GOOGLE_API_KEY,
     PORT, HOST, DEBUG,
     DB_DIRECTORY, COLLECTION_NAME,
-    MAX_TOKENS, TOKENS_PER_MIN
+    MAX_TOKENS, TOKENS_PER_MIN,
+    MAX_CHAT_HISTORY
 )
 
 # Initialize Flask app
@@ -82,7 +83,7 @@ def chat():
         ])
 
         # Keep only last 10 messages
-        chat_histories[session_id] = chat_histories[session_id][-5:]
+        chat_histories[session_id] = chat_histories[session_id][-MAX_CHAT_HISTORY:]
 
         # Extract sources from context
         sources = extract_sources(context)

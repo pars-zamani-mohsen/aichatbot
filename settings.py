@@ -32,3 +32,6 @@ TOKENS_PER_MIN = os.getenv('TOKENS_PER_MIN')
 # Security
 SECRET_KEY = os.getenv('SECRET_KEY')
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS')
+
+# Chat Settings
+MAX_CHAT_HISTORY = int(os.getenv('MAX_CHAT_HISTORY', 10))
