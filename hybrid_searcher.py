@@ -11,7 +11,8 @@ from settings import (
     MAX_TOKENS,
     TOKENS_PER_MIN,
     CHUNK_SIZE,
-    EMBEDDING_MODEL_NAME
+    EMBEDDING_MODEL_NAME,
+    SIMILARITY_THRESHOLD
 )
 
 logging.basicConfig(
@@ -36,15 +37,16 @@ class HybridSearcher:
         self.max_tokens = max_tokens
         self.tokens_per_min = tokens_per_min
         self.embedding_model = embedding_model
-
         self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
 
         # تنظیمات کش
         self.cache = {}
         self.cache_ttl = 3600  # یک ساعت
         self.max_cache_size = 1000
-
         self._initialize()
+
+        # اضافه کردن آستانه شباهت به تنظیمات
+        self.similarity_threshold = SIMILARITY_THRESHOLD
 
     def _initialize(self):
         """آماده‌سازی موتور جستجو"""
@@ -118,38 +120,52 @@ class HybridSearcher:
             logger.warning(f"خطا در توکن‌سازی: {str(e)}")
             return normalized.split()
 
-    def search(self, query: str, n_results: int = 5) -> Dict:
-        """جستجوی ترکیبی با قابلیت کش"""
+    def search(self, query: str, n_results: int = 5, query_type: str = 'general') -> Dict:
         if not self.documents:
-            return {'documents': [], 'metadatas': [], 'distances': [[]]}
+            return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
         try:
-            cache_key = f"{query}_{n_results}"
-            cached = self._get_from_cache(query, n_results)
-            if cached:
-                return cached
-
             result = self._perform_search(query, n_results)
-            self._add_to_cache(query, n_results, result)
+
+            if result['distances'][0]:
+                raw_scores = result['distances'][0]
+                max_score = max(raw_scores)
+                mean_score = np.mean(raw_scores)
+                threshold = self.similarity_threshold
+
+                # اگر max_score خیلی نزدیک به threshold بود یا اختلافش با میانگین کم بود، نتیجه را بی‌اعتبار بدان
+                if max_score < threshold or (max_score - mean_score) < 0.1:
+                    logger.info(f"Best score {max_score} below strict threshold {threshold} or not distinct enough")
+                    return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+
+                normalized_distances = [score / max_score for score in raw_scores]
+                result['distances'][0] = normalized_distances
+
             return result
 
         except Exception as e:
-            logger.error(f"خطا در جستجو: {str(e)}")
-            return {'documents': [], 'metadatas': [], 'distances': [[]]}
+            logger.error(f"Error in search: {str(e)}")
+            return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
     def _perform_search(self, query: str, n_results: int) -> Dict:
-        """انجام جستجوی ترکیبی"""
         try:
             semantic_results = self.collection.query(
                 query_texts=[query],
                 n_results=min(n_results * 2, len(self.documents))
             )
 
+            logger.info(f"Semantic Results: {semantic_results['distances'][0] if semantic_results.get('distances') and semantic_results['distances'][0] else 'No results'}")
+
             bm25_scores = self.bm25.get_scores(self._tokenize_text(query))
             if len(bm25_scores) == 0:
                 return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
+            logger.info(f"Top BM25 Score: {max(bm25_scores) if len(bm25_scores) > 0 else 'No scores'}")
+
             sem_w, bm25_w = self._dynamic_weighting(query, semantic_results, bm25_scores)
+            logger.info(f"Weights - Semantic: {sem_w}, BM25: {bm25_w}")
+
+            # ترکیب نتایج اینجا انجام می‌شود
             combined_docs, combined_meta = self._combine_results(
                 semantic_results, bm25_scores, sem_w, bm25_w
             )
@@ -232,7 +248,10 @@ class HybridSearcher:
     def _rerank_results(self, doc_pairs: List[Tuple[str, str]]) -> np.ndarray:
         """بازمرتب‌سازی نتایج با CrossEncoder"""
         try:
-            return self.reranker.predict(doc_pairs)
+            scores = self.reranker.predict(doc_pairs)
+            # تغییر نرمال‌سازی برای حفظ دامنه اصلی امتیازها
+            normalized_scores = (scores - scores.min()) / (scores.max() - scores.min())
+            return normalized_scores
         except Exception as e:
             logger.error(f"خطا در بازمرتب‌سازی: {str(e)}")
             return np.zeros(len(doc_pairs))

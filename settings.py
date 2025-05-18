@@ -35,3 +35,6 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS')
 
 # Chat Settings
 MAX_CHAT_HISTORY = int(os.getenv('MAX_CHAT_HISTORY', 10))
+
+# Search Settings
+SIMILARITY_THRESHOLD = float(os.getenv('SIMILARITY_THRESHOLD', 0.5))

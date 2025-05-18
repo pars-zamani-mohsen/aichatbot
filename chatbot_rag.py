@@ -7,12 +7,17 @@ from text_processor import TextProcessor
 from hybrid_searcher import HybridSearcher
 from prompt_manager import PromptManager
 import argparse
+import re
 
 try:
     from dotenv import load_dotenv
     load_dotenv()  # متغیرهای محیطی را از فایل .env بارگذاری می‌کند
 except ImportError:
     pass  # اگر کتابخانه نصب نشده باشد، نادیده گرفته می‌شود
+
+PERSIAN_STOPWORDS = set([
+    "و", "در", "به", "از", "که", "را", "با", "برای", "این", "آن", "یک", "تا", "می", "بر", "است", "بود", "شود", "کرد", "های", "هم", "اما", "یا", "اگر", "نیز", "بین", "هر", "روی", "پس", "چه", "همه", "چون", "چرا", "کجا", "کی", "چگونه"
+])
 
 class RAGChatbot:
     def __init__(self, db_directory="knowledge_base", collection_name="website_data",
@@ -66,57 +71,69 @@ class RAGChatbot:
         self.searcher = HybridSearcher(self.collection)
         self.prompt_manager = PromptManager()
 
-    def search_knowledge_base(self, query, n_results=5):
+    @staticmethod
+    def is_garbage_context(text):
+        # Remove punctuation and split
+        words = re.findall(r'\w+', text)
+        if not words:
+            return True
+        stopword_count = sum(1 for w in words if w in PERSIAN_STOPWORDS)
+        if len(text.strip()) < 50:
+            return True
+        if stopword_count / len(words) > 0.7:
+            return True
+        return False
+
+    def search_knowledge_base(self, query, n_results=5, query_type='general'):
         """جستجو با موتور جستجوی هیبرید"""
-        return self.searcher.search(query, n_results)
+        return self.searcher.search(query, n_results, query_type)
 
-    def get_relevant_context(self, query, n_results=3):
-        """استخراج متن مرتبط با پرس‌وجو از پایگاه دانش"""
-
-        results = self.search_knowledge_base(query, n_results)
+    def get_relevant_context(self, query, n_results=3, query_type='general'):
+        results = self.search_knowledge_base(query, n_results, query_type)
 
         if not results or not results["documents"] or not results["documents"][0]:
             return "اطلاعاتی یافت نشد."
 
         context = ""
+        query_words = set(query.strip().split())
+        min_overlap = 2  # Require at least 2 query words in the doc
+
         for i, (doc, meta) in enumerate(zip(results["documents"][0], results["metadatas"][0])):
+            if RAGChatbot.is_garbage_context(doc):
+                continue
+            doc_words = set(doc.strip().split())
+            overlap = len(query_words & doc_words)
+            if len(doc.strip()) < 50 or overlap < min_overlap:
+                continue
             title = meta.get('title', 'بدون عنوان')
             url = meta.get('url', 'بدون URL')
             context += f"\n=== منبع {i+1}: {title} ===\nURL: {url}\n{doc}\n"
 
+        if not context:
+            return "اطلاعاتی یافت نشد."
         return context
 
     def answer_question(self, query, chat_history=None, n_results=5):
-        """پاسخ به پرس‌وجوی کاربر با استفاده از RAG"""
-
-        # استخراج اطلاعات مرتبط از پایگاه دانش
-        relevant_context = self.get_relevant_context(query, n_results)
-
-        # استفاده از PromptManager برای ساخت پرامپت
         query_type = self.prompt_manager.detect_query_type(query)
+        relevant_context = self.get_relevant_context(query, n_results, query_type)
+
+        if relevant_context == "اطلاعاتی یافت نشد.":
+            # Do NOT call the LLM, just return a fixed message
+            return "متاسفم، اطلاعات مرتبطی برای سوال شما در پایگاه دانش پیدا نشد.", relevant_context
+
+        # Otherwise, proceed as before
         prompt = self.prompt_manager.get_prompt(query, relevant_context, query_type)
-
-        # ساخت پیام‌های چت
-        messages = [
-            {"role": "system", "content": self.system_prompt + f"\n\nاطلاعات مرتبط:\n{relevant_context}"}
-        ]
-
-        # افزودن تاریخچه چت اگر وجود داشته باشد
+        messages = [{"role": "system", "content": self.system_prompt + f"\n\nاطلاعات مرتبط:\n{relevant_context}"}]
         if chat_history:
             messages.extend(chat_history)
-
-        # افزودن پرس‌وجوی فعلی
         messages.append({"role": "user", "content": query})
 
-        # فراخوانی API با ساختار جدید
         response = self.client.chat.completions.create(
             model=self.model_name,
             messages=messages,
-            temperature=0.7,
+            temperature=0.5,
             max_tokens=2000
         )
-
-        # دسترسی به محتوای پاسخ با ساختار جدید
         return response.choices[0].message.content, relevant_context
 
     def chat_loop(self, n_results=5):
