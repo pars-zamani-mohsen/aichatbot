@@ -6,6 +6,7 @@ from sentence_transformers import SentenceTransformer
 from text_processor import TextProcessor
 from hybrid_searcher import HybridSearcher
 from prompt_manager import PromptManager
+from settings import MAX_CHAT_HISTORY
 import argparse
 import re
 
@@ -135,7 +136,7 @@ class RAGChatbot:
         prompt = self.prompt_manager.get_prompt(query, relevant_context, query_type)
         messages = [{"role": "system", "content": self.system_prompt + f"\n\nاطلاعات مرتبط:\n{relevant_context}"}]
         if chat_history:
-            messages.extend(chat_history)
+            messages.extend(chat_history[-MAX_CHAT_HISTORY:])
         messages.append({"role": "user", "content": query})
 
         response = self.client.chat.completions.create(
@@ -174,8 +175,8 @@ class RAGChatbot:
             chat_history.append({"role": "assistant", "content": answer})
 
             # محدود کردن طول تاریخچه چت
-            if len(chat_history) > 6:  # حفظ 3 پرسش و پاسخ آخر
-                chat_history = chat_history[-6:]
+            if len(chat_history) > MAX_CHAT_HISTORY:
+                chat_history = chat_history[-MAX_CHAT_HISTORY:]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='چت‌بات RAG')
