@@ -88,6 +88,15 @@ class RAGChatbot:
         """جستجو با موتور جستجوی هیبرید"""
         return self.searcher.search(query, n_results, query_type)
 
+    @staticmethod
+    def has_phrase_match(query, doc, n=2):
+        query_words = query.strip().split()
+        for i in range(len(query_words) - n + 1):
+            phrase = ' '.join(query_words[i:i+n])
+            if re.search(re.escape(phrase), doc):
+                return True
+        return False
+
     def get_relevant_context(self, query, n_results=3, query_type='general'):
         results = self.search_knowledge_base(query, n_results, query_type)
 
@@ -96,14 +105,15 @@ class RAGChatbot:
 
         context = ""
         query_words = set(query.strip().split())
-        min_overlap = 2  # Require at least 2 query words in the doc
-
+        min_overlap = 3  # stricter
         for i, (doc, meta) in enumerate(zip(results["documents"][0], results["metadatas"][0])):
             if RAGChatbot.is_garbage_context(doc):
                 continue
             doc_words = set(doc.strip().split())
             overlap = len(query_words & doc_words)
             if len(doc.strip()) < 50 or overlap < min_overlap:
+                continue
+            if not RAGChatbot.has_phrase_match(query, doc, n=2):
                 continue
             title = meta.get('title', 'بدون عنوان')
             url = meta.get('url', 'بدون URL')
