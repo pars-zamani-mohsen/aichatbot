@@ -68,6 +68,7 @@ class RAGChatbot:
 برای پاسخ به سوالات کاربر، از اطلاعات زیر استفاده کنید. اگر اطلاعات کافی در منابع نیست، این را صادقانه به کاربر بگویید.
 پاسخ‌های خود را به زبان فارسی ارائه دهید و به صورت طبیعی و محاوره‌ای صحبت کنید.
 """
+        self.system_prompt += "\nهنگام پاسخ، اگر اطلاعاتی از یک منبع خاص استفاده می‌شود، شماره منبع را به صورت [n] در متن پاسخ ذکر کن."
         self.text_processor = TextProcessor()
         self.searcher = HybridSearcher(self.collection)
         self.prompt_manager = PromptManager()
@@ -129,10 +130,8 @@ class RAGChatbot:
         relevant_context = self.get_relevant_context(query, n_results, query_type)
 
         if relevant_context == "اطلاعاتی یافت نشد.":
-            # Do NOT call the LLM, just return a fixed message
             return "متاسفم، اطلاعات مرتبطی برای سوال شما در پایگاه دانش پیدا نشد.", relevant_context
 
-        # Otherwise, proceed as before
         prompt = self.prompt_manager.get_prompt(query, relevant_context, query_type)
         messages = [{"role": "system", "content": self.system_prompt + f"\n\nاطلاعات مرتبط:\n{relevant_context}"}]
         if chat_history:
@@ -145,7 +144,23 @@ class RAGChatbot:
             temperature=0.5,
             max_tokens=2000
         )
-        return response.choices[0].message.content, relevant_context
+        answer = response.choices[0].message.content
+
+        # Extract sources
+        sources = []
+        seen_urls = set()
+        for line in relevant_context.split("\n"):
+            if line.startswith("URL:"):
+                url = line[4:].strip()
+                if url not in seen_urls:
+                    seen_urls.add(url)
+                    sources.append(url)
+        if sources:
+            answer += "\n\nمنابع:\n"
+            for idx, src in enumerate(sources, 1):
+                answer += f"{idx}. [منبع {idx}]({src})\n"
+
+        return answer, relevant_context
 
     def chat_loop(self, n_results=5):
         """حلقه اصلی تعامل با کاربر"""
