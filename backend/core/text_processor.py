@@ -1,4 +1,3 @@
-# text_processor.py
 from langdetect import detect
 import hashlib
 from typing import Dict, Optional

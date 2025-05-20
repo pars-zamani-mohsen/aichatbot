@@ -3,7 +3,17 @@ source ~/myenv/bin/activate
 cd /var/www/html/ai/
 deactivate
 
+جدید
+uvicorn api.routes:app --reload --port 5000
+curl -X POST "http://localhost:5000/register?domain=parsicanada.com"
+curl http://localhost:5000/api/crawl-status/customer_id
 
+sudo lsof -i :5000
+sudo kill -9 PID
+sudo pkill -9 uvicorn
+
+
+قبل
 # پاک کردن داده‌های قبلی
 rm -rf processed_data/parsicanada.com
 # اجرای مجدد فاز 1

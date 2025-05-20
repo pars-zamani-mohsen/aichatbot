@@ -8,6 +8,22 @@ class CustomerManager:
     def __init__(self):
         self.client = chromadb.PersistentClient(path=DB_DIRECTORY)
 
+    def update_crawl_status(self, customer_id: str, status: str, crawled_at: str = None):
+        """Update customer crawl status"""
+        try:
+            metadata_collection = self.client.get_collection("customers_metadata")
+            customer = self.get_customer(customer_id)
+            if customer:
+                customer["crawl_status"] = status
+                customer["crawled_at"] = crawled_at
+                metadata_collection.update(
+                    ids=[customer_id],
+                    documents=[str(customer)],
+                    metadatas=[{"domain": customer["domain"]}]
+                )
+        except Exception as e:
+            print(f"Error updating crawl status: {e}")
+
     def create_customer(self, domain: str) -> Dict:
         """ایجاد مشتری جدید"""
         customer_id = str(uuid.uuid4())
@@ -22,7 +38,9 @@ class CustomerManager:
             "api_key": self._generate_api_key(),
             "collection_name": collection_name,
             "created_at": datetime.now().isoformat(),
-            "status": "active"
+            "status": "active",
+            "crawl_status": "pending",  # وضعیت‌های ممکن: pending, running, completed, failed
+            "crawled_at": None
         }
 
         # ذخیره اطلاعات مشتری

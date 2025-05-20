@@ -1,29 +1,62 @@
-import chromadb
-import json
 import os
-from openai import OpenAI
-from sentence_transformers import SentenceTransformer
-from text_processor import TextProcessor
-from hybrid_searcher import HybridSearcher
-from prompt_manager import PromptManager
-from settings import MAX_CHAT_HISTORY
-import argparse
 import re
+import json
+import chromadb
+import argparse
+from openai import OpenAI
+from typing import List, Dict, Optional
+from sentence_transformers import SentenceTransformer
+from core.text_processor import TextProcessor
+from core.hybrid_searcher import HybridSearcher
+from core.prompt_manager import PromptManager
+from chromadb.utils import embedding_functions
+from chromadb.utils.embedding_functions import EmbeddingFunction
+from chromadb.api.types import EmbeddingFunction
+
+from settings import (
+    DB_DIRECTORY,
+    COLLECTION_NAME,
+    OPENAI_MODEL_NAME,
+    EMBEDDING_MODEL_NAME,
+    MAX_CHAT_HISTORY
+)
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()  # متغیرهای محیطی را از فایل .env بارگذاری می‌کند
+    load_dotenv()
 except ImportError:
-    pass  # اگر کتابخانه نصب نشده باشد، نادیده گرفته می‌شود
+    pass
 
 PERSIAN_STOPWORDS = set([
-    "و", "در", "به", "از", "که", "را", "با", "برای", "این", "آن", "یک", "تا", "می", "بر", "است", "بود", "شود", "کرد", "های", "هم", "اما", "یا", "اگر", "نیز", "بین", "هر", "روی", "پس", "چه", "همه", "چون", "چرا", "کجا", "کی", "چگونه"
+    "و", "در", "به", "از", "که", "را", "با", "برای", "این", "آن", "یک", "تا", "می", "بر",
+    "است", "بود", "شود", "کرد", "های", "هم", "اما", "یا", "اگر", "نیز", "بین", "هر",
+    "روی", "پس", "چه", "همه", "چون", "چرا", "کجا", "کی", "چگونه"
 ])
 
+class SentenceTransformerEmbedding(EmbeddingFunction):
+    def __init__(self, model_name: str):
+        self.model = SentenceTransformer(model_name)
+
+    def __call__(self, input: List[str]) -> List[List[float]]:
+        embeddings = self.model.encode(input)
+        return embeddings.tolist()
+
 class RAGChatbot:
-    def __init__(self, db_directory="knowledge_base", collection_name="website_data",
-                 api_key=None, model_name="gpt-3.5-turbo"):
-        """مقداردهی اولیه چت‌بات RAG"""
+    def __init__(self, collection_name: str = COLLECTION_NAME,
+                 api_key: Optional[str] = None,
+                 model_name: str = OPENAI_MODEL_NAME,
+                 db_directory: str = DB_DIRECTORY):
+        """راه‌اندازی چت‌بات RAG با وابستگی‌های آن"""
+
+        # راه‌اندازی کلاینت Chroma
+        self.db_client = chromadb.PersistentClient(path=db_directory)
+
+        # راه‌اندازی اجزای اصلی
+        self.text_processor = TextProcessor()
+        self.prompt_manager = PromptManager()
+
+        # راه‌اندازی مدل‌ها
+        self.embedding_function = SentenceTransformer(EMBEDDING_MODEL_NAME)
 
         # تنظیم کلید API و مدل
         if api_key:
@@ -33,45 +66,29 @@ class RAGChatbot:
         else:
             raise ValueError("کلید API OpenAI مشخص نشده است. لطفاً آن را در متغیر محیطی OPENAI_API_KEY تنظیم کنید یا به عنوان پارامتر ارسال کنید.")
 
-        # ایجاد کلاینت OpenAI با API جدید
-        self.client = OpenAI(api_key=self.api_key)
+        # ایجاد کلاینت OpenAI
+        self.openai_client = OpenAI(api_key=self.api_key)
         self.model_name = model_name
 
-        # خواندن اطلاعات پایگاه دانش
-        db_info_file = os.path.join(db_directory, 'db_info.json')
-        if os.path.exists(db_info_file):
-            with open(db_info_file, 'r', encoding='utf-8') as f:
-                self.db_info = json.load(f)
-            print(f"اطلاعات پایگاه دانش بارگذاری شد.")
-        else:
-            self.db_info = {'model': 'all-MiniLM-L6-v2'}
-            print("هشدار: فایل اطلاعات پایگاه دانش یافت نشد. از مدل پیش‌فرض استفاده می‌شود.")
+        # دریافت یا ایجاد کالکشن
+        self.collection = self.db_client.get_or_create_collection(
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"}
+        )
 
-        # بارگذاری مدل امبدینگ
-        self.embedding_model_name = self.db_info.get('model', 'all-MiniLM-L6-v2')
-        print(f"بارگذاری مدل امبدینگ {self.embedding_model_name}...")
-        self.embedding_model = SentenceTransformer(self.embedding_model_name)
+        # راه‌اندازی جستجوگر ترکیبی
+        self.searcher = HybridSearcher(collection=self.collection)
 
-        # اتصال به پایگاه دانش
-        self.db_client = chromadb.PersistentClient(path=db_directory)
+        # مدیریت تاریخچه چت
+        self.chat_history = []
+        self.max_history = MAX_CHAT_HISTORY
 
-        # بررسی وجود کالکشن
-        try:
-            self.collection = self.db_client.get_collection(name=collection_name)
-            print(f"کالکشن {collection_name} با موفقیت بارگذاری شد.")
-        except Exception as e:
-            print(f"خطا در بارگذاری کالکشن: {e}")
-            raise
-
-        # دستورالعمل‌های پایه برای مدل
+        # تنظیم راهنمای سیستم
         self.system_prompt = """شما یک دستیار هوشمند هستید که به سوالات کاربران پاسخ می‌دهید.
-برای پاسخ به سوالات کاربر، از اطلاعات زیر استفاده کنید. اگر اطلاعات کافی در منابع نیست، این را صادقانه به کاربر بگویید.
-پاسخ‌های خود را به زبان فارسی ارائه دهید و به صورت طبیعی و محاوره‌ای صحبت کنید.
-"""
+        برای پاسخ به سوالات کاربر، از اطلاعات زیر استفاده کنید. اگر اطلاعات کافی در منابع نیست، این را صادقانه به کاربر بگویید.
+        پاسخ‌های خود را به زبان فارسی ارائه دهید و به صورت طبیعی و محاوره‌ای صحبت کنید.
+        """
         self.system_prompt += "\nهنگام پاسخ، اگر اطلاعاتی از یک منبع خاص استفاده می‌شود، شماره منبع را به صورت [n] در متن پاسخ ذکر کن."
-        self.text_processor = TextProcessor()
-        self.searcher = HybridSearcher(self.collection)
-        self.prompt_manager = PromptManager()
 
     @staticmethod
     def is_garbage_context(text):

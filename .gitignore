@@ -1,4 +1,4 @@
-.env
+backend/.env
 embeddings/
 knowledge_base/
 processed_data/

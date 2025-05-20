@@ -11,17 +11,17 @@ from slowapi.util import get_remote_address
 
 from models.customer import CustomerManager
 from crawler.website_crawler import WebsiteCrawler
-from core.chatbot_rag import ChatbotRAG
+from core.chatbot_rag import RAGChatbot
 
 # تنظیمات اولیه
 app = FastAPI(title="Chat Widget API")
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 
-# مدیریت سرویس‌ها
+# Initialize services
 customer_manager = CustomerManager()
-crawler = WebsiteCrawler()
-chatbot = ChatbotRAG()
+crawler = WebsiteCrawler(customer_manager=customer_manager)
+chatbot = RAGChatbot()
 
 # تنظیمات CORS
 ALLOWED_ORIGINS = [
@@ -36,6 +36,18 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+ALLOWED_FILE_TYPES = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
+    "image/x-icon",
+    "image/bmp",
+    "image/tiff"
+]
 
 # تنظیمات آپلود فایل
 UPLOAD_DIR = "backend/static/uploads"
@@ -65,27 +77,21 @@ def generate_widget_code(customer_id: str) -> str:
 
 @app.post("/register")
 @limiter.limit("10/minute")
-async def register_website(domain: str, request: Request) -> Dict:
-    """ثبت وب‌سایت جدید"""
+async def register_website(domain: str, request: Request):
     try:
-        # اعتبارسنجی دامنه
-        if not domain or len(domain) > 255:
-            raise HTTPException(status_code=400, detail="Invalid domain")
+        customer = customer_manager.create_customer(domain)
+        customer_id = customer["customer_id"]
 
-        # ایجاد مشتری جدید
-        customer_data = customer_manager.create_customer(domain)
-
-        # شروع خزش سایت به صورت async
-        asyncio.create_task(crawler.crawl(domain))
+        # Start crawling in background task
+        asyncio.create_task(crawler.crawl(domain, customer_id))
 
         return {
             "status": "success",
-            "customer_id": customer_data["customer_id"],
-            "api_key": customer_data["api_key"],
-            "widget_code": generate_widget_code(customer_data["customer_id"])
+            "customer_id": customer_id,
+            "api_key": customer["api_key"]
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/validate-key")
 @limiter.limit("60/minute")
@@ -202,3 +208,14 @@ async def typing_status(
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Status update failed: {str(e)}")
+
+@app.get("/api/crawl-status/{customer_id}")
+async def get_crawl_status(customer_id: str):
+    customer = customer_manager.get_customer(customer_id)
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    return {
+        "status": customer.get("crawl_status", "unknown"),
+        "crawled_at": customer.get("crawled_at")
+    }

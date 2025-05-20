@@ -1,68 +1,115 @@
-from urllib.parse import urljoin, urlparse
+import ssl
 import aiohttp
+import logging
 import asyncio
+import requests
+from datetime import datetime
+from models.customer import CustomerManager
+from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 from typing import Set, List, Dict
-import logging
 
 class WebsiteCrawler:
-    def __init__(self):
-        self.visited_urls: Set[str] = set()
-        self.data: List[Dict] = []
-        self.base_url: str = ""
+    def __init__(self, customer_manager: CustomerManager):
+        self.customer_manager = customer_manager
+        self.visited_urls = set()
+        self.max_pages = 100
+        self.logger = logging.getLogger(__name__)
 
-    async def crawl(self, domain: str, max_pages: int = 100) -> List[Dict]:
-        self.base_url = f"https://{domain}" if not domain.startswith(('http://', 'https://')) else domain
-        async with aiohttp.ClientSession() as session:
-            await self._crawl_page(session, self.base_url, max_pages)
-        return self.data
+        # Create SSL context that skips verification if needed
+        self.ssl_context = ssl.create_default_context()
+        self.ssl_context.check_hostname = False
+        self.ssl_context.verify_mode = ssl.CERT_NONE
 
-    async def _crawl_page(self, session: aiohttp.ClientSession, url: str, max_pages: int) -> None:
-        if len(self.visited_urls) >= max_pages or url in self.visited_urls:
+        # Session config with SSL settings
+        self.session_config = {
+            'connector': aiohttp.TCPConnector(ssl=self.ssl_context),
+            'timeout': aiohttp.ClientTimeout(total=30)
+        }
+
+    async def crawl(self, domain: str, customer_id: str):
+        """Crawl website and store content"""
+        try:
+            # Update status to running
+            self.customer_manager.update_crawl_status(
+                customer_id=customer_id,
+                status="running"
+            )
+
+            base_url = f"https://{domain}" if not domain.startswith(('http://', 'https://')) else domain
+            await self._crawl_page(base_url, domain)
+
+            # Update status to completed
+            self.customer_manager.update_crawl_status(
+                customer_id=customer_id,
+                status="completed",
+                crawled_at=datetime.now().isoformat()
+            )
+
+        except Exception as e:
+            self.logger.error(f"Crawling error for {domain}: {str(e)}")
+            # Update status to failed
+            self.customer_manager.update_crawl_status(
+                customer_id=customer_id,
+                status="failed"
+            )
+
+    def _is_media_url(self, url: str) -> bool:
+        """Check if URL points to media file"""
+        extensions = {
+            '.jpg', '.jpeg', '.png', '.gif',
+            '.webp', '.svg', '.ico', '.bmp', '.tiff'
+        }
+        return any(url.lower().endswith(ext) for ext in extensions)
+
+    async def _crawl_page(self, url: str, domain: str):
+        """Crawl single page and extract content"""
+        if len(self.visited_urls) >= self.max_pages or url in self.visited_urls:
             return
 
         try:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    html = await response.text()
-                    soup = BeautifulSoup(html, 'html.parser')
+            self.visited_urls.add(url)
+            response = requests.get(url, timeout=10)
+            soup = BeautifulSoup(response.text, 'html.parser')
 
-                    # استخراج محتوا
-                    content = self._extract_content(soup)
-                    if content:
-                        self.data.append({
-                            'url': url,
-                            'title': soup.title.string if soup.title else '',
-                            'content': content
-                        })
+            # Extract and store content
+            content = self._extract_content(soup)
+            if content:
+                # Store content using customer manager
+                pass
 
-                    self.visited_urls.add(url)
-
-                    # پیدا کردن لینک‌های جدید
-                    links = soup.find_all('a', href=True)
-                    tasks = []
-                    for link in links:
-                        href = link['href']
-                        if href.startswith('/'):
-                            href = urljoin(self.base_url, href)
-                        if self._is_valid_url(href):
-                            tasks.append(self._crawl_page(session, href, max_pages))
-
-                    if tasks:
-                        await asyncio.gather(*tasks)
+            # Find and crawl links
+            links = self._extract_links(soup, domain)
+            for link in links:
+                if link not in self.visited_urls:
+                    await self._crawl_page(link, domain)
 
         except Exception as e:
-            logging.error(f"Error crawling {url}: {str(e)}")
+            self.logger.error(f"Error crawling {url}: {str(e)}")
+
 
     def _extract_content(self, soup: BeautifulSoup) -> str:
-        # حذف اسکریپت‌ها و استایل‌ها
-        for script in soup(['script', 'style', 'nav', 'footer']):
-            script.decompose()
+        """Extract relevant content from page"""
+        # Remove unwanted elements
+        for tag in soup(['script', 'style', 'nav', 'footer', 'header']):
+            tag.decompose()
 
-        # استخراج متن از تگ‌های مهم
-        content_tags = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'li', 'article'])
-        content = ' '.join(tag.get_text().strip() for tag in content_tags)
-        return content
+        # Get text content
+        text = soup.get_text()
+        lines = (line.strip() for line in text.splitlines())
+        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+        return ' '.join(chunk for chunk in chunks if chunk)
+
+    def _extract_links(self, soup: BeautifulSoup, domain: str) -> set:
+        """Extract valid internal links"""
+        links = set()
+        for link in soup.find_all('a'):
+            href = link.get('href')
+            if href:
+                absolute_url = urljoin(domain, href)
+                if urlparse(absolute_url).netloc == urlparse(domain).netloc:
+                    links.add(absolute_url)
+        return links
 
     def _is_valid_url(self, url: str) -> bool:
         try:
