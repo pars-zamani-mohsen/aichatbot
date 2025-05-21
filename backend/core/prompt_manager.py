@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, List
 import logging
 import re
 
@@ -6,80 +6,106 @@ logger = logging.getLogger(__name__)
 
 class PromptManager:
     def __init__(self):
-        # تعریف انواع پرسش و الگوهای آن‌ها
-        self.query_patterns = {
-            'procedural': r'(چگونه|چطور|روش|نحوه)',
-            'comparative': r'(تفاوت|مقایسه|فرق|بهتر|بدتر)',
-            'reasoning': r'(چرا|دلیل|علت)',
-            'faq': r'(متداول|رایج|معمول|سوال)',
-            'technical': r'(فنی|تخصصی|مشخصات|ویژگی)',
-        }
-
-        # پرامپت‌های پایه
-        self.base_prompts = {
-            'general': """به عنوان دستیار هوشمند فارسی‌زبان:
-- از اطلاعات ارائه شده برای پاسخگویی استفاده کنید
-- در صورت نبود اطلاعات کافی، صادقانه اعلام کنید
-- به زبان طبیعی و محاوره‌ای پاسخ دهید
-- از اطلاعات خارج از متن استفاده نکنید""",
-
-            'faq': """به عنوان دستیار پاسخگوی سوالات متداول:
-- پاسخ را کوتاه و مفید ارائه دهید
-- فقط به موضوع اصلی سوال بپردازید
-- از مثال‌های کاربردی استفاده کنید""",
-
-            'technical': """به عنوان دستیار فنی متخصص:
-- پاسخ‌های دقیق و تخصصی ارائه دهید
-- با جزئیات کافی توضیح دهید
-- در صورت نیاز، مراحل را گام به گام شرح دهید
-- به منابع و مستندات استناد کنید"""
-        }
-
-        # دستورالعمل‌های خاص برای هر نوع پرسش
-        self.instructions = {
-            'procedural': "\nلطفاً مراحل را به صورت گام به گام توضیح دهید:",
-            'comparative': "\nلطفاً مقایسه را با ذکر نکات کلیدی انجام دهید:",
-            'reasoning': "\nلطفاً دلایل را با جزئیات کافی شرح دهید:",
-            'general': "\nلطفاً پاسخ را مختصر و مفید ارائه دهید:"
+        self.query_types = {
+            'general': self._general_prompt,
+            'product': self._product_prompt,
+            'support': self._support_prompt,
+            'technical': self._technical_prompt,
+            'pricing': self._pricing_prompt
         }
 
     def detect_query_type(self, query: str) -> str:
-        """تشخیص نوع پرسش با استفاده از الگوهای منظم"""
-        try:
-            query = query.strip().replace('؟', '').lower()
+        """Detect the type of query based on keywords and patterns"""
+        query = query.lower()
+        
+        # Define category patterns in Persian
+        patterns = {
+            'product': ['محصول', 'خدمات', 'قیمت', 'خرید', 'سفارش', 'ویژگی', 'مشخصات'],
+            'support': ['مشکل', 'خطا', 'راهنما', 'پشتیبانی', 'کمک', 'راهنمایی'],
+            'technical': ['نصب', 'تنظیمات', 'پیکربندی', 'تکنیکی', 'فنی'],
+            'pricing': ['هزینه', 'قیمت', 'تعرفه', 'پلن', 'طرح', 'اشتراک']
+        }
+        
+        # Count matches for each category
+        scores = {}
+        for category, keywords in patterns.items():
+            score = sum(1 for keyword in keywords if keyword in query)
+            scores[category] = score
+        
+        # Return category with highest score, or 'general' if no clear match
+        if scores:
+            max_category = max(scores.items(), key=lambda x: x[1])
+            if max_category[1] > 0:
+                return max_category[0]
+        return 'general'
 
-            for q_type, pattern in self.query_patterns.items():
-                if re.search(pattern, query):
-                    logger.info(f"Query type detected: {q_type}")
-                    return q_type
+    def get_prompt(self, query: str, context: str, query_type: str = 'general') -> str:
+        """Generate appropriate prompt based on query type"""
+        if query_type in self.query_types:
+            return self.query_types[query_type](query, context)
+        return self._general_prompt(query, context)
 
-            return 'general'
+    def _general_prompt(self, query: str, context: str) -> str:
+        """Generate prompt for general queries"""
+        return f"""Based on the following information, please answer the user's question in Persian.
+If the information is not sufficient to provide a complete answer, please say so honestly.
 
-        except Exception as e:
-            logger.error(f"Error in query type detection: {str(e)}")
-            return 'general'
+Context:
+{context}
 
-    def get_prompt(self, query: str, context: str, prompt_type: Optional[str] = None) -> str:
-        """ساخت پرامپت نهایی با ترکیب اجزای مختلف"""
-        try:
-            # تشخیص نوع پرامپت اگر مشخص نشده باشد
-            if not prompt_type:
-                prompt_type = 'technical' if 'technical' in self.detect_query_type(query) else 'general'
+Question: {query}
 
-            # انتخاب پرامپت پایه
-            base_prompt = self.base_prompts.get(prompt_type, self.base_prompts['general'])
+Please provide a clear and helpful response in Persian, using natural and conversational language.
+If you use information from specific sources, cite them using [n] where n is the source number."""
 
-            # تشخیص نوع سوال برای دستورالعمل
-            query_type = self.detect_query_type(query)
-            instruction = self.instructions.get(query_type, self.instructions['general'])
+    def _product_prompt(self, query: str, context: str) -> str:
+        """Generate prompt for product-related queries"""
+        return f"""Based on the following product information, please answer the user's question in Persian.
+Focus on providing accurate product details, features, and specifications.
 
-            # ساخت پرامپت نهایی
-            prompt = f"{base_prompt}\n\nمتن مرجع:\n{context}\n{instruction}\n\nسوال: {query}\nپاسخ:"
+Context:
+{context}
 
-            logger.info(f"Generated prompt for type: {prompt_type}, query type: {query_type}")
-            return prompt
+Question: {query}
 
-        except Exception as e:
-            logger.error(f"Error in prompt generation: {str(e)}")
-            # بازگشت به ساده‌ترین حالت در صورت بروز خطا
-            return f"لطفاً با توجه به این اطلاعات:\n{context}\n\nبه این سوال پاسخ دهید:\n{query}"
+Please provide a detailed response about the product in Persian, using natural and conversational language.
+If you use information from specific sources, cite them using [n] where n is the source number."""
+
+    def _support_prompt(self, query: str, context: str) -> str:
+        """Generate prompt for support-related queries"""
+        return f"""Based on the following support information, please help the user with their issue in Persian.
+Focus on providing clear, step-by-step solutions and troubleshooting steps.
+
+Context:
+{context}
+
+Question: {query}
+
+Please provide a helpful and supportive response in Persian, using natural and conversational language.
+If you use information from specific sources, cite them using [n] where n is the source number."""
+
+    def _technical_prompt(self, query: str, context: str) -> str:
+        """Generate prompt for technical queries"""
+        return f"""Based on the following technical information, please answer the user's question in Persian.
+Focus on providing accurate technical details and implementation steps.
+
+Context:
+{context}
+
+Question: {query}
+
+Please provide a technical response in Persian, using natural and conversational language.
+If you use information from specific sources, cite them using [n] where n is the source number."""
+
+    def _pricing_prompt(self, query: str, context: str) -> str:
+        """Generate prompt for pricing-related queries"""
+        return f"""Based on the following pricing information, please answer the user's question in Persian.
+Focus on providing clear and accurate pricing details, plans, and options.
+
+Context:
+{context}
+
+Question: {query}
+
+Please provide a detailed response about pricing in Persian, using natural and conversational language.
+If you use information from specific sources, cite them using [n] where n is the source number."""

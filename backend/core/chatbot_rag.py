@@ -46,49 +46,70 @@ class RAGChatbot:
                  api_key: Optional[str] = None,
                  model_name: str = OPENAI_MODEL_NAME,
                  db_directory: str = DB_DIRECTORY):
-        """راه‌اندازی چت‌بات RAG با وابستگی‌های آن"""
+        """Initialize RAG chatbot with dependencies"""
 
-        # راه‌اندازی کلاینت Chroma
+        # Initialize Chroma client
         self.db_client = chromadb.PersistentClient(path=db_directory)
 
-        # راه‌اندازی اجزای اصلی
+        # Initialize core components
         self.text_processor = TextProcessor()
         self.prompt_manager = PromptManager()
 
-        # راه‌اندازی مدل‌ها
+        # Initialize models
         self.embedding_function = SentenceTransformer(EMBEDDING_MODEL_NAME)
 
-        # تنظیم کلید API و مدل
+        # Set API key and model
         if api_key:
             self.api_key = api_key
         elif 'OPENAI_API_KEY' in os.environ:
             self.api_key = os.environ['OPENAI_API_KEY']
         else:
-            raise ValueError("کلید API OpenAI مشخص نشده است. لطفاً آن را در متغیر محیطی OPENAI_API_KEY تنظیم کنید یا به عنوان پارامتر ارسال کنید.")
+            raise ValueError("OpenAI API key not specified. Please set it in OPENAI_API_KEY environment variable or pass as parameter.")
 
-        # ایجاد کلاینت OpenAI
+        # Create OpenAI client
         self.openai_client = OpenAI(api_key=self.api_key)
         self.model_name = model_name
 
-        # دریافت یا ایجاد کالکشن
+        # Get or create collection
         self.collection = self.db_client.get_or_create_collection(
             name=collection_name,
             metadata={"hnsw:space": "cosine"}
         )
 
-        # راه‌اندازی جستجوگر ترکیبی
+        # Initialize hybrid searcher
         self.searcher = HybridSearcher(collection=self.collection)
 
-        # مدیریت تاریخچه چت
+        # Chat history management
         self.chat_history = []
         self.max_history = MAX_CHAT_HISTORY
 
-        # تنظیم راهنمای سیستم
-        self.system_prompt = """شما یک دستیار هوشمند هستید که به سوالات کاربران پاسخ می‌دهید.
-        برای پاسخ به سوالات کاربر، از اطلاعات زیر استفاده کنید. اگر اطلاعات کافی در منابع نیست، این را صادقانه به کاربر بگویید.
-        پاسخ‌های خود را به زبان فارسی ارائه دهید و به صورت طبیعی و محاوره‌ای صحبت کنید.
+        # Set system prompt
+        self.system_prompt = """You are an intelligent assistant that answers user questions.
+        Use the following information to answer user questions. If there isn't enough information in the sources, honestly tell the user.
+        Provide your responses in Persian and speak naturally and conversationally.
         """
-        self.system_prompt += "\nهنگام پاسخ، اگر اطلاعاتی از یک منبع خاص استفاده می‌شود، شماره منبع را به صورت [n] در متن پاسخ ذکر کن."
+        self.system_prompt += "\nWhen answering, if information from a specific source is used, cite the source number as [n] in the response text."
+
+    async def get_response(self, query: str, collection_name: str = None) -> str:
+        """Get response from chatbot"""
+        if collection_name:
+            self.collection = self.db_client.get_or_create_collection(
+                name=collection_name,
+                metadata={"hnsw:space": "cosine"}
+            )
+            self.searcher = HybridSearcher(collection=self.collection)
+
+        answer, _ = self.answer_question(query, self.chat_history)
+        
+        # Add to chat history
+        self.chat_history.append({"role": "user", "content": query})
+        self.chat_history.append({"role": "assistant", "content": answer})
+
+        # Limit chat history length
+        if len(self.chat_history) > self.max_history:
+            self.chat_history = self.chat_history[-self.max_history:]
+
+        return answer
 
     @staticmethod
     def is_garbage_context(text):
@@ -116,46 +137,36 @@ class RAGChatbot:
                 return True
         return False
 
-    def get_relevant_context(self, query, n_results=3, query_type='general'):
-        results = self.search_knowledge_base(query, n_results, query_type)
+    def get_relevant_context(self, query: str, n_results: int = 3, query_type: str = 'general') -> str:
+        """Get relevant context from knowledge base"""
+        results = self.searcher.search(query, n_results, query_type)
 
         if not results or not results["documents"] or not results["documents"][0]:
-            return "اطلاعاتی یافت نشد."
+            return "No information found."
 
         context = ""
-        query_words = set(query.strip().split())
-        min_overlap = 3  # stricter
         for i, (doc, meta) in enumerate(zip(results["documents"][0], results["metadatas"][0])):
-            if RAGChatbot.is_garbage_context(doc):
-                continue
-            doc_words = set(doc.strip().split())
-            overlap = len(query_words & doc_words)
-            if len(doc.strip()) < 50 or overlap < min_overlap:
-                continue
-            if not RAGChatbot.has_phrase_match(query, doc, n=2):
-                continue
-            title = meta.get('title', 'بدون عنوان')
-            url = meta.get('url', 'بدون URL')
-            context += f"\n=== منبع {i+1}: {title} ===\nURL: {url}\n{doc}\n"
+            title = meta.get('title', 'No title')
+            url = meta.get('url', 'No URL')
+            context += f"\n=== Source {i+1}: {title} ===\nURL: {url}\n{doc}\n"
 
-        if not context:
-            return "اطلاعاتی یافت نشد."
         return context
 
-    def answer_question(self, query, chat_history=None, n_results=5):
+    def answer_question(self, query: str, chat_history=None, n_results=5):
+        """Answer user question using RAG"""
         query_type = self.prompt_manager.detect_query_type(query)
         relevant_context = self.get_relevant_context(query, n_results, query_type)
 
-        if relevant_context == "اطلاعاتی یافت نشد.":
-            return "متاسفم، اطلاعات مرتبطی برای سوال شما در پایگاه دانش پیدا نشد.", relevant_context
+        if relevant_context == "No information found.":
+            return "I'm sorry, I couldn't find relevant information in the knowledge base to answer your question.", relevant_context
 
         prompt = self.prompt_manager.get_prompt(query, relevant_context, query_type)
-        messages = [{"role": "system", "content": self.system_prompt + f"\n\nاطلاعات مرتبط:\n{relevant_context}"}]
+        messages = [{"role": "system", "content": self.system_prompt + f"\n\nRelevant information:\n{relevant_context}"}]
         if chat_history:
             messages.extend(chat_history[-MAX_CHAT_HISTORY:])
         messages.append({"role": "user", "content": query})
 
-        response = self.client.chat.completions.create(
+        response = self.openai_client.chat.completions.create(
             model=self.model_name,
             messages=messages,
             temperature=0.5,
@@ -173,49 +184,49 @@ class RAGChatbot:
                     seen_urls.add(url)
                     sources.append(url)
         if sources:
-            answer += "\n\nمنابع:\n"
+            answer += "\n\nSources:\n"
             for idx, src in enumerate(sources, 1):
-                answer += f"{idx}. [منبع {idx}]({src})\n"
+                answer += f"{idx}. [Source {idx}]({src})\n"
 
         return answer, relevant_context
 
     def chat_loop(self, n_results=5):
-        """حلقه اصلی تعامل با کاربر"""
+        """Main interaction loop with user"""
 
-        print("\n=== چت‌بات RAG ===")
-        print("برای خروج، عبارت 'exit' یا 'quit' را وارد کنید.\n")
+        print("\n=== RAG Chatbot ===")
+        print("Type 'exit' or 'quit' to end the conversation.\n")
 
         chat_history = []
 
         while True:
-            # دریافت پرس‌وجو از کاربر
-            query = input("\nشما: ")
+            # Get query from user
+            query = input("\nYou: ")
 
-            # بررسی خروج
-            if query.lower() in ['exit', 'quit', 'خروج']:
-                print("\nخداحافظ!")
+            # Check for exit
+            if query.lower() in ['exit', 'quit']:
+                print("\nGoodbye!")
                 break
 
-            # پاسخ به پرس‌وجو
+            # Answer query
             answer, relevant_context = self.answer_question(query, chat_history, n_results)
 
-            # چاپ پاسخ
-            print(f"\nچت‌بات: {answer}")
+            # Print answer
+            print(f"\nChatbot: {answer}")
 
-            # افزودن به تاریخچه چت
+            # Add to chat history
             chat_history.append({"role": "user", "content": query})
             chat_history.append({"role": "assistant", "content": answer})
 
-            # محدود کردن طول تاریخچه چت
+            # Limit chat history length
             if len(chat_history) > MAX_CHAT_HISTORY:
                 chat_history = chat_history[-MAX_CHAT_HISTORY:]
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='چت‌بات RAG')
-    parser.add_argument('--db_dir', default='knowledge_base', help='مسیر پایگاه دانش')
-    parser.add_argument('--collection', default='website_data', help='نام کالکشن')
-    parser.add_argument('--api_key', help='کلید API OpenAI')
-    parser.add_argument('--model', default='gpt-3.5-turbo', help='نام مدل OpenAI')
+    parser = argparse.ArgumentParser(description='RAG Chatbot')
+    parser.add_argument('--db_dir', default='knowledge_base', help='Knowledge base directory')
+    parser.add_argument('--collection', default='website_data', help='Collection name')
+    parser.add_argument('--api_key', help='OpenAI API key')
+    parser.add_argument('--model', default='gpt-3.5-turbo', help='OpenAI model name')
 
     args = parser.parse_args()
 
@@ -228,4 +239,4 @@ if __name__ == "__main__":
         )
         chatbot.chat_loop()
     except Exception as e:
-        print(f"خطا در اجرای چت‌بات: {e}")
+        print(f"Error running chatbot: {e}")

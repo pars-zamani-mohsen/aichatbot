@@ -10,6 +10,16 @@ from settings import (
     MAX_TOKENS, TOKENS_PER_MIN,
     MAX_CHAT_HISTORY
 )
+from core.scrape_website import scrape_website
+from core.process_data import process_website_data
+from core.create_embeddings import create_embeddings
+from core.create_knowledge_base import create_knowledge_base
+import logging
+from pathlib import Path
+
+# تنظیم لاگینگ
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__, static_folder='static')
@@ -50,6 +60,46 @@ def initialize_chatbot(chatbot_type="online", collection_name=COLLECTION_NAME, d
 def index():
     """Serve main page"""
     return render_template('index.html')
+
+@app.route('/api/register', methods=['POST'])
+def register_website():
+    """ثبت سایت و ساخت پایگاه دانش"""
+    try:
+        data = request.json
+        url = data.get('url')
+        max_pages = int(data.get('max_pages', 50))
+        collection_name = data.get('collection')
+        if not url or not collection_name:
+            return jsonify({'error': 'URL and collection are required'}), 400
+        base_dir = Path('processed_data') / collection_name
+        base_dir.mkdir(parents=True, exist_ok=True)
+        if not scrape_website(url, max_pages, base_dir / 'output.json'):
+            return jsonify({'error': 'Website crawling failed'}), 500
+        if not process_website_data(base_dir / 'output.json', base_dir):
+            return jsonify({'error': 'Data processing failed'}), 500
+        if not create_embeddings(
+            input_file=base_dir / 'processed_data.csv',
+            output_dir=base_dir,
+            model_name='all-MiniLM-L6-v2',  # یا مقدار داینامیک از ورودی
+            chunk_size=1000  # یا مقدار داینامیک از ورودی
+        ):
+            return jsonify({'error': 'Embedding creation failed'}), 500
+        if not create_knowledge_base(
+            embeddings_dir=base_dir,
+            collection_name=collection_name,
+            db_path=base_dir / 'knowledge_base'
+        ):
+            return jsonify({'error': 'Knowledge base creation failed'}), 500
+        if not initialize_chatbot(collection_name=collection_name):
+            return jsonify({'error': 'Chatbot initialization failed'}), 500
+        return jsonify({
+            'status': 'success',
+            'message': 'Website registered and knowledge base created successfully',
+            'collection': collection_name
+        })
+    except Exception as e:
+        logger.error(f"خطا در ثبت سایت: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/chat', methods=['POST'])
 def chat():

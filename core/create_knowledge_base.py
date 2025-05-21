@@ -20,9 +20,20 @@ logger = logging.getLogger(__name__)
 
 def create_knowledge_base(
     embeddings_dir,
-    collection_name=COLLECTION_NAME,
-    db_path=DB_DIRECTORY
+    collection_name,
+    db_path
 ):
+    """
+    ایجاد پایگاه دانش از امبدینگ‌ها
+    
+    Args:
+        embeddings_dir (str): مسیر پوشه امبدینگ‌ها
+        collection_name (str): نام کالکشن در پایگاه دانش
+        db_path (str): مسیر پایگاه دانش
+    
+    Returns:
+        bool: True در صورت موفقیت، False در صورت خطا
+    """
     try:
         embeddings_dir = Path(embeddings_dir)
         # ساخت مسیر پایگاه داده در کنار embeddings
@@ -30,6 +41,7 @@ def create_knowledge_base(
         db_path.mkdir(parents=True, exist_ok=True)
 
         # خواندن فایل‌های امبدینگ
+        logger.info("خواندن فایل‌های امبدینگ...")
         with open(embeddings_dir / 'embeddings.json', 'r') as f:
             embeddings = json.load(f)
 
@@ -47,6 +59,7 @@ def create_knowledge_base(
         db_path.mkdir(parents=True, exist_ok=True)
 
         # ایجاد کلاینت ChromaDB
+        logger.info("ایجاد کلاینت ChromaDB...")
         client = chromadb.PersistentClient(
             path=str(db_path),
             settings=Settings(
@@ -66,6 +79,7 @@ def create_knowledge_base(
         collection = client.create_collection(name=collection_name)
 
         # خواندن داده‌های اصلی برای دسترسی به محتوا
+        logger.info("خواندن داده‌های اصلی...")
         data_df = pd.read_csv(embeddings_dir.parent / 'processed_data.csv')
         content_map = dict(zip(data_df['url'], data_df['content']))
 
@@ -93,6 +107,7 @@ def create_knowledge_base(
             })
 
         # افزودن داده‌ها به کالکشن
+        logger.info("افزودن داده‌ها به کالکشن...")
         collection.add(
             embeddings=embeddings,
             documents=documents,
@@ -111,10 +126,10 @@ def create_knowledge_base(
         with open(db_path / 'db_info.json', 'w', encoding='utf-8') as f:
             json.dump(db_info, f, ensure_ascii=False, indent=2)
 
-        print(f"\n=== پایگاه دانش با موفقیت ایجاد شد ===")
-        print(f"نام کالکشن: {collection_name}")
-        print(f"تعداد اسناد: {len(documents)}")
-        print(f"مسیر پایگاه دانش: {db_path}")
+        logger.info(f"\n=== پایگاه دانش با موفقیت ایجاد شد ===")
+        logger.info(f"نام کالکشن: {collection_name}")
+        logger.info(f"تعداد اسناد: {len(documents)}")
+        logger.info(f"مسیر پایگاه دانش: {db_path}")
 
         return True
 
@@ -125,8 +140,8 @@ def create_knowledge_base(
 def parse_args():
     parser = argparse.ArgumentParser(description='ایجاد پایگاه دانش از امبدینگ‌ها')
     parser.add_argument('--embeddings_dir', required=True, help='مسیر پوشه امبدینگ‌ها')
-    parser.add_argument('--collection', default=COLLECTION_NAME, help='نام کالکشن در پایگاه دانش')
-    parser.add_argument('--db-path', default=DB_DIRECTORY, help='مسیر پایگاه دانش')
+    parser.add_argument('--collection', default='parsicanada', help='نام کالکشن در پایگاه دانش')
+    parser.add_argument('--db-path', default='processed_data/knowledge_base', help='مسیر پایگاه دانش')
     return parser.parse_args()
 
 if __name__ == "__main__":
