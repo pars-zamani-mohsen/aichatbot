@@ -30,7 +30,7 @@ def initialize_chatbot(chatbot_type="online", collection_name=COLLECTION_NAME, d
         else:
             # ساخت مسیر کامل با توجه به نام کالکشن
             domain = collection_name.replace('_', '.')
-            full_db_path = f"processed_data/{domain}/knowledge_base"
+            full_db_path = f"processed_data/{domain}/knowledge_base/{domain}"
 
         print(f"Using database directory: {full_db_path}")
 

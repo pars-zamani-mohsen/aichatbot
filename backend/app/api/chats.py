@@ -1,0 +1,251 @@
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, WebSocketException
+from sqlalchemy.orm import Session
+from typing import List, Dict
+import json
+import uuid
+from ..database.database import get_db
+from ..database import models
+from . import schemas
+from .auth import get_current_user
+from ..services.rag import RAGService
+from ..config import settings
+from jose import JWTError, jwt
+from ..core.chatbot_factory import ChatbotFactory
+import logging
+
+router = APIRouter()
+logger = logging.getLogger(__name__)
+
+# مدیریت اتصالات WebSocket
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict = {}  # {session_id: WebSocket}
+
+    async def connect(self, websocket: WebSocket, session_id: str):
+        await websocket.accept()
+        self.active_connections[session_id] = websocket
+
+    def disconnect(self, session_id: str):
+        if session_id in self.active_connections:
+            del self.active_connections[session_id]
+
+    async def send_message(self, message: str, session_id: str):
+        if session_id in self.active_connections:
+            await self.active_connections[session_id].send_text(message)
+
+manager = ConnectionManager()
+
+@router.post("/", response_model=schemas.Chat)
+async def create_chat(
+    chat: schemas.ChatCreate,
+    db: Session = Depends(get_db)
+):
+    # بررسی وجود سایت
+    website = db.query(models.Website).filter(
+        models.Website.id == chat.website_id,
+        models.Website.status == "ready"
+    ).first()
+    
+    if website is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="سایت یافت نشد یا هنوز آماده نیست"
+        )
+    
+    # ایجاد چت جدید
+    db_chat = models.Chat(
+        website_id=chat.website_id,
+        session_id=chat.session_id
+    )
+    db.add(db_chat)
+    db.commit()
+    db.refresh(db_chat)
+    
+    return db_chat
+
+@router.get("/{chat_id}", response_model=schemas.Chat)
+async def read_chat(
+    chat_id: int,
+    db: Session = Depends(get_db)
+):
+    chat = db.query(models.Chat).filter(models.Chat.id == chat_id).first()
+    
+    if chat is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="چت یافت نشد"
+        )
+    
+    return chat
+
+@router.get("/{chat_id}/messages", response_model=List[schemas.Message])
+async def read_messages(
+    chat_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    messages = db.query(models.Message).filter(
+        models.Message.chat_id == chat_id
+    ).offset(skip).limit(limit).all()
+    
+    return messages
+
+@router.websocket("/ws/{website_id}")
+async def websocket_endpoint(websocket: WebSocket, website_id: int, db: Session = Depends(get_db)):
+    # --- احراز هویت ---
+    token = None
+    for header, value in websocket.headers.items():
+        if header.lower() == "authorization":
+            if value.startswith("Bearer "):
+                token = value[7:]
+            else:
+                token = value
+    if not token:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_email = payload.get("sub")
+        if user_email is None:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+    except JWTError:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    # --- پایان احراز هویت ---
+
+    # بررسی وجود سایت
+    website = db.query(models.Website).filter(
+        models.Website.id == website_id,
+        models.Website.status == "ready"
+    ).first()
+    
+    if website is None:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    
+    # ایجاد شناسه جلسه
+    session_id = str(uuid.uuid4())
+    
+    # ایجاد چت جدید
+    db_chat = models.Chat(
+        website_id=website_id,
+        session_id=session_id
+    )
+    db.add(db_chat)
+    db.commit()
+    db.refresh(db_chat)
+    
+    # اتصال WebSocket
+    await manager.connect(websocket, session_id)
+    
+    try:
+        # ایجاد سرویس RAG
+        rag_service = RAGService(website.collection_name)
+        
+        while True:
+            # دریافت پیام از کاربر
+            data = await websocket.receive_text()
+            message_data = json.loads(data)
+            
+            # ذخیره پیام کاربر
+            user_message = models.Message(
+                chat_id=db_chat.id,
+                role="user",
+                content=message_data["message"]
+            )
+            db.add(user_message)
+            db.commit()
+            
+            # دریافت پاسخ از RAG
+            answer, sources = rag_service.get_answer(message_data["message"])
+            
+            # ذخیره پاسخ
+            assistant_message = models.Message(
+                chat_id=db_chat.id,
+                role="assistant",
+                content=answer,
+                sources=sources
+            )
+            db.add(assistant_message)
+            db.commit()
+            
+            # ارسال پاسخ به کاربر
+            await manager.send_message(
+                json.dumps({
+                    "message": answer,
+                    "sources": sources
+                }),
+                session_id
+            )
+            
+    except WebSocketDisconnect:
+        manager.disconnect(session_id)
+    except Exception as e:
+        manager.disconnect(session_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.post("/chat", response_model=schemas.ChatResponse)
+async def chat(
+    chat: schemas.ChatCreate,
+    chatbot_type: str = "openai",
+    db: Session = Depends(get_db)
+):
+    """ارسال پرسش به چت‌بات"""
+    try:
+        # ایجاد چت‌بات
+        chatbot = ChatbotFactory.create_chatbot(chatbot_type=chatbot_type)
+        
+        # ارسال پرسش
+        response = chatbot.ask(chat.question)
+        
+        # ذخیره در دیتابیس
+        chat_record = models.Chat(
+            question=chat.question,
+            answer=response["answer"],
+            sources=response["sources"]
+        )
+        db.add(chat_record)
+        db.commit()
+        db.refresh(chat_record)
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"خطا در پاسخ به پرسش: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/chats", response_model=List[schemas.Chat])
+async def get_chats(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """دریافت لیست چت‌ها"""
+    try:
+        chats = db.query(models.Chat).offset(skip).limit(limit).all()
+        return chats
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت لیست چت‌ها: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/chats/{chat_id}", response_model=schemas.Chat)
+async def get_chat(
+    chat_id: int,
+    db: Session = Depends(get_db)
+):
+    """دریافت اطلاعات یک چت"""
+    try:
+        chat = db.query(models.Chat).filter(models.Chat.id == chat_id).first()
+        if not chat:
+            raise HTTPException(status_code=404, detail="چت یافت نشد")
+        return chat
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت اطلاعات چت: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 

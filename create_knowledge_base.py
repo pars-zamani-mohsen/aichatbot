@@ -26,7 +26,7 @@ def create_knowledge_base(
     try:
         embeddings_dir = Path(embeddings_dir)
         # ساخت مسیر پایگاه داده در کنار embeddings
-        db_path = embeddings_dir.parent / 'knowledge_base'
+        db_path = embeddings_dir.parent / 'knowledge_base/{domain}'
         db_path.mkdir(parents=True, exist_ok=True)
 
         # خواندن فایل‌های امبدینگ

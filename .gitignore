@@ -1,3 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Data
+data/
+*.db
+*.sqlite3
+
+# Environment variables
+.env
+.env.*
+
+# Docker
+.docker/
+
+# System
+.DS_Store
+Thumbs.db
+
 .env
 embeddings/
 knowledge_base/
@@ -7,4 +60,5 @@ knowledge_base/*
 processed_data/*
 *.json
 *.csv
-*.png
+frontend/node_modules
+frontend/node_modules/*

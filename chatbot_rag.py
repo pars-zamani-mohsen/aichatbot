@@ -21,7 +21,7 @@ PERSIAN_STOPWORDS = set([
 ])
 
 class RAGChatbot:
-    def __init__(self, db_directory="knowledge_base", collection_name="website_data",
+    def __init__(self, db_directory="knowledge_base/{domain}", collection_name="website_data",
                  api_key=None, model_name="gpt-3.5-turbo"):
         """مقداردهی اولیه چت‌بات RAG"""
 

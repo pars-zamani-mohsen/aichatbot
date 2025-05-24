@@ -15,7 +15,7 @@ except ImportError:
     pass
 
 class RAGChatbot:
-    def __init__(self, db_directory="knowledge_base", collection_name="website_data",
+    def __init__(self, db_directory="knowledge_base/{domain}", collection_name="website_data",
                  model_name="llama3.2:latest"):
         """مقداردهی اولیه چت‌بات RAG با استفاده از مدل محلی Ollama"""
 

@@ -11,7 +11,7 @@ from hybrid_searcher import HybridSearcher
 from prompt_manager import PromptManager
 
 class RAGChatbot:
-    def __init__(self, db_directory="knowledge_base", collection_name="website_data",
+    def __init__(self, db_directory="knowledge_base/{domain}", collection_name="website_data",
                  api_key=None, model_name="gemini-pro"):
         """مقداردهی اولیه چت‌بات RAG با Gemini"""
 

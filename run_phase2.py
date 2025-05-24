@@ -14,7 +14,7 @@ def is_port_in_use(port):
 
 def run_phase2(domain,
                embeddings_dir='embeddings',
-               db_dir='knowledge_base',
+               db_dir='knowledge_base/{domain}',
                collection_name=None,
                model_name='all-MiniLM-L6-v2',
                test_queries=None,
