@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}New Crawl Request - Web Crawler{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">New Crawl Request</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('crawl_request') }}">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.url.label(class="form-label") }}
+                        {{ form.url(class="form-control", placeholder="https://example.com") }}
+                        {% if form.url.errors %}
+                            {% for error in form.url.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.max_pages.label(class="form-label") }}
+                        {{ form.max_pages(class="form-control", type="number", min="1", max="1000") }}
+                        {% if form.max_pages.errors %}
+                            {% for error in form.max_pages.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.max_depth.label(class="form-label") }}
+                        {{ form.max_depth(class="form-control", type="number", min="1", max="10") }}
+                        {% if form.max_depth.errors %}
+                            {% for error in form.max_depth.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.include_links.label(class="form-label") }}
+                        {{ form.include_links(class="form-check-input") }}
+                        {% if form.include_links.errors %}
+                            {% for error in form.include_links.errors %}
+                                <div class="text-danger">{{ error }}</div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    <div class="d-grid">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

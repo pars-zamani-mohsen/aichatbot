@@ -1,1 +1,54 @@
- 
+echo "🚀 شروع نصب packages..." && \
+echo "🔧 نصب Core Dependencies..." && \
+pip install --upgrade pip==23.3.1 setuptools==68.0.0 wheel==0.41.2 && \
+pip install numpy==1.24.3 && \
+echo "✅ Core Dependencies نصب شد!" && \
+echo "🤖 نصب AI/ML Core..." && \
+pip install torch==2.1.1 --index-url https://download.pytorch.org/whl/cpu && \
+pip install transformers==4.30.2 huggingface-hub==0.15.1 sentence-transformers==2.2.2 tokenizers==0.13.3 && \
+echo "✅ AI/ML Core نصب شد!" && \
+echo "🌐 نصب Web Framework..." && \
+pip install flask==2.3.3 werkzeug==2.3.7 flask-sqlalchemy==3.1.1 flask-login==0.6.2 flask-migrate==4.1.0 python-multipart==0.0.6 && \
+echo "✅ Web Framework نصب شد!" && \
+echo "🗄️ نصب Database..." && \
+pip install sqlalchemy==2.0.23 alembic==1.12.1 psycopg2-binary==2.9.9 && \
+echo "✅ Database packages نصب شد!" && \
+echo "🔐 نصب Authentication..." && \
+pip install python-jose[cryptography]==3.3.0 passlib[bcrypt]==1.7.4 bcrypt==4.0.1 && \
+echo "✅ Authentication packages نصب شد!" && \
+echo "📊 نصب Data Processing..." && \
+pip install pandas==2.1.3 beautifulsoup4==4.12.2 requests==2.31.0 websockets==12.0 && \
+echo "✅ Data Processing packages نصب شد!" && \
+echo "🧠 نصب AI Services..." && \
+pip install openai==1.3.7 google-generativeai==0.3.1 rank-bm25==0.2.2 langdetect==1.0.9 && \
+echo "✅ AI Services نصب شد!" && \
+echo "🔍 نصب Vector Database..." && \
+pip install chromadb==0.4.18 langchain==0.0.335 && \
+echo "✅ Vector Database نصب شد!" && \
+echo "⚙️ نصب Utilities..." && \
+pip install python-dotenv==1.0.0 pydantic==2.7.0 pydantic-settings==2.2.1 email-validator==2.1.0 && \
+echo "✅ Utilities نصب شد!" && \
+echo "🛠️ نصب Development Tools..." && \
+echo "🔄 نصب Task Queue..." && \
+pip install celery==5.3.6 redis==5.0.1 && \
+echo "✅ Task Queue نصب شد!" && \
+pip install pytest==7.4.3 black==23.11.0 isort==5.12.0 flake8==6.1.0 && \
+echo "🎉 همه packages با موفقیت نصب شدند!"
+
+
+python -c "import numpy; print('✅ NumPy:', numpy.__version__)"
+python -c "import torch; print('✅ PyTorch:', torch.__version__)"
+python -c "import transformers; print('✅ Transformers:', transformers.__version__)"
+python -c "import sentence_transformers; print('✅ Sentence Transformers: OK')"
+python -c "import flask; print('✅ Flask:', flask.__version__)"
+python -c "import sqlalchemy; print('✅ SQLAlchemy:', sqlalchemy.__version__)"
+python -c "import pandas; print('✅ Pandas:', pandas.__version__)"
+python -c "import requests; print('✅ Requests:', requests.__version__)"
+python -c "import openai; print('✅ OpenAI:', openai.__version__)"
+python -c "import celery; print('✅ Celery:', celery.__version__)"
+python -c "import redis; print('✅ Redis:', redis.__version__)"
+python -c "import email_validator; print('✅ Email Validator:', email_validator.__version__)"
+python -c "import multipart; print('✅ Python Multipart: OK')"
+
+pip freeze > requirements_final.txt
+echo "تعداد packages: $(pip list | wc -l)"

@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}View Crawl - Web Crawler{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Crawl Details</h4>
+                <div>
+                    <a href="{{ url_for('manage_crawls') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </a>
+                    {% if crawl.status == 'completed' %}
+                    <a href="{{ url_for('download_crawl', crawl_id=crawl.id) }}" class="btn btn-success">
+                        <i class="fas fa-download"></i> Download
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h5>URL</h5>
+                        <p class="text-break">{{ crawl.url }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Status</h5>
+                        <span class="badge {% if crawl.status == 'completed' %}bg-success{% elif crawl.status == 'failed' %}bg-danger{% else %}bg-warning{% endif %}">
+                            {{ crawl.status }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <h5>Pages Crawled</h5>
+                        <p>{{ crawl.pages_crawled }}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h5>Max Pages</h5>
+                        <p>{{ crawl.max_pages }}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h5>Max Depth</h5>
+                        <p>{{ crawl.max_depth }}</p>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h5>Created At</h5>
+                        <p>{{ crawl.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>Include Links</h5>
+                        <p>{{ 'Yes' if crawl.include_links else 'No' }}</p>
+                    </div>
+                </div>
+
+                {% if crawl.status == 'completed' %}
+                <div class="row">
+                    <div class="col-12">
+                        <h5>Crawl Results</h5>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Page URL</th>
+                                        <th>Title</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- TODO: Add crawl results here -->
+                                    <tr>
+                                        <td colspan="3" class="text-center">No results available</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

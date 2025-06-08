@@ -229,6 +229,14 @@ class KnowledgeBasePipeline:
             with open(metadata_path, 'r') as f:
                 metadata = json.load(f)
                 
+            # خواندن داده‌های اصلی
+            csv_path = self.data_dir / "processed_data.csv"
+            if not csv_path.exists():
+                logger.error("فایل داده یافت نشد")
+                return False
+                
+            df = pd.read_csv(csv_path)
+            
             # ایجاد کلاینت ChromaDB
             import chromadb
             client = chromadb.PersistentClient(path=str(self.base_dir / "knowledge_base" / self.domain))
@@ -239,9 +247,17 @@ class KnowledgeBasePipeline:
                 metadata={"hnsw:space": "cosine"}
             )
             
+            # آماده‌سازی داده‌ها
+            documents = []
+            for i, row in df.iterrows():
+                title = row.get('title', '')
+                text = row.get('text', '')
+                documents.append(f"{title}\n\n{text}")
+            
             # اضافه کردن داده‌ها به collection
             collection.add(
                 embeddings=embeddings,
+                documents=documents,
                 metadatas=metadata,
                 ids=[str(i) for i in range(len(embeddings))]
             )

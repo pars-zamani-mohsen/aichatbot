@@ -189,10 +189,6 @@ def start_crawling(website_id: int):
             website.status = "processing"
             db.commit()
             
-            # شروع پردازش داده‌ها
-            from .embedding import process_website
-            process_website.delay(website_id)
-            
         except Exception as e:
             logger.error(f"خطا در کراولینگ سایت {website.url}: {str(e)}")
             website.status = "error"

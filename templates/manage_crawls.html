@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Crawls - Web Crawler{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Manage Crawls</h4>
+                <a href="{{ url_for('crawl_request') }}" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> New Crawl
+                </a>
+            </div>
+            <div class="card-body">
+                {% if crawls %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>URL</th>
+                                <th>Status</th>
+                                <th>Pages Crawled</th>
+                                <th>Created At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for crawl in crawls %}
+                            <tr>
+                                <td>{{ crawl.url }}</td>
+                                <td>
+                                    <span class="badge {% if crawl.status == 'completed' %}bg-success{% elif crawl.status == 'failed' %}bg-danger{% else %}bg-warning{% endif %}">
+                                        {{ crawl.status }}
+                                    </span>
+                                </td>
+                                <td>{{ crawl.pages_crawled }}</td>
+                                <td>{{ crawl.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                <td>
+                                    <div class="btn-group">
+                                        <a href="{{ url_for('view_crawl', crawl_id=crawl.id) }}" class="btn btn-sm btn-info">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if crawl.status == 'completed' %}
+                                        <a href="{{ url_for('download_crawl', crawl_id=crawl.id) }}" class="btn btn-sm btn-success">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        {% endif %}
+                                        <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal{{ crawl.id }}">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+
+                                    <!-- Delete Modal -->
+                                    <div class="modal fade" id="deleteModal{{ crawl.id }}" tabindex="-1">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Confirm Delete</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    Are you sure you want to delete this crawl?
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                    <form action="{{ url_for('delete_crawl', crawl_id=crawl.id) }}" method="POST" class="d-inline">
+                                                        <button type="submit" class="btn btn-danger">Delete</button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="mb-0">No crawls found. Start by creating a new crawl request.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
