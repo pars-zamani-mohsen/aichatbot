@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database.database import engine
@@ -5,13 +6,11 @@ from .database import models
 from .api import websites, chats, auth
 from .config import settings
 from .middleware import error_handler, logging_middleware
+from .core.logging_config import setup_logging
 import logging
 
-# تنظیمات لاگینگ
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+# تنظیم لاگینگ
+setup_logging()
 logger = logging.getLogger(__name__)
 
 # ایجاد جداول دیتابیس

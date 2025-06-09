@@ -5,6 +5,8 @@ from pathlib import Path
 from ..services.hybrid_searcher import HybridSearcher
 from ..services.prompt_manager import PromptManager
 from app.config import settings
+import chromadb
+import httpx
 
 logging.basicConfig(
     level=logging.INFO,
@@ -15,26 +17,43 @@ logger = logging.getLogger(__name__)
 class RAGChatbot:
     def __init__(
         self,
-        db_directory: str,
         collection_name: str,
         openai_api_key: str = None,
         model_name: str = None,
         max_tokens: int = None,
         temperature: float = None
     ):
-        self.db_directory = Path(db_directory)
         self.collection_name = collection_name
         self.model_name = model_name or settings.OPENAI_MODEL_NAME
         self.max_tokens = max_tokens or int(settings.MAX_TOKENS)
         self.temperature = temperature or float(settings.TEMPERATURE)
         
         # تنظیم API key
-        openai.api_key = openai_api_key or settings.OPENAI_API_KEY
+        self.client = openai.OpenAI(
+            api_key=openai_api_key or settings.OPENAI_API_KEY,
+            base_url=settings.OPENAI_API_BASE_URL if hasattr(settings, 'OPENAI_API_BASE_URL') and settings.OPENAI_API_BASE_URL else None,
+            http_client=httpx.Client(timeout=30.0)
+        )
+
+        # ایجاد کلاینت ChromaDB و دریافت کالکشن
+        # مسیر دیتابیس باید در پوشه knowledge_base/domain باشد
+        db_path = Path("/var/www/html/ai/backend/knowledge_base") / collection_name
+        logger.info(f"استفاده از مسیر دیتابیس: {db_path}")
+        
+        if not db_path.exists():
+            logger.error(f"مسیر دیتابیس {db_path} وجود ندارد")
+            raise ValueError(f"مسیر دیتابیس {db_path} وجود ندارد")
+            
+        self.db_client = chromadb.PersistentClient(path=str(db_path))
+        self.collection = self.db_client.get_collection(name=collection_name)
         
         # ایجاد موتور جستجو
         self.searcher = HybridSearcher(
-            collection_name=collection_name,
-            db_directory=db_directory
+            collection=self.collection,
+            chunk_size=int(settings.CHUNK_SIZE),
+            max_tokens=int(settings.MAX_TOKENS),
+            tokens_per_min=int(settings.TOKENS_PER_MIN),
+            embedding_model=settings.EMBEDDING_MODEL_NAME
         )
         
         # ایجاد مدیر پرامپت
@@ -73,7 +92,8 @@ class RAGChatbot:
         ]
         
         # اضافه کردن تاریخچه چت
-        for msg in self.chat_history[-5:]:  # فقط 5 پیام آخر
+        history_length = int(settings.CHAT_HISTORY_LENGTH)
+        for msg in self.chat_history[-history_length:]:
             messages.append(msg)
             
         # اضافه کردن پیام جدید
@@ -100,7 +120,7 @@ class RAGChatbot:
             messages = self._create_messages(question, context)
             
             # ارسال درخواست به API
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
                 max_tokens=self.max_tokens,

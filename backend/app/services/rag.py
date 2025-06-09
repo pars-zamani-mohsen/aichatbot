@@ -3,6 +3,7 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 import logging
 from ..config import settings
+from pathlib import Path
 
 # تنظیمات لاگینگ
 logging.basicConfig(level=logging.INFO)
@@ -14,7 +15,9 @@ class RAGService:
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
         
         # تنظیمات ChromaDB
-        self.chroma_client = chromadb.PersistentClient(path="knowledge_base/{domain}")
+        db_path = Path(settings.KNOWLEDGE_BASE_DIR) / collection_name
+        logger.info(f"استفاده از مسیر دیتابیس: {db_path}")
+        self.chroma_client = chromadb.PersistentClient(path=str(db_path))
         self.collection = self.chroma_client.get_collection(name=collection_name)
         
         # تنظیمات مدل امبدینگ

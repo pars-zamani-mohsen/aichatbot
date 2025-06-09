@@ -127,13 +127,25 @@ class HybridSearcher:
                 mean_score = np.mean(raw_scores)
                 threshold = self.similarity_threshold
 
-                # اگر max_score خیلی نزدیک به threshold بود یا اختلافش با میانگین کم بود، نتیجه را بی‌اعتبار بدان
-                if max_score < threshold or (max_score - mean_score) < 0.1:
-                    logger.info(f"Best score {max_score} below strict threshold {threshold} or not distinct enough")
+                # نرمال‌سازی امتیازات
+                normalized_scores = [score / max_score for score in raw_scores]
+                
+                # بررسی کیفیت نتایج با امتیازات نرمال‌شده
+                if max_score < threshold:
+                    logger.info(f"Best score {max_score:.4f} below threshold {threshold}")
                     return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
-                normalized_distances = [score / max_score for score in raw_scores]
-                result['distances'][0] = normalized_distances
+                # اگر اختلاف بین بهترین امتیاز و میانگین خیلی کم باشد، نتایج را بی‌اعتبار بدان
+                if (max_score - mean_score) < 0.1:
+                    logger.info(f"Results not distinct enough: max={max_score:.4f}, mean={mean_score:.4f}")
+                    return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+
+                # استفاده از امتیازات نرمال‌شده برای نتایج نهایی
+                result['distances'][0] = normalized_scores
+
+                # لاگ کردن اطلاعات بیشتر برای دیباگ
+                logger.info(f"Search results - Max score: {max_score:.4f}, Mean score: {mean_score:.4f}")
+                logger.info(f"Normalized scores: {[f'{score:.4f}' for score in normalized_scores]}")
 
             return result
 
@@ -143,41 +155,70 @@ class HybridSearcher:
 
     def _perform_search(self, query: str, n_results: int) -> Dict:
         try:
+            # جستجوی معنایی
             semantic_results = self.collection.query(
                 query_texts=[query],
                 n_results=min(n_results * 2, len(self.documents))
             )
 
-            logger.info(f"Semantic Results: {semantic_results['distances'][0] if semantic_results.get('distances') and semantic_results['distances'][0] else 'No results'}")
-
-            bm25_scores = self.bm25.get_scores(self._tokenize_text(query))
-            if len(bm25_scores) == 0:
+            if not semantic_results.get('distances') or not semantic_results['distances'][0]:
+                logger.warning("No semantic search results found")
                 return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
-            logger.info(f"Top BM25 Score: {max(bm25_scores) if len(bm25_scores) > 0 else 'No scores'}")
+            semantic_scores = semantic_results['distances'][0]
+            logger.info(f"Semantic Scores: {[f'{score:.4f}' for score in semantic_scores]}")
 
+            # جستجوی BM25
+            bm25_scores = self.bm25.get_scores(self._tokenize_text(query))
+            if len(bm25_scores) == 0:
+                logger.warning("No BM25 scores found")
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+
+            # نرمال‌سازی امتیازات BM25
+            if max(bm25_scores) > 0:
+                bm25_scores = bm25_scores / max(bm25_scores)
+
+            logger.info(f"BM25 Scores (normalized): {[f'{score:.4f}' for score in bm25_scores]}")
+
+            # محاسبه وزن‌های پویا
             sem_w, bm25_w = self._dynamic_weighting(query, semantic_results, bm25_scores)
-            logger.info(f"Weights - Semantic: {sem_w}, BM25: {bm25_w}")
+            logger.info(f"Weights - Semantic: {sem_w:.4f}, BM25: {bm25_w:.4f}")
 
-            # ترکیب نتایج اینجا انجام می‌شود
+            # ترکیب نتایج
             combined_docs, combined_meta = self._combine_results(
                 semantic_results, bm25_scores, sem_w, bm25_w
             )
 
             if not combined_docs:
+                logger.warning("No combined results found")
                 return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
-            final_scores = self._rerank_results(
-                [(doc, query) for doc in combined_docs]
-            )
+            # بازمرتب‌سازی با CrossEncoder
+            doc_pairs = [(doc, query) for doc in combined_docs]
+            rerank_scores = self._rerank_results(doc_pairs)
+            
+            if len(rerank_scores) == 0:
+                logger.warning("No reranking scores found")
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
+            # نرمال‌سازی امتیازات بازمرتب‌سازی
+            max_rerank = np.max(rerank_scores)
+            if max_rerank > 0:
+                rerank_scores = rerank_scores / max_rerank
+
+            logger.info(f"Rerank Scores (normalized): {[f'{score:.4f}' for score in rerank_scores]}")
+
+            # انتخاب بهترین نتایج
             top_k = min(n_results, len(combined_docs))
-            indices = np.argsort(final_scores)[-top_k:][::-1]
+            indices = np.argsort(rerank_scores)[-top_k:][::-1]
+
+            final_scores = [float(rerank_scores[i]) for i in indices]
+            logger.info(f"Final Scores: {[f'{score:.4f}' for score in final_scores]}")
 
             return {
                 'documents': [[combined_docs[i] for i in indices]],
                 'metadatas': [[combined_meta[i] for i in indices]],
-                'distances': [[float(final_scores[i]) for i in indices]]
+                'distances': [final_scores]
             }
 
         except Exception as e:
@@ -245,8 +286,24 @@ class HybridSearcher:
             if not doc_pairs:
                 return np.array([])
 
-            scores = self.reranker.predict(doc_pairs)
-            return np.array(scores)
+            # دریافت امتیازات خام
+            raw_scores = self.reranker.predict(doc_pairs)
+            
+            # تبدیل امتیازات به آرایه numpy
+            scores = np.array(raw_scores)
+            
+            # اگر همه امتیازات منفی هستند، آنها را به بازه مثبت تبدیل می‌کنیم
+            if np.all(scores < 0):
+                scores = scores - np.min(scores)
+            
+            # نرمال‌سازی به بازه [0, 1]
+            if np.max(scores) > 0:
+                scores = scores / np.max(scores)
+            
+            logger.info(f"Raw rerank scores: {[f'{score:.4f}' for score in raw_scores]}")
+            logger.info(f"Normalized rerank scores: {[f'{score:.4f}' for score in scores]}")
+            
+            return scores
 
         except Exception as e:
             logger.error(f"خطا در بازمرتب‌سازی: {str(e)}")

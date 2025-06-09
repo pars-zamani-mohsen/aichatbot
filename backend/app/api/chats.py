@@ -16,6 +16,55 @@ import logging
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+def get_collection_name_from_website_id(db: Session, website_id: int) -> str:
+    """تبدیل website_id به collection_name"""
+    try:
+        logger.info(f"جستجوی وب‌سایت با شناسه {website_id}")
+        
+        # جستجوی مستقیم با id
+        website = db.query(models.Website).get(website_id)
+        
+        if not website:
+            logger.error(f"وب‌سایت با شناسه {website_id} یافت نشد")
+            # بررسی همه وب‌سایت‌ها برای دیباگ
+            all_websites = db.query(models.Website).all()
+            logger.info(f"تعداد کل وب‌سایت‌ها در دیتابیس: {len(all_websites)}")
+            for w in all_websites:
+                logger.info(f"وب‌سایت موجود - ID: {w.id}, URL: {w.url}, Status: {w.status}")
+            
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="وب‌سایت یافت نشد"
+            )
+            
+        logger.info(f"وب‌سایت یافت شد - وضعیت: {website.status}, کالکشن: {website.collection_name}")
+        
+        if website.status != "ready":
+            logger.error(f"وب‌سایت با شناسه {website_id} هنوز آماده نیست (وضعیت: {website.status})")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"وب‌سایت هنوز آماده نیست (وضعیت: {website.status})"
+            )
+            
+        if not website.collection_name:
+            logger.error(f"کالکشن برای وب‌سایت {website_id} ایجاد نشده است")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="کالکشن برای این وب‌سایت ایجاد نشده است"
+            )
+            
+        logger.info(f"کالکشن {website.collection_name} برای وب‌سایت {website_id} یافت شد")
+        return website.collection_name
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در دریافت نام کالکشن: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"خطا در دریافت نام کالکشن: {str(e)}"
+        )
+
 # مدیریت اتصالات WebSocket
 class ConnectionManager:
     def __init__(self):
@@ -141,8 +190,9 @@ async def websocket_endpoint(websocket: WebSocket, website_id: int, db: Session 
     await manager.connect(websocket, session_id)
     
     try:
-        # ایجاد سرویس RAG
-        rag_service = RAGService(website.collection_name)
+        # ایجاد سرویس RAG با collection_name صحیح
+        collection_name = get_collection_name_from_website_id(db, website_id)
+        rag_service = RAGService(collection_name)
         
         while True:
             # دریافت پیام از کاربر
@@ -197,27 +247,68 @@ async def chat(
 ):
     """ارسال پرسش به چت‌بات"""
     try:
-        # ایجاد چت‌بات
-        chatbot = ChatbotFactory.create_chatbot(chatbot_type=chatbot_type)
+        logger.info(f"درخواست چت جدید - وب‌سایت: {chat.website_id}, نوع چت‌بات: {chatbot_type}")
         
-        # ارسال پرسش
-        response = chatbot.ask(chat.question)
+        # دریافت collection_name از website_id
+        collection_name = get_collection_name_from_website_id(db, chat.website_id)
+        logger.info(f"استفاده از کالکشن: {collection_name}")
         
-        # ذخیره در دیتابیس
-        chat_record = models.Chat(
-            question=chat.question,
-            answer=response["answer"],
+        # ایجاد چت‌بات با collection_name صحیح
+        chatbot = ChatbotFactory.create_chatbot(
+            chatbot_type=chatbot_type,
+            collection_name=collection_name
+        )
+        logger.info("چت‌بات با موفقیت ایجاد شد")
+        
+        # ایجاد چت جدید
+        db_chat = models.Chat(
+            website_id=chat.website_id,
+            session_id=chat.session_id
+        )
+        db.add(db_chat)
+        db.commit()
+        db.refresh(db_chat)
+        
+        # ذخیره پیام کاربر
+        user_message = models.Message(
+            chat_id=db_chat.id,
+            role="user",
+            content=chat.message
+        )
+        db.add(user_message)
+        db.commit()
+        
+        # ارسال پرسش به چت‌بات
+        logger.info(f"ارسال پرسش به چت‌بات: {chat.message[:100]}...")
+        response = chatbot.ask(chat.message)
+        logger.info("پاسخ از چت‌بات دریافت شد")
+        
+        # ذخیره پاسخ چت‌بات
+        assistant_message = models.Message(
+            chat_id=db_chat.id,
+            role="assistant",
+            content=response["answer"],
             sources=response["sources"]
         )
-        db.add(chat_record)
+        db.add(assistant_message)
         db.commit()
-        db.refresh(chat_record)
         
-        return response
+        return {
+            "id": db_chat.id,
+            "website_id": db_chat.website_id,
+            "message": chat.message,
+            "response": response["answer"],
+            "session_id": db_chat.session_id,
+            "created_at": db_chat.created_at,
+            "error": None
+        }
         
     except Exception as e:
-        logger.error(f"خطا در پاسخ به پرسش: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"خطا در پردازش درخواست چت: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 @router.get("/chats", response_model=List[schemas.Chat])
 async def get_chats(

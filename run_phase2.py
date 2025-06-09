@@ -29,9 +29,9 @@ def run_phase2(domain,
     if not site_dir.exists():
         raise ValueError(f"داده‌های سایت {domain} یافت نشد!")
 
-    # تنظیم نام کالکشن
+    # تنظیم نام کالکشن - استفاده مستقیم از دامنه بدون تبدیل
     if collection_name is None:
-        collection_name = domain.replace('.', '_')
+        collection_name = domain
 
     # ایجاد پوشه‌های خروجی مختص این سایت
     site_embeddings_dir = site_dir / embeddings_dir

@@ -1,7 +1,7 @@
-from app.core.config import settings
+from app.config import settings
 
-broker_url = f"redis://localhost:6380/0"
-result_backend = f"redis://localhost:6380/0"
+broker_url = settings.REDIS_URL
+result_backend = settings.REDIS_URL
 
 task_serializer = "json"
 result_serializer = "json"

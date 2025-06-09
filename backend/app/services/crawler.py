@@ -163,8 +163,9 @@ def start_crawling(website_id: int):
             logger.error(f"سایت با شناسه {website_id} یافت نشد")
             return
         
-        # به‌روزرسانی وضعیت
+        # به‌روزرسانی وضعیت و collection_name
         website.status = "crawling"
+        website.collection_name = website.domain  # تنظیم collection_name قبل از شروع کراولینگ
         db.commit()
         
         try:

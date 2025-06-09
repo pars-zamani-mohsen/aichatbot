@@ -8,18 +8,28 @@ load_dotenv()
 
 class Settings(BaseSettings):
     # تنظیمات دیتابیس
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/rag_chatbot")
+    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "ai_user")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "ai_password")
+    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "ai_db")
+    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "localhost")
+    POSTGRES_PORT: str = os.getenv("POSTGRES_PORT", "5432")
+    DATABASE_URL: str = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
     
     # تنظیمات API
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_API_BASE_URL: str = os.getenv("OPENAI_API_BASE_URL", "")
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
     OLLAMA_API_URL: str = os.getenv("OLLAMA_API_URL", "http://localhost:11434")
     
     # تنظیمات مدل
-    EMBEDDING_MODEL_NAME: str = os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2")
+    EMBEDDING_MODEL_NAME: str = os.getenv("EMBEDDING_MODEL_NAME", "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
     GEMINI_MODEL_NAME: str = os.getenv("GEMINI_MODEL_NAME", "gemini-pro")
-    MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "1000"))
+    OPENAI_MODEL_NAME: str = os.getenv("OPENAI_MODEL_NAME", "gpt-3.5-turbo")
+    MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "2000"))
     TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.7"))
+    TOKENS_PER_MIN: int = int(os.getenv("TOKENS_PER_MIN", "60"))
+    SIMILARITY_THRESHOLD: float = float(os.getenv("SIMILARITY_THRESHOLD", "0.5"))
+    CHAT_HISTORY_LENGTH: int = int(os.getenv("CHAT_HISTORY_LENGTH", "5"))
     
     # تنظیمات کراولر
     MAX_PAGES: int = int(os.getenv("MAX_PAGES", "100"))
@@ -29,7 +39,7 @@ class Settings(BaseSettings):
     
     # تنظیمات جستجو
     COLLECTION_NAME: str = os.getenv("COLLECTION_NAME", "documents")
-    DB_DIRECTORY: str = os.getenv("DB_DIRECTORY", "./data")
+    KNOWLEDGE_BASE_DIR: str = os.getenv("KNOWLEDGE_BASE_DIR", "/var/www/html/ai/backend/knowledge_base")
     
     # تنظیمات CORS
     CORS_ORIGINS: List[str] = ["*"]

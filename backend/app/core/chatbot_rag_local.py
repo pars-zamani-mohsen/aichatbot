@@ -5,6 +5,7 @@ from pathlib import Path
 from ..services.hybrid_searcher import HybridSearcher
 from ..services.prompt_manager import PromptManager
 from app.config import settings
+import chromadb
 
 logging.basicConfig(
     level=logging.INFO,
@@ -15,24 +16,37 @@ logger = logging.getLogger(__name__)
 class RAGChatbot:
     def __init__(
         self,
-        db_directory: str,
         collection_name: str,
         model_name: str = None,
         ollama_api_url: str = None,
         max_tokens: int = None,
         temperature: float = None
     ):
-        self.db_directory = Path(db_directory)
         self.collection_name = collection_name
         self.model_name = model_name or "llama2"
         self.ollama_api_url = ollama_api_url or settings.OLLAMA_API_URL
         self.max_tokens = max_tokens or int(settings.MAX_TOKENS)
         self.temperature = temperature or float(settings.TEMPERATURE)
         
+        # ایجاد کلاینت ChromaDB و دریافت کالکشن
+        # مسیر دیتابیس باید در پوشه knowledge_base/domain باشد
+        db_path = Path("/var/www/html/ai/backend/knowledge_base") / collection_name
+        logger.info(f"استفاده از مسیر دیتابیس: {db_path}")
+        
+        if not db_path.exists():
+            logger.error(f"مسیر دیتابیس {db_path} وجود ندارد")
+            raise ValueError(f"مسیر دیتابیس {db_path} وجود ندارد")
+            
+        self.db_client = chromadb.PersistentClient(path=str(db_path))
+        self.collection = self.db_client.get_collection(name=collection_name)
+        
         # ایجاد موتور جستجو
         self.searcher = HybridSearcher(
-            collection_name=collection_name,
-            db_directory=db_directory
+            collection=self.collection,
+            chunk_size=int(settings.CHUNK_SIZE),
+            max_tokens=int(settings.MAX_TOKENS),
+            tokens_per_min=int(settings.TOKENS_PER_MIN),
+            embedding_model=settings.EMBEDDING_MODEL_NAME
         )
         
         # ایجاد مدیر پرامپت

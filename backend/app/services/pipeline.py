@@ -15,11 +15,16 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 import ssl
 import os
 from dotenv import load_dotenv
+import chromadb
+from app.config import settings
 
 # بارگذاری متغیرهای محیطی
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+# تعریف مسیر پایه برای ChromaDB
+CHROMA_BASE_DIR = Path("/var/www/html/ai/backend")
 
 # خواندن مقدار MAX_PAGES از فایل .env
 MAX_PAGES = int(os.getenv('MAX_PAGES', 100))  # مقدار پیش‌فرض 100 است
@@ -204,7 +209,8 @@ class KnowledgeBasePipeline:
         self.domain = domain
         self.base_dir = Path(__file__).parent.parent.parent
         self.data_dir = self.base_dir / "processed_data" / domain
-        self.collection_name = domain.replace('.', '_')
+        self.collection_name = domain  # استفاده مستقیم از دامنه بدون تبدیل نقطه به آندرلاین
+        self.chroma_dir = self.base_dir / "knowledge_base" / domain  # مسیر مخصوص برای هر سایت
         
     def run(self) -> bool:
         """ایجاد knowledge base از امبدینگ‌ها و متادیتا"""
@@ -237,13 +243,22 @@ class KnowledgeBasePipeline:
                 
             df = pd.read_csv(csv_path)
             
-            # ایجاد کلاینت ChromaDB
-            import chromadb
-            client = chromadb.PersistentClient(path=str(self.base_dir / "knowledge_base" / self.domain))
+            # ایجاد پوشه ChromaDB برای سایت
+            self.chroma_dir.mkdir(parents=True, exist_ok=True)
             
-            # ایجاد یا دریافت collection
-            collection = client.get_or_create_collection(
-                name=f"{self.collection_name}_{int(time.time())}",
+            # ایجاد کلاینت ChromaDB
+            client = chromadb.PersistentClient(path=str(self.chroma_dir))
+            
+            # حذف کالکشن قبلی با همین نام (اگر وجود داشت)
+            try:
+                client.delete_collection(self.collection_name)
+                logger.info(f"کالکشن قبلی {self.collection_name} حذف شد")
+            except:
+                pass
+            
+            # ایجاد کالکشن جدید
+            collection = client.create_collection(
+                name=self.collection_name,
                 metadata={"hnsw:space": "cosine"}
             )
             
