@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, WebSocketException
+from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, WebSocketException, Query
 from sqlalchemy.orm import Session
-from typing import List, Dict
+from typing import List, Dict, Optional
 import json
 import uuid
 from ..database.database import get_db
@@ -112,28 +112,49 @@ async def create_chat(
     
     return db_chat
 
+@router.get("/list", response_model=List[schemas.Chat])
+async def get_chats(
+    website_id: Optional[int] = Query(None, description="فیلتر بر اساس شناسه وب‌سایت"),
+    skip: int = Query(0, description="تعداد رکوردهای رد شده"),
+    limit: int = Query(100, description="حداکثر تعداد رکوردهای برگشتی"),
+    db: Session = Depends(get_db)
+):
+    """دریافت لیست چت‌ها"""
+    try:
+        query = db.query(models.Chat)
+        if website_id is not None:
+            query = query.filter(models.Chat.website_id == website_id)
+        chats = query.offset(skip).limit(limit).all()
+        return chats
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت لیست چت‌ها: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/{chat_id}", response_model=schemas.Chat)
-async def read_chat(
+async def get_chat(
     chat_id: int,
     db: Session = Depends(get_db)
 ):
-    chat = db.query(models.Chat).filter(models.Chat.id == chat_id).first()
-    
-    if chat is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="چت یافت نشد"
-        )
-    
-    return chat
+    """دریافت اطلاعات یک چت"""
+    try:
+        chat = db.query(models.Chat).filter(models.Chat.id == chat_id).first()
+        if not chat:
+            raise HTTPException(status_code=404, detail="چت یافت نشد")
+        return chat
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت اطلاعات چت: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{chat_id}/messages", response_model=List[schemas.Message])
 async def read_messages(
     chat_id: int,
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, description="تعداد رکوردهای رد شده"),
+    limit: int = Query(100, description="حداکثر تعداد رکوردهای برگشتی"),
     db: Session = Depends(get_db)
 ):
+    """دریافت پیام‌های یک چت"""
     messages = db.query(models.Message).filter(
         models.Message.chat_id == chat_id
     ).offset(skip).limit(limit).all()
@@ -308,35 +329,4 @@ async def chat(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
-        )
-
-@router.get("/chats", response_model=List[schemas.Chat])
-async def get_chats(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
-):
-    """دریافت لیست چت‌ها"""
-    try:
-        chats = db.query(models.Chat).offset(skip).limit(limit).all()
-        return chats
-        
-    except Exception as e:
-        logger.error(f"خطا در دریافت لیست چت‌ها: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/chats/{chat_id}", response_model=schemas.Chat)
-async def get_chat(
-    chat_id: int,
-    db: Session = Depends(get_db)
-):
-    """دریافت اطلاعات یک چت"""
-    try:
-        chat = db.query(models.Chat).filter(models.Chat.id == chat_id).first()
-        if not chat:
-            raise HTTPException(status_code=404, detail="چت یافت نشد")
-        return chat
-        
-    except Exception as e:
-        logger.error(f"خطا در دریافت اطلاعات چت: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e)) 
+        ) 

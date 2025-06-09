@@ -23,7 +23,10 @@ curl -X GET http://localhost:5000/api/websites/{ID} -H "Authorization: Bearer {T
 curl -X POST "http://localhost:5000/api/chat" -H "Authorization: Bearer {TOKEN}" -H "Content-Type: application/json" -d '{"website_id": 34, "message": "لطفاً در مورد خدمات مهاجرت به کانادا توضیح دهید", "use_rag": true, "use_llm": true}'
 
 
+#فرانت
+
+cd /var/www/html/ai/frontend
 npm install
 npm start
-این دستورات وابستگی‌ها را نصب کرده و برنامه را در حالت توسعه اجرا می‌کنند. برنامه در آدرس http://localhost:3000 قابل دسترسی خواهد بود.
 
+http://localhost:3000/login

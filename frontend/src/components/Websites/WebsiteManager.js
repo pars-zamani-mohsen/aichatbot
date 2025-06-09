@@ -1,39 +1,95 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Button,
-  Card,
-  CardContent,
-  CardActions,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemButton,
   Typography,
-  TextField,
+  Button,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton,
+  TextField,
   CircularProgress,
   Alert,
+  IconButton
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import axios from 'axios';
+import { websites } from '../../services/api';
 
-const WebsiteManager = () => {
-  const [websites, setWebsites] = useState([]);
-  const [open, setOpen] = useState(false);
-  const [newUrl, setNewUrl] = useState('');
+const WebsiteManager = ({ onSelectWebsite }) => {
+  const [websiteList, setWebsiteList] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState('');
+  const [openDialog, setOpenDialog] = useState(false);
+  const [newWebsite, setNewWebsite] = useState({
+    url: '',
+    name: ''
+  });
+
+  const getErrorMessage = (err) => {
+    console.log('Error object:', err);
+    console.log('Error response data:', err.response?.data);
+    
+    // اگر خطا یک رشته است، مستقیماً برگردانده شود
+    if (typeof err === 'string') return err;
+    
+    // اگر خطا در response.data.detail است
+    if (err.response?.data?.detail) {
+      // اگر detail یک آرایه است (خطای اعتبارسنجی)
+      if (Array.isArray(err.response.data.detail)) {
+        return err.response.data.detail.map(error => {
+          if (typeof error === 'object') {
+            return `${error.loc?.join('.')}: ${error.msg}`;
+          }
+          return error;
+        }).join('\n');
+      }
+      return err.response.data.detail;
+    }
+    
+    // اگر response.data یک رشته است
+    if (typeof err.response?.data === 'string') return err.response.data;
+    
+    // اگر response.data یک شیء است
+    if (err.response?.data) {
+      // اگر msg وجود دارد
+      if (err.response.data.msg) return err.response.data.msg;
+      
+      // اگر type و msg وجود دارد (خطای اعتبارسنجی)
+      if (err.response.data.type && err.response.data.msg) {
+        return err.response.data.msg;
+      }
+      
+      // اگر loc و msg وجود دارد (خطای اعتبارسنجی)
+      if (err.response.data.loc && err.response.data.msg) {
+        return err.response.data.msg;
+      }
+      
+      // اگر هیچ کدام از موارد بالا نبود، کل شیء را به رشته تبدیل کن
+      return JSON.stringify(err.response.data, null, 2);
+    }
+    
+    // اگر هیچ کدام از موارد بالا نبود، پیام خطای پیش‌فرض
+    return 'خطا در ارتباط با سرور';
+  };
 
   const fetchWebsites = async () => {
+    setLoading(true);
+    setError('');
     try {
-      const response = await axios.get('http://localhost:8000/api/websites/');
-      setWebsites(response.data);
+      console.log('Fetching websites...');
+      const data = await websites.getAll();
+      console.log('Received data:', data);
+      setWebsiteList(data);
     } catch (err) {
-      setError('خطا در دریافت لیست وب‌سایت‌ها');
-      console.error(err);
+      console.error('Error details:', err.response || err);
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -42,133 +98,94 @@ const WebsiteManager = () => {
   }, []);
 
   const handleAddWebsite = async () => {
-    if (!newUrl.trim()) return;
-    
+    if (!newWebsite.url) return;
+
     setLoading(true);
-    setError(null);
-    
+    setError('');
     try {
-      await axios.post('http://localhost:8000/api/websites/', {
-        url: newUrl
-      });
-      
-      setNewUrl('');
-      setOpen(false);
-      fetchWebsites();
+      console.log('Adding website:', newWebsite);
+      const data = await websites.create(newWebsite);
+      console.log('Added website:', data);
+      setWebsiteList(prev => [...prev, data]);
+      setOpenDialog(false);
+      setNewWebsite({ url: '', name: '' });
     } catch (err) {
-      setError('خطا در افزودن وب‌سایت');
-      console.error(err);
+      console.error('Error adding website:', err.response || err);
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteWebsite = async (id) => {
+    if (!window.confirm('آیا از حذف این وب‌سایت اطمینان دارید؟')) return;
+
+    setLoading(true);
+    setError('');
     try {
-      await axios.delete(`http://localhost:8000/api/websites/${id}`);
-      fetchWebsites();
+      console.log('Deleting website:', id);
+      await websites.delete(id);
+      console.log('Website deleted successfully');
+      setWebsiteList(prev => prev.filter(website => website.id !== id));
     } catch (err) {
-      setError('خطا در حذف وب‌سایت');
-      console.error(err);
-    }
-  };
-
-  const handleRetryWebsite = async (id) => {
-    try {
-      await axios.post(`http://localhost:8000/api/websites/${id}/retry`);
-      fetchWebsites();
-    } catch (err) {
-      setError('خطا در تلاش مجدد برای پردازش وب‌سایت');
-      console.error(err);
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'ready':
-        return 'success.main';
-      case 'processing':
-        return 'info.main';
-      case 'failed':
-        return 'error.main';
-      default:
-        return 'grey.500';
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'ready':
-        return 'آماده';
-      case 'processing':
-        return 'در حال پردازش';
-      case 'failed':
-        return 'خطا';
-      default:
-        return status;
+      console.error('Error deleting website:', err.response || err);
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h5">مدیریت وب‌سایت‌ها</Typography>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography variant="h6">وب‌سایت‌ها</Typography>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
-          onClick={() => setOpen(true)}
+          onClick={() => setOpenDialog(true)}
         >
-          افزودن وب‌سایت
+          افزودن
         </Button>
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ m: 2, whiteSpace: 'pre-line' }}>
           {error}
         </Alert>
       )}
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 2 }}>
-        {websites.map((website) => (
-          <Card key={website.id}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                {website.domain}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                {website.url}
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography variant="body2">وضعیت:</Typography>
-                <Typography
-                  variant="body2"
-                  sx={{ color: getStatusColor(website.status) }}
-                >
-                  {getStatusText(website.status)}
-                </Typography>
-              </Box>
-            </CardContent>
-            <CardActions>
-              {website.status === 'failed' && (
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <List sx={{ flex: 1, overflow: 'auto' }}>
+          {websiteList.map((website) => (
+            <ListItem
+              key={website.id}
+              secondaryAction={
                 <IconButton
-                  color="primary"
-                  onClick={() => handleRetryWebsite(website.id)}
+                  edge="end"
+                  aria-label="delete"
+                  onClick={() => handleDeleteWebsite(website.id)}
                 >
-                  <RefreshIcon />
+                  <DeleteIcon />
                 </IconButton>
-              )}
-              <IconButton
-                color="error"
-                onClick={() => handleDeleteWebsite(website.id)}
-              >
-                <DeleteIcon />
-              </IconButton>
-            </CardActions>
-          </Card>
-        ))}
-      </Box>
+              }
+              disablePadding
+            >
+              <ListItemButton onClick={() => onSelectWebsite(website)}>
+                <ListItemText
+                  primary={website.name || website.url}
+                  secondary={website.url}
+                />
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+      )}
 
-      <Dialog open={open} onClose={() => setOpen(false)}>
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
         <DialogTitle>افزودن وب‌سایت جدید</DialogTitle>
         <DialogContent>
           <TextField
@@ -177,21 +194,30 @@ const WebsiteManager = () => {
             label="آدرس وب‌سایت"
             type="url"
             fullWidth
-            value={newUrl}
-            onChange={(e) => setNewUrl(e.target.value)}
-            disabled={loading}
+            variant="outlined"
+            value={newWebsite.url}
+            onChange={(e) => setNewWebsite(prev => ({ ...prev, url: e.target.value }))}
+            dir="rtl"
+          />
+          <TextField
+            margin="dense"
+            label="نام وب‌سایت (اختیاری)"
+            type="text"
+            fullWidth
+            variant="outlined"
+            value={newWebsite.name}
+            onChange={(e) => setNewWebsite(prev => ({ ...prev, name: e.target.value }))}
+            dir="rtl"
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)} disabled={loading}>
-            انصراف
-          </Button>
+          <Button onClick={() => setOpenDialog(false)}>انصراف</Button>
           <Button
             onClick={handleAddWebsite}
             variant="contained"
-            disabled={loading || !newUrl.trim()}
+            disabled={!newWebsite.url || loading}
           >
-            {loading ? <CircularProgress size={24} /> : 'افزودن'}
+            {loading ? 'در حال افزودن...' : 'افزودن'}
           </Button>
         </DialogActions>
       </Dialog>

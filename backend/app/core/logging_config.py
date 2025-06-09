@@ -1,35 +1,41 @@
 import logging
 import sys
-from pathlib import Path
+from logging.handlers import RotatingFileHandler
+import os
 
 def setup_logging():
-    # ایجاد دایرکتوری لاگ
-    log_dir = Path("/var/www/html/ai/backend/logs")
-    log_dir.mkdir(parents=True, exist_ok=True)
-    log_path = log_dir / "app.log"
-
+    # ایجاد پوشه logs اگر وجود ندارد
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+    
     # تنظیم فرمت لاگ
-    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    date_format = "%Y-%m-%d %H:%M:%S"
-
-    # تنظیم روت لاگر
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-
-    # پاک کردن هندلرهای قبلی
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
-
-    # اضافه کردن هندلر فایل
-    file_handler = logging.FileHandler(str(log_path), encoding="utf-8", mode="a")
+    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    date_format = '%Y-%m-%d %H:%M:%S'
+    
+    # تنظیم handler برای فایل
+    file_handler = RotatingFileHandler(
+        'logs/app.log',
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5
+    )
     file_handler.setFormatter(logging.Formatter(log_format, date_format))
-    root_logger.addHandler(file_handler)
-
-    # اضافه کردن هندلر کنسول
+    
+    # تنظیم handler برای کنسول
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(logging.Formatter(log_format, date_format))
+    
+    # تنظیم لاگر اصلی
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 
-    # تنظیم لاگرهای خاص
-    logging.getLogger("uvicorn").setLevel(logging.INFO)
-    logging.getLogger("fastapi").setLevel(logging.INFO) 
+def get_logger(name):
+    """
+    دریافت یک لاگر با نام مشخص
+    """
+    return logging.getLogger(name)
+
+# تنظیم لاگرهای خاص
+logging.getLogger("uvicorn").setLevel(logging.INFO)
+logging.getLogger("fastapi").setLevel(logging.INFO) 

@@ -92,7 +92,11 @@ async def crawl_website(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{website_id}", response_model=schemas.Website)
-async def get_website(website_id: int, db: Session = Depends(get_db)):
+async def get_website(
+    website_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """دریافت اطلاعات یک وب‌سایت"""
     website = db.query(Website).filter(Website.id == website_id).first()
     if not website:
@@ -100,7 +104,11 @@ async def get_website(website_id: int, db: Session = Depends(get_db)):
     return website
 
 @router.get("/stats/{website_id}")
-async def get_website_stats(website_id: int, db: Session = Depends(get_db)):
+async def get_website_stats(
+    website_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """دریافت آمار کراول یک وب‌سایت"""
     try:
         website = db.query(Website).filter(Website.id == website_id).first()
@@ -137,6 +145,9 @@ async def get_website_stats(website_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/", response_model=List[schemas.Website])
-async def list_websites(db: Session = Depends(get_db)):
+async def list_websites(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """دریافت لیست همه وب‌سایت‌ها"""
-    return db.query(Website).all() 
+    return db.query(Website).filter(Website.owner_id == current_user.id).all() 

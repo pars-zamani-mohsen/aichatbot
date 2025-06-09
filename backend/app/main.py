@@ -22,23 +22,21 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# تنظیمات CORS
+# اضافه کردن میدلورها
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# اضافه کردن میدلورها
 app.middleware("http")(error_handler)
 app.middleware("http")(logging_middleware)
 
 # اضافه کردن روترها
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(websites.router, prefix="/api", tags=["websites"])
-app.include_router(chats.router, prefix="/api", tags=["chats"])
+app.include_router(chats.router, prefix="/api/chats", tags=["chats"])
 
 @app.get("/")
 async def root():

@@ -52,14 +52,13 @@ class Message(MessageBase):
     id: int
     chat_id: int
     created_at: datetime
-    sources: Optional[Dict]
+    sources: Optional[List[Dict[str, str]]] = None
     
     class Config:
         from_attributes = True
 
 class ChatBase(BaseModel):
     website_id: int
-    message: str
     session_id: Optional[str] = None
 
 class ChatCreate(ChatBase):

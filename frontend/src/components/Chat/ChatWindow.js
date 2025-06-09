@@ -1,80 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Box, TextField, IconButton, Paper, Typography, CircularProgress } from '@mui/material';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Box,
+  TextField,
+  IconButton,
+  Paper,
+  Typography,
+  CircularProgress,
+  List,
+  ListItem,
+  ListItemText,
+  Divider
+} from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
-import { styled } from '@mui/material/styles';
-
-const ChatContainer = styled(Paper)(({ theme }) => ({
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  padding: theme.spacing(2),
-}));
-
-const MessagesContainer = styled(Box)(({ theme }) => ({
-  flex: 1,
-  overflowY: 'auto',
-  marginBottom: theme.spacing(2),
-  padding: theme.spacing(1),
-}));
-
-const MessageBubble = styled(Box)(({ theme, isUser }) => ({
-  maxWidth: '70%',
-  padding: theme.spacing(1.5),
-  borderRadius: theme.spacing(2),
-  marginBottom: theme.spacing(1),
-  backgroundColor: isUser ? theme.palette.primary.main : theme.palette.grey[100],
-  color: isUser ? theme.palette.primary.contrastText : theme.palette.text.primary,
-  alignSelf: isUser ? 'flex-end' : 'flex-start',
-  marginLeft: isUser ? 'auto' : 0,
-}));
-
-const SourcesList = styled(Box)(({ theme }) => ({
-  marginTop: theme.spacing(1),
-  padding: theme.spacing(1),
-  backgroundColor: theme.palette.grey[50],
-  borderRadius: theme.spacing(1),
-}));
+import { chats } from '../../services/api';
 
 const ChatWindow = ({ websiteId }) => {
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [ws, setWs] = useState(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const messagesEndRef = useRef(null);
-
-  useEffect(() => {
-    // اتصال به WebSocket
-    const websocket = new WebSocket(`ws://localhost:8000/api/chats/ws/${websiteId}`);
-    
-    websocket.onopen = () => {
-      console.log('WebSocket Connected');
-    };
-    
-    websocket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: data.message,
-        sources: data.sources
-      }]);
-      setIsLoading(false);
-    };
-    
-    websocket.onerror = (error) => {
-      console.error('WebSocket Error:', error);
-      setIsLoading(false);
-    };
-    
-    websocket.onclose = () => {
-      console.log('WebSocket Disconnected');
-    };
-    
-    setWs(websocket);
-    
-    return () => {
-      websocket.close();
-    };
-  }, [websiteId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -84,97 +29,144 @@ const ChatWindow = ({ websiteId }) => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = () => {
-    if (!input.trim() || !ws) return;
-    
-    // اضافه کردن پیام کاربر به لیست
-    setMessages(prev => [...prev, {
-      role: 'user',
-      content: input
-    }]);
-    
-    // ارسال پیام به سرور
-    ws.send(JSON.stringify({
-      message: input
-    }));
-    
-    setInput('');
-    setIsLoading(true);
-  };
+  useEffect(() => {
+    const loadChatHistory = async () => {
+      try {
+        // ابتدا چت‌های وب‌سایت را دریافت می‌کنیم
+        const websiteChats = await chats.getWebsiteChats(websiteId);
+        console.log('Website chats:', websiteChats);
+        
+        if (websiteChats && websiteChats.length > 0) {
+          // از آخرین چت استفاده می‌کنیم
+          const lastChat = websiteChats[websiteChats.length - 1];
+          console.log('Using chat:', lastChat);
+          
+          // دریافت پیام‌های چت
+          const history = await chats.getHistory(lastChat.id);
+          console.log('Chat history:', history);
+          
+          if (history && history.length > 0) {
+            const formattedMessages = history.map(msg => ({
+              role: msg.role,
+              content: msg.content,
+              timestamp: msg.created_at
+            }));
+            setMessages(formattedMessages);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading chat history:', err);
+        setError('خطا در بارگذاری سابقه چت');
+      }
+    };
 
-  const handleKeyPress = (event) => {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      handleSend();
+    if (websiteId) {
+      loadChatHistory();
+    }
+  }, [websiteId]);
+
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+
+    const userMessage = {
+      role: 'user',
+      content: newMessage,
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setNewMessage('');
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await chats.create(websiteId, newMessage);
+      const assistantMessage = {
+        role: 'assistant',
+        content: response.response,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (err) {
+      setError('خطا در ارسال پیام');
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <ChatContainer elevation={3}>
-      <MessagesContainer>
-        {messages.map((message, index) => (
-          <Box
-            key={index}
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: message.role === 'user' ? 'flex-end' : 'flex-start',
-            }}
-          >
-            <MessageBubble isUser={message.role === 'user'}>
-              <Typography variant="body1">{message.content}</Typography>
-              {message.sources && message.sources.length > 0 && (
-                <SourcesList>
-                  <Typography variant="caption" color="textSecondary">
-                    منابع:
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Typography variant="h6">چت</Typography>
+      </Box>
+
+      <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+        <List>
+          {messages.map((message, index) => (
+            <React.Fragment key={index}>
+              <ListItem
+                sx={{
+                  justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start'
+                }}
+              >
+                <Paper
+                  sx={{
+                    p: 2,
+                    maxWidth: '70%',
+                    bgcolor: message.role === 'user' ? 'primary.main' : 'grey.100',
+                    color: message.role === 'user' ? 'white' : 'text.primary'
+                  }}
+                >
+                  <Typography variant="body1">{message.content}</Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                    {new Date(message.timestamp).toLocaleTimeString()}
                   </Typography>
-                  {message.sources.map((source, idx) => (
-                    <Typography
-                      key={idx}
-                      variant="caption"
-                      component="a"
-                      href={source}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      sx={{ display: 'block', color: 'primary.main' }}
-                    >
-                      {source}
-                    </Typography>
-                  ))}
-                </SourcesList>
-              )}
-            </MessageBubble>
-          </Box>
-        ))}
-        {isLoading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
-            <CircularProgress size={24} />
-          </Box>
-        )}
-        <div ref={messagesEndRef} />
-      </MessagesContainer>
-      
-      <Box sx={{ display: 'flex', gap: 1 }}>
+                </Paper>
+              </ListItem>
+              {index < messages.length - 1 && <Divider />}
+            </React.Fragment>
+          ))}
+          <div ref={messagesEndRef} />
+        </List>
+      </Box>
+
+      {error && (
+        <Typography color="error" sx={{ p: 2 }}>
+          {error}
+        </Typography>
+      )}
+
+      <Box
+        component="form"
+        onSubmit={handleSend}
+        sx={{
+          p: 2,
+          borderTop: 1,
+          borderColor: 'divider',
+          display: 'flex',
+          gap: 1
+        }}
+      >
         <TextField
           fullWidth
           variant="outlined"
           placeholder="پیام خود را بنویسید..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={handleKeyPress}
-          disabled={isLoading}
-          multiline
-          maxRows={4}
+          value={newMessage}
+          onChange={(e) => setNewMessage(e.target.value)}
+          disabled={loading}
+          dir="rtl"
         />
         <IconButton
           color="primary"
-          onClick={handleSend}
-          disabled={isLoading || !input.trim()}
+          type="submit"
+          disabled={loading || !newMessage.trim()}
         >
-          <SendIcon />
+          {loading ? <CircularProgress size={24} /> : <SendIcon />}
         </IconButton>
       </Box>
-    </ChatContainer>
+    </Box>
   );
 };
 

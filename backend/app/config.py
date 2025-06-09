@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     KNOWLEDGE_BASE_DIR: str = os.getenv("KNOWLEDGE_BASE_DIR", "/var/www/html/ai/backend/knowledge_base")
     
     # تنظیمات CORS
-    CORS_ORIGINS: List[str] = ["*"]
+    CORS_ORIGINS: List[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
     
     # تنظیمات Redis
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
