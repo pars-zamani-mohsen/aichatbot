@@ -14,7 +14,8 @@ import {
   TextField,
   CircularProgress,
   Alert,
-  IconButton
+  IconButton,
+  LinearProgress
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -29,6 +30,9 @@ const WebsiteManager = ({ onSelectWebsite }) => {
     url: '',
     name: ''
   });
+  const [crawlingStatus, setCrawlingStatus] = useState({});
+  const [crawlingStartTime, setCrawlingStartTime] = useState({});
+  const [crawlingProgress, setCrawlingProgress] = useState({});
 
   const getErrorMessage = (err) => {
     console.log('Error object:', err);
@@ -97,6 +101,61 @@ const WebsiteManager = ({ onSelectWebsite }) => {
     fetchWebsites();
   }, []);
 
+  // تابع برای محاسبه زمان گذشته
+  const getElapsedTime = (startTime) => {
+    if (!startTime) return '';
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    return `${minutes} دقیقه و ${seconds} ثانیه`;
+  };
+
+  // تابع برای محاسبه زمان تقریبی باقی‌مانده
+  const getEstimatedTime = (status, startTime) => {
+    if (!startTime) return '';
+    
+    const elapsed = (Date.now() - startTime) / 1000;
+    let estimatedTotal;
+    
+    switch (status) {
+      case 'crawling':
+        estimatedTotal = elapsed * 2; // تخمین: زمان کراولینگ 2 برابر زمان گذشته
+        break;
+      case 'processing':
+        estimatedTotal = elapsed * 1.5; // تخمین: زمان پردازش 1.5 برابر زمان گذشته
+        break;
+      default:
+        return '';
+    }
+    
+    const remaining = Math.max(0, estimatedTotal - elapsed);
+    const minutes = Math.floor(remaining / 60);
+    const seconds = Math.floor(remaining % 60);
+    
+    return `${minutes} دقیقه و ${seconds} ثانیه`;
+  };
+
+  // تابع برای محاسبه درصد پیشرفت
+  const getProgressPercentage = (status, startTime) => {
+    if (!startTime) return 0;
+    
+    const elapsed = (Date.now() - startTime) / 1000;
+    let estimatedTotal;
+    
+    switch (status) {
+      case 'crawling':
+        estimatedTotal = elapsed * 2;
+        break;
+      case 'processing':
+        estimatedTotal = elapsed * 1.5;
+        break;
+      default:
+        return 0;
+    }
+    
+    return Math.min(95, Math.floor((elapsed / estimatedTotal) * 100));
+  };
+
   const handleAddWebsite = async () => {
     if (!newWebsite.url) return;
 
@@ -109,6 +168,18 @@ const WebsiteManager = ({ onSelectWebsite }) => {
       setWebsiteList(prev => [...prev, data]);
       setOpenDialog(false);
       setNewWebsite({ url: '', name: '' });
+      
+      // شروع بررسی وضعیت کراولینگ
+      const startTime = Date.now();
+      setCrawlingStartTime(prev => ({
+        ...prev,
+        [data.id]: startTime
+      }));
+      setCrawlingStatus(prev => ({
+        ...prev,
+        [data.id]: 'pending'
+      }));
+      checkCrawlingStatus(data.id);
     } catch (err) {
       console.error('Error adding website:', err.response || err);
       setError(getErrorMessage(err));
@@ -133,6 +204,79 @@ const WebsiteManager = ({ onSelectWebsite }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // تابع برای بررسی وضعیت کراولینگ
+  const checkCrawlingStatus = async (websiteId) => {
+    try {
+      const website = await websites.getById(websiteId);
+      setCrawlingStatus(prev => ({
+        ...prev,
+        [websiteId]: website.status
+      }));
+
+      // محاسبه درصد پیشرفت
+      const progress = getProgressPercentage(website.status, crawlingStartTime[websiteId]);
+      setCrawlingProgress(prev => ({
+        ...prev,
+        [websiteId]: progress
+      }));
+
+      // اگر هنوز در حال کراولینگ است، دوباره بررسی کن
+      if (website.status === 'pending' || website.status === 'crawling' || website.status === 'processing') {
+        setTimeout(() => checkCrawlingStatus(websiteId), 5000);
+      } else {
+        // اگر تمام شد، درصد را 100 کن
+        setCrawlingProgress(prev => ({
+          ...prev,
+          [websiteId]: 100
+        }));
+      }
+    } catch (error) {
+      console.error('Error checking crawling status:', error);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'pending':
+        return 'info';
+      case 'crawling':
+      case 'processing':
+        return 'warning';
+      case 'ready':
+        return 'success';
+      case 'error':
+        return 'error';
+      default:
+        return 'info';
+    }
+  };
+
+  const getStatusText = (status, websiteId) => {
+    const baseText = (() => {
+      switch (status) {
+        case 'pending':
+          return 'در انتظار شروع';
+        case 'crawling':
+          return 'در حال کراولینگ';
+        case 'processing':
+          return 'در حال پردازش';
+        case 'ready':
+          return 'آماده';
+        case 'error':
+          return 'خطا';
+        default:
+          return 'نامشخص';
+      }
+    })();
+
+    if (status === 'ready' || status === 'error') {
+      return baseText;
+    }
+
+    const elapsedTime = getElapsedTime(crawlingStartTime[websiteId]);
+    return `${baseText} (${elapsedTime})`;
   };
 
   return (
@@ -175,10 +319,25 @@ const WebsiteManager = ({ onSelectWebsite }) => {
               disablePadding
             >
               <ListItemButton onClick={() => onSelectWebsite(website)}>
-                <ListItemText
-                  primary={website.name || website.url}
-                  secondary={website.url}
-                />
+                <Box sx={{ width: '100%' }}>
+                  <ListItemText
+                    primary={website.name || website.url}
+                    secondary={website.url}
+                  />
+                  {crawlingStatus[website.id] && (
+                    <Box sx={{ mt: 1 }}>
+                      <LinearProgress 
+                        variant={crawlingStatus[website.id] === 'ready' ? 'determinate' : 'indeterminate'}
+                        value={crawlingProgress[website.id] || 0}
+                        color={getStatusColor(crawlingStatus[website.id])}
+                        sx={{ mb: 0.5 }}
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        {getStatusText(crawlingStatus[website.id], website.id)}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
               </ListItemButton>
             </ListItem>
           ))}

@@ -30,6 +30,10 @@ const ChatWindow = ({ websiteId }) => {
   }, [messages]);
 
   useEffect(() => {
+    // پاک کردن پیام‌ها هنگام تغییر وب‌سایت
+    setMessages([]);
+    setError('');
+    
     const loadChatHistory = async () => {
       try {
         // ابتدا چت‌های وب‌سایت را دریافت می‌کنیم

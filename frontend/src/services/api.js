@@ -134,7 +134,7 @@ export const websites = {
 
   create: async (websiteData) => {
     try {
-      const response = await api.post('/api/', websiteData);
+      const response = await api.post('/api/websites/crawl', websiteData);
       return response.data;
     } catch (error) {
       console.error('Error in create:', error);
@@ -178,7 +178,7 @@ export const chats = {
       if (isNaN(numericId)) {
         throw new Error('شناسه وب‌سایت نامعتبر است');
       }
-      const response = await api.post('/api/chat', {
+      const response = await api.post('/api/chats/', {
         website_id: numericId,
         message,
         session_id: localStorage.getItem('session_id') || undefined

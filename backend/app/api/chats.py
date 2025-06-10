@@ -84,33 +84,88 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-@router.post("/", response_model=schemas.Chat)
+@router.post("/", response_model=schemas.ChatResponse)
 async def create_chat(
     chat: schemas.ChatCreate,
+    chatbot_type: str = "openai",
     db: Session = Depends(get_db)
 ):
-    # بررسی وجود سایت
-    website = db.query(models.Website).filter(
-        models.Website.id == chat.website_id,
-        models.Website.status == "ready"
-    ).first()
-    
-    if website is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="سایت یافت نشد یا هنوز آماده نیست"
+    """ارسال پرسش به چت‌بات"""
+    try:
+        logger.info(f"درخواست چت جدید - وب‌سایت: {chat.website_id}, نوع چت‌بات: {chatbot_type}")
+        
+        # بررسی وجود سایت
+        website = db.query(models.Website).filter(
+            models.Website.id == chat.website_id,
+            models.Website.status == "ready"
+        ).first()
+        
+        if website is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="سایت یافت نشد یا هنوز آماده نیست"
+            )
+        
+        # دریافت collection_name از website_id
+        collection_name = get_collection_name_from_website_id(db, chat.website_id)
+        logger.info(f"استفاده از کالکشن: {collection_name}")
+        
+        # ایجاد چت‌بات با collection_name صحیح
+        chatbot = ChatbotFactory.create_chatbot(
+            chatbot_type=chatbot_type,
+            collection_name=collection_name
         )
-    
-    # ایجاد چت جدید
-    db_chat = models.Chat(
-        website_id=chat.website_id,
-        session_id=chat.session_id
-    )
-    db.add(db_chat)
-    db.commit()
-    db.refresh(db_chat)
-    
-    return db_chat
+        logger.info("چت‌بات با موفقیت ایجاد شد")
+        
+        # ایجاد چت جدید
+        db_chat = models.Chat(
+            website_id=chat.website_id,
+            session_id=chat.session_id
+        )
+        db.add(db_chat)
+        db.commit()
+        db.refresh(db_chat)
+        
+        # ذخیره پیام کاربر
+        user_message = models.Message(
+            chat_id=db_chat.id,
+            role="user",
+            content=chat.message
+        )
+        db.add(user_message)
+        db.commit()
+        
+        # ارسال پرسش به چت‌بات
+        logger.info(f"ارسال پرسش به چت‌بات: {chat.message[:100]}...")
+        response = chatbot.ask(chat.message)
+        logger.info("پاسخ از چت‌بات دریافت شد")
+        
+        # ذخیره پاسخ چت‌بات
+        assistant_message = models.Message(
+            chat_id=db_chat.id,
+            role="assistant",
+            content=response["answer"],
+            sources=response["sources"]
+        )
+        db.add(assistant_message)
+        db.commit()
+        
+        return {
+            "id": db_chat.id,
+            "website_id": db_chat.website_id,
+            "message": chat.message,
+            "response": response["answer"],
+            "session_id": db_chat.session_id,
+            "created_at": db_chat.created_at,
+            "error": None
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در پردازش درخواست چت: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 @router.get("/list", response_model=List[schemas.Chat])
 async def get_chats(
@@ -255,77 +310,6 @@ async def websocket_endpoint(websocket: WebSocket, website_id: int, db: Session 
         manager.disconnect(session_id)
     except Exception as e:
         manager.disconnect(session_id)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e)
-        )
-
-@router.post("/chat", response_model=schemas.ChatResponse)
-async def chat(
-    chat: schemas.ChatCreate,
-    chatbot_type: str = "openai",
-    db: Session = Depends(get_db)
-):
-    """ارسال پرسش به چت‌بات"""
-    try:
-        logger.info(f"درخواست چت جدید - وب‌سایت: {chat.website_id}, نوع چت‌بات: {chatbot_type}")
-        
-        # دریافت collection_name از website_id
-        collection_name = get_collection_name_from_website_id(db, chat.website_id)
-        logger.info(f"استفاده از کالکشن: {collection_name}")
-        
-        # ایجاد چت‌بات با collection_name صحیح
-        chatbot = ChatbotFactory.create_chatbot(
-            chatbot_type=chatbot_type,
-            collection_name=collection_name
-        )
-        logger.info("چت‌بات با موفقیت ایجاد شد")
-        
-        # ایجاد چت جدید
-        db_chat = models.Chat(
-            website_id=chat.website_id,
-            session_id=chat.session_id
-        )
-        db.add(db_chat)
-        db.commit()
-        db.refresh(db_chat)
-        
-        # ذخیره پیام کاربر
-        user_message = models.Message(
-            chat_id=db_chat.id,
-            role="user",
-            content=chat.message
-        )
-        db.add(user_message)
-        db.commit()
-        
-        # ارسال پرسش به چت‌بات
-        logger.info(f"ارسال پرسش به چت‌بات: {chat.message[:100]}...")
-        response = chatbot.ask(chat.message)
-        logger.info("پاسخ از چت‌بات دریافت شد")
-        
-        # ذخیره پاسخ چت‌بات
-        assistant_message = models.Message(
-            chat_id=db_chat.id,
-            role="assistant",
-            content=response["answer"],
-            sources=response["sources"]
-        )
-        db.add(assistant_message)
-        db.commit()
-        
-        return {
-            "id": db_chat.id,
-            "website_id": db_chat.website_id,
-            "message": chat.message,
-            "response": response["answer"],
-            "session_id": db_chat.session_id,
-            "created_at": db_chat.created_at,
-            "error": None
-        }
-        
-    except Exception as e:
-        logger.error(f"خطا در پردازش درخواست چت: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)

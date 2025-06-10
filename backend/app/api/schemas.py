@@ -62,7 +62,7 @@ class ChatBase(BaseModel):
     session_id: Optional[str] = None
 
 class ChatCreate(ChatBase):
-    pass
+    message: str
 
 class Chat(ChatBase):
     id: int
