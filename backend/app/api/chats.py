@@ -145,31 +145,88 @@ async def create_chat(
         )
         db.add(user_message)
         db.commit()
+        db.refresh(user_message)
+        logger.info(f"پیام کاربر ذخیره شد - ID: {user_message.id}, Content: {user_message.content[:100]}...")
         
         # ارسال پرسش به چت‌بات
         logger.info(f"ارسال پرسش به چت‌بات: {chat.message[:100]}...")
         response = chatbot.ask(chat.message)
-        logger.info("پاسخ از چت‌بات دریافت شد")
+        logger.info(f"پاسخ از چت‌بات دریافت شد - Answer: {response['answer'][:100]}...")
+        logger.info(f"منابع پاسخ: {response['sources']}")
+        
+        # بررسی ساختار پاسخ
+        if not isinstance(response, dict):
+            logger.error(f"پاسخ چت‌بات در فرمت نامعتبر است: {type(response)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="پاسخ چت‌بات در فرمت نامعتبر است"
+            )
+        
+        if 'answer' not in response:
+            logger.error(f"پاسخ چت‌بات فیلد 'answer' ندارد: {response}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="پاسخ چت‌بات فیلد 'answer' ندارد"
+            )
         
         # ذخیره پاسخ چت‌بات
-        assistant_message = models.Message(
-            chat_id=db_chat.id,
-            role="assistant",
-            content=response["answer"],
-            sources=response["sources"]
-        )
-        db.add(assistant_message)
-        db.commit()
+        try:
+            assistant_message = models.Message(
+                chat_id=db_chat.id,
+                role="assistant",
+                content=response["answer"],
+                sources=response.get("sources", [])
+            )
+            db.add(assistant_message)
+            db.commit()
+            db.refresh(assistant_message)
+            logger.info(f"پاسخ چت‌بات ذخیره شد - ID: {assistant_message.id}, Content: {assistant_message.content[:100]}...")
+            logger.info(f"منابع ذخیره شده: {assistant_message.sources}")
+        except Exception as e:
+            logger.error(f"خطا در ذخیره پاسخ چت‌بات: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"خطا در ذخیره پاسخ چت‌بات: {str(e)}"
+            )
         
-        return {
+        # دریافت پیام‌های چت
+        messages = db.query(models.Message).filter(
+            models.Message.chat_id == db_chat.id
+        ).order_by(models.Message.created_at).all()
+        
+        logger.info(f"تعداد پیام‌های دریافت شده: {len(messages)}")
+        for msg in messages:
+            logger.info(f"پیام - ID: {msg.id}, Role: {msg.role}, Content: {msg.content[:100]}...")
+            if msg.role == "assistant":
+                logger.info(f"منابع پیام: {msg.sources}")
+        
+        # تبدیل پیام‌ها به فرمت مناسب
+        formatted_messages = []
+        for msg in messages:
+            formatted_msg = {
+                "role": msg.role,
+                "content": msg.content,
+                "created_at": msg.created_at,
+                "sources": msg.sources if msg.role == "assistant" else None
+            }
+            formatted_messages.append(formatted_msg)
+            logger.info(f"پیام فرمت شده - Role: {formatted_msg['role']}, Content: {formatted_msg['content'][:100]}...")
+            if formatted_msg['role'] == "assistant":
+                logger.info(f"منابع پیام فرمت شده: {formatted_msg['sources']}")
+        
+        response_data = {
             "id": db_chat.id,
             "website_id": db_chat.website_id,
             "message": chat.message,
             "response": response["answer"],
             "session_id": db_chat.session_id,
             "created_at": db_chat.created_at,
-            "error": None
+            "error": None,
+            "messages": formatted_messages
         }
+        
+        logger.info(f"پاسخ نهایی - تعداد پیام‌ها: {len(formatted_messages)}")
+        return response_data
         
     except Exception as e:
         logger.error(f"خطا در پردازش درخواست چت: {str(e)}", exc_info=True)

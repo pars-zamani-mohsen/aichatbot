@@ -2,6 +2,7 @@ from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, DateTime, T
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
+from datetime import datetime
 
 class User(Base):
     __tablename__ = "users"
@@ -60,13 +61,14 @@ class Message(Base):
     __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True, index=True)
-    chat_id = Column(Integer, ForeignKey("chats.id"))
-    role = Column(String)  # user, assistant
-    content = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # اطلاعات RAG
-    sources = Column(JSON, nullable=True)
-    
-    # ارتباط با چت
-    chat = relationship("Chat", back_populates="messages") 
+    chat_id = Column(Integer, ForeignKey("chats.id", ondelete="CASCADE"))
+    role = Column(String, nullable=False)  # user یا assistant
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    sources = Column(JSON, nullable=True)  # برای ذخیره منابع در پاسخ‌های assistant
+
+    # رابطه با چت
+    chat = relationship("Chat", back_populates="messages")
+
+    def __repr__(self):
+        return f"<Message(id={self.id}, chat_id={self.chat_id}, role={self.role})>" 

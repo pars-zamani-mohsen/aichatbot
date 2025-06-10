@@ -82,6 +82,7 @@ class ChatResponse(BaseModel):
     session_id: Optional[str] = None
     created_at: datetime
     error: Optional[str] = None
+    messages: Optional[List[Dict]] = None
 
 # اسکیماهای توکن
 class Token(BaseModel):
