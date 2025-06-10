@@ -158,27 +158,27 @@ class HybridSearcher:
 
             tokens = []
             
+            # حذف علامت‌های نگارشی
+            normalized = re.sub(r'[؟،؛!?.,:;]', ' ', normalized)
+            
             # جستجوی کلمات فارسی
             fa_words = re.findall(r'[\u0600-\u06FF]+', normalized)
             for word in fa_words:
                 if len(word) > 1:
                     # اضافه کردن کلمه کامل
                     tokens.append(word)
-                    # اضافه کردن n-gram برای کلمات طولانی
-                    if len(word) > 3:
-                        for i in range(len(word)-2):
-                            tokens.append(word[i:i+3])
-                            # اضافه کردن n-gram‌های بزرگتر فقط برای کلمات خیلی طولانی
-                            if len(word) > 5:
-                                tokens.append(word[i:i+4])
+                    # برای کلمات فارسی، فقط کلمات کامل را نگه می‌داریم
+                    # چون n-gram‌ها می‌توانند باعث نویز شوند
 
             # جستجوی کلمات انگلیسی
             en_words = re.findall(r'[a-zA-Z]+', normalized)
             for word in en_words:
                 if len(word) > 1:
+                    # اضافه کردن کلمه کامل
                     tokens.append(word.lower())
-                    # اضافه کردن n-gram برای کلمات انگلیسی طولانی
-                    if len(word) > 3:
+                    # برای کلمات انگلیسی، n-gram‌ها مفید هستند
+                    if len(word) > 5:  # برای کلمات انگلیسی طولانی‌تر
+                        # اضافه کردن n-gram‌های 3 حرفی
                         for i in range(len(word)-2):
                             tokens.append(word[i:i+3].lower())
 
@@ -191,6 +191,15 @@ class HybridSearcher:
 
             # حذف توکن‌های خیلی کوتاه
             tokens = [token for token in tokens if len(token) > 1]
+
+            # حذف توکن‌های عددی خیلی کوتاه
+            tokens = [token for token in tokens if not (token.isdigit() and len(token) < 3)]
+
+            # حذف توکن‌های حاوی علامت‌های نگارشی
+            tokens = [token for token in tokens if not re.search(r'[؟،؛!?.,:;]', token)]
+
+            # حذف توکن‌های فارسی خیلی کوتاه (کمتر از 3 حرف)
+            tokens = [token for token in tokens if not (len(token) < 3 and re.search(r'[\u0600-\u06FF]', token))]
 
             # مرتب‌سازی توکن‌ها بر اساس طول (طولانی‌ترین اول)
             tokens.sort(key=len, reverse=True)
