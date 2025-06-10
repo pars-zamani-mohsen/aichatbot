@@ -1,5 +1,5 @@
 import openai
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import logging
 from pathlib import Path
 from ..services.hybrid_searcher import HybridSearcher
@@ -110,42 +110,70 @@ class RAGChatbot:
                 sources.append({"url": url})
         return sources
         
-    def ask(self, question: str) -> Dict:
-        """پرسش از چت‌بات"""
+    def ask(self, query: str) -> Dict[str, Any]:
+        """پرسش از چت‌بات با استفاده از RAG"""
         try:
-            # استخراج کانتکست
-            context = self._extract_context(question)
+            # تشخیص نوع کوئری
+            query_type = self.prompt_manager.detect_query_type(query)
+            logger.info(f"Query type detected: {query_type}")
             
-            # ایجاد پیام‌ها
-            messages = self._create_messages(question, context)
+            # جستجو در پایگاه دانش
+            search_results = self.searcher.search(query, n_results=5, query_type=query_type)
             
-            # ارسال درخواست به API
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=messages,
-                max_tokens=self.max_tokens,
-                temperature=self.temperature
+            # اگر هیچ نتیجه‌ای پیدا نشد، به کاربر اطلاع دهیم
+            if not search_results.get('has_results', False):
+                return {
+                    "answer": "متأسفانه اطلاعاتی در مورد این موضوع در پایگاه دانش موجود نیست. لطفاً سوال دیگری بپرسید.",
+                    "sources": []
+                }
+            
+            # آماده‌سازی متن‌های مرتبط
+            relevant_texts = []
+            for doc, metadata in zip(search_results['documents'][0], search_results['metadatas'][0]):
+                if doc and metadata:
+                    relevant_texts.append({
+                        'text': doc,
+                        'metadata': metadata
+                    })
+            
+            # ایجاد پرامپت
+            prompt = self.prompt_manager.create_prompt(
+                query=query,
+                relevant_texts=relevant_texts,
+                query_type=query_type
             )
             
-            # استخراج پاسخ
-            answer = response.choices[0].message.content
-            
-            # به‌روزرسانی تاریخچه چت
-            self.chat_history.append({"role": "user", "content": question})
-            self.chat_history.append({"role": "assistant", "content": answer})
+            # ارسال به مدل زبانی
+            response = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=self.max_tokens,
+                temperature=self.temperature
+            ).choices[0].message.content
             
             # استخراج منابع
-            sources = self._extract_sources(context)
+            sources = []
+            for text in relevant_texts:
+                if text['metadata']:
+                    sources.append({
+                        'title': text['metadata'].get('title', ''),
+                        'url': text['metadata'].get('url', ''),
+                        'content': text['text'][:200] + '...' if len(text['text']) > 200 else text['text']
+                    })
+            
+            # به‌روزرسانی تاریخچه چت
+            self.chat_history.append({"role": "user", "content": query})
+            self.chat_history.append({"role": "assistant", "content": response})
             
             return {
-                "answer": answer,
+                "answer": response,
                 "sources": sources
             }
             
         except Exception as e:
-            logger.error(f"خطا در پاسخ به پرسش: {str(e)}")
+            logger.error(f"Error in RAG chatbot: {str(e)}")
             return {
-                "answer": "متأسفانه در پاسخ به پرسش شما مشکلی پیش آمده است.",
+                "answer": "متأسفانه در پردازش درخواست شما مشکلی پیش آمده است. لطفاً دوباره تلاش کنید.",
                 "sources": []
             }
             

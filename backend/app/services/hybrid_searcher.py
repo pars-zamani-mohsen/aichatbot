@@ -225,30 +225,30 @@ class HybridSearcher:
         """جستجو در اسناد با استفاده از ترکیب جستجوی معنایی و BM25"""
         if not self.documents:
             logger.warning("No documents available for search")
-            return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+            return {'documents': [[]], 'metadatas': [[]], 'distances': [[]], 'has_results': False}
 
         try:
             # بررسی اعتبار کوئری
             if not query or not isinstance(query, str):
                 logger.warning("Invalid query")
-                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]], 'has_results': False}
 
             query = query.strip()
             if not query:
                 logger.warning("Empty query")
-                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]], 'has_results': False}
 
             # بررسی توکن‌های کوئری
             query_tokens = self._tokenize_text(query)
             if not query_tokens:
                 logger.warning("No valid tokens in query")
-                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]], 'has_results': False}
 
             result = self._perform_search(query, n_results)
 
             if not result['documents'][0]:
                 logger.info("No relevant documents found in database")
-                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]], 'has_results': False}
 
             if result['distances'][0]:
                 raw_scores = result['distances'][0]
@@ -258,7 +258,7 @@ class HybridSearcher:
                 # اگر بهترین امتیاز زیر آستانه است، یعنی اطلاعات مرتبطی در دیتابیس وجود ندارد
                 if max_score < threshold:
                     self._log_debug(f"Best match score {max_score:.4f} below threshold {threshold}, no relevant information found")
-                    return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+                    return {'documents': [[]], 'metadatas': [[]], 'distances': [[]], 'has_results': False}
 
                 # نرمال‌سازی امتیازات
                 normalized_scores = [score / max_score for score in raw_scores]
@@ -267,11 +267,12 @@ class HybridSearcher:
                 self._log_debug(f"Search results - Max score: {max_score:.4f}")
                 self._log_debug(f"Normalized scores: {[f'{score:.4f}' for score in normalized_scores]}")
 
+            result['has_results'] = True
             return result
 
         except Exception as e:
             logger.error(f"Error in search: {str(e)}")
-            return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+            return {'documents': [[]], 'metadatas': [[]], 'distances': [[]], 'has_results': False}
 
     def _perform_search(self, query: str, n_results: int) -> Dict:
         try:
