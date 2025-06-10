@@ -9,9 +9,10 @@ import time
 import re
 from app.config import settings
 
+# تنظیم لاگر
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=getattr(logging, settings.LOG_LEVEL),
+    format=settings.LOG_FORMAT
 )
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class HybridSearcher:
         self.tokens_per_min = tokens_per_min or int(settings.TOKENS_PER_MIN)
         self.embedding_model = embedding_model or settings.EMBEDDING_MODEL_NAME
         self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+        self.debug_mode = settings.DEBUG_MODE
 
         # تنظیمات کش
         self.cache = {}
@@ -42,6 +44,11 @@ class HybridSearcher:
         self.similarity_threshold = 0.45  # کاهش آستانه برای نتایج بیشتر
 
         self._initialize()
+
+    def _log_debug(self, message: str, *args, **kwargs):
+        """لاگ کردن پیام‌ها فقط در حالت دیباگ"""
+        if self.debug_mode:
+            logger.info(message, *args, **kwargs)
 
     def _initialize(self):
         """آماده‌سازی موتور جستجو"""
@@ -67,10 +74,10 @@ class HybridSearcher:
                 logger.warning("No valid documents found after filtering")
                 return
 
-            # لاگ کردن نمونه اسناد برای بررسی
-            logger.info(f"Sample documents:")
+            # لاگ کردن نمونه اسناد فقط در حالت دیباگ
+            self._log_debug("Sample documents:")
             for i, doc in enumerate(self.documents[:3]):
-                logger.info(f"Document {i+1}: {doc[:200]}...")
+                self._log_debug(f"Document {i+1}: {doc[:200]}...")
 
             # توکن‌سازی اسناد
             tokenized_docs = []
@@ -78,9 +85,9 @@ class HybridSearcher:
                 tokens = self._tokenize_text(doc)
                 if tokens:  # فقط اسنادی که توکن معتبر دارند
                     tokenized_docs.append(tokens)
-                    # لاگ کردن نمونه توکن‌ها
+                    # لاگ کردن نمونه توکن‌ها فقط در حالت دیباگ
                     if len(tokenized_docs) <= 3:
-                        logger.info(f"Tokens for document {len(tokenized_docs)}: {tokens[:10]}...")
+                        self._log_debug(f"Tokens for document {len(tokenized_docs)}: {tokens[:10]}...")
 
             if not tokenized_docs:
                 logger.warning("No valid tokens found in documents")
@@ -89,14 +96,14 @@ class HybridSearcher:
             # ایجاد موتور BM25
             self.bm25 = BM25Okapi(tokenized_docs)
             logger.info(f"تعداد اسناد بارگذاری شده: {len(self.documents)}")
-            logger.info(f"تعداد توکن‌های منحصر به فرد: {len(set([token for doc in tokenized_docs for token in doc]))}")
+            self._log_debug(f"تعداد توکن‌های منحصر به فرد: {len(set([token for doc in tokenized_docs for token in doc]))}")
 
             # تست جستجوی ساده
             test_query = "آموزش"
             test_tokens = self._tokenize_text(test_query)
             if test_tokens:
                 test_scores = self.bm25.get_scores(test_tokens)
-                logger.info(f"Test BM25 search for 'آموزش': {[f'{score:.4f}' for score in test_scores[:3]]}")
+                self._log_debug(f"Test BM25 search for 'آموزش': {[f'{score:.4f}' for score in test_scores[:3]]}")
 
         except Exception as e:
             logger.error(f"خطا در آماده‌سازی: {str(e)}")
@@ -204,9 +211,9 @@ class HybridSearcher:
             # مرتب‌سازی توکن‌ها بر اساس طول (طولانی‌ترین اول)
             tokens.sort(key=len, reverse=True)
 
-            # لاگ کردن توکن‌ها برای بررسی
+            # لاگ کردن توکن‌ها فقط در حالت دیباگ
             if len(tokens) > 0:
-                logger.info(f"Tokens for text '{text[:50]}...': {tokens[:10]}...")
+                self._log_debug(f"Tokens for text '{text[:50]}...': {tokens[:10]}...")
 
             return tokens
 
@@ -250,15 +257,15 @@ class HybridSearcher:
 
                 # اگر بهترین امتیاز زیر آستانه است، یعنی اطلاعات مرتبطی در دیتابیس وجود ندارد
                 if max_score < threshold:
-                    logger.info(f"Best match score {max_score:.4f} below threshold {threshold}, no relevant information found")
+                    self._log_debug(f"Best match score {max_score:.4f} below threshold {threshold}, no relevant information found")
                     return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
                 # نرمال‌سازی امتیازات
                 normalized_scores = [score / max_score for score in raw_scores]
                 result['distances'][0] = normalized_scores
 
-                logger.info(f"Search results - Max score: {max_score:.4f}")
-                logger.info(f"Normalized scores: {[f'{score:.4f}' for score in normalized_scores]}")
+                self._log_debug(f"Search results - Max score: {max_score:.4f}")
+                self._log_debug(f"Normalized scores: {[f'{score:.4f}' for score in normalized_scores]}")
 
             return result
 
@@ -282,15 +289,15 @@ class HybridSearcher:
             
             # اگر همه امتیازات یکسان هستند، یعنی اطلاعات مرتبطی پیدا نشده
             if np.all(semantic_scores == semantic_scores[0]):
-                logger.info("No distinct semantic matches found")
+                self._log_debug("No distinct semantic matches found")
                 return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
             # اگر بهترین امتیاز زیر آستانه است، لاگ می‌کنیم اما ادامه می‌دهیم
             max_semantic_score = max(semantic_scores)
             if max_semantic_score < self.similarity_threshold:
-                logger.info(f"Best semantic score {max_semantic_score:.4f} below threshold {self.similarity_threshold}, but continuing search")
+                self._log_debug(f"Best semantic score {max_semantic_score:.4f} below threshold {self.similarity_threshold}, but continuing search")
 
-            logger.info(f"Semantic Scores: {[f'{score:.4f}' for score in semantic_scores]}")
+            self._log_debug(f"Semantic Scores: {[f'{score:.4f}' for score in semantic_scores]}")
 
             # جستجوی BM25
             tokenized_query = self._tokenize_text(query)
@@ -309,14 +316,14 @@ class HybridSearcher:
             if max_bm25_score > min_bm25_score:
                 # نرمال‌سازی به بازه [0, 1]
                 bm25_scores = (bm25_scores - min_bm25_score) / (max_bm25_score - min_bm25_score)
-                logger.info(f"BM25 Scores (normalized): {[f'{score:.4f}' for score in bm25_scores]}")
+                self._log_debug(f"BM25 Scores (normalized): {[f'{score:.4f}' for score in bm25_scores]}")
             else:
                 logger.info("No relevant BM25 matches found")
                 return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
             # محاسبه وزن‌های پویا
             sem_w, bm25_w = self._dynamic_weighting(query, semantic_results, bm25_scores)
-            logger.info(f"Weights - Semantic: {sem_w:.4f}, BM25: {bm25_w:.4f}")
+            self._log_debug(f"Weights - Semantic: {sem_w:.4f}, BM25: {bm25_w:.4f}")
 
             # ترکیب نتایج
             combined_docs, combined_meta = self._combine_results(
@@ -342,7 +349,7 @@ class HybridSearcher:
 
             # اگر همه امتیازات بازمرتب‌سازی یکسان هستند، از امتیازات معنایی استفاده کن
             if np.all(rerank_scores == rerank_scores[0]):
-                logger.info("Using semantic scores for ranking")
+                self._log_debug("Using semantic scores for ranking")
                 indices = np.argsort(semantic_scores)[-top_k:][::-1]
                 final_scores = [float(semantic_scores[i]) for i in indices]
             else:
@@ -352,10 +359,10 @@ class HybridSearcher:
                 if max_rerank > min_rerank:
                     rerank_scores = (rerank_scores - min_rerank) / (max_rerank - min_rerank)
                 else:
-                    logger.info("No distinct reranking scores available")
+                    self._log_debug("No distinct reranking scores available")
                     return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
-                logger.info(f"Rerank Scores (normalized): {[f'{score:.4f}' for score in rerank_scores]}")
+                self._log_debug(f"Rerank Scores (normalized): {[f'{score:.4f}' for score in rerank_scores]}")
                 indices = np.argsort(rerank_scores)[-top_k:][::-1]
                 final_scores = [float(rerank_scores[i]) for i in indices]
 
@@ -365,10 +372,10 @@ class HybridSearcher:
 
             # بررسی کیفیت نهایی نتایج
             if np.all(final_scores == final_scores[0]):
-                logger.info("No distinct final scores available")
+                self._log_debug("No distinct final scores available")
                 return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
-            logger.info(f"Final Scores: {[f'{score:.4f}' for score in final_scores]}")
+            self._log_debug(f"Final Scores: {[f'{score:.4f}' for score in final_scores]}")
 
             return {
                 'documents': [[combined_docs[i] for i in indices]],

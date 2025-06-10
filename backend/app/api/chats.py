@@ -117,14 +117,25 @@ async def create_chat(
         )
         logger.info("چت‌بات با موفقیت ایجاد شد")
         
-        # ایجاد چت جدید
-        db_chat = models.Chat(
-            website_id=chat.website_id,
-            session_id=chat.session_id
-        )
-        db.add(db_chat)
-        db.commit()
-        db.refresh(db_chat)
+        # بررسی وجود چت قبلی
+        db_chat = None
+        if chat.chat_id:
+            db_chat = db.query(models.Chat).filter(
+                models.Chat.id == chat.chat_id,
+                models.Chat.website_id == chat.website_id
+            ).first()
+            logger.info(f"چت قبلی یافت شد: {db_chat.id if db_chat else 'خیر'}")
+        
+        # اگر چت قبلی وجود نداشت، یک چت جدید ایجاد کن
+        if not db_chat:
+            db_chat = models.Chat(
+                website_id=chat.website_id,
+                session_id=chat.session_id
+            )
+            db.add(db_chat)
+            db.commit()
+            db.refresh(db_chat)
+            logger.info(f"چت جدید ایجاد شد: {db_chat.id}")
         
         # ذخیره پیام کاربر
         user_message = models.Message(

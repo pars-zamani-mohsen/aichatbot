@@ -19,6 +19,7 @@ const ChatWindow = ({ websiteId, websiteName }) => {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [currentChatId, setCurrentChatId] = useState(null);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -30,9 +31,10 @@ const ChatWindow = ({ websiteId, websiteName }) => {
   }, [messages]);
 
   useEffect(() => {
-    // پاک کردن پیام‌ها هنگام تغییر وب‌سایت
+    // پاک کردن پیام‌ها و چت فعلی هنگام تغییر وب‌سایت
     setMessages([]);
     setError('');
+    setCurrentChatId(null);
     
     const loadChatHistory = async () => {
       try {
@@ -44,6 +46,9 @@ const ChatWindow = ({ websiteId, websiteName }) => {
           // از آخرین چت استفاده می‌کنیم
           const lastChat = websiteChats[websiteChats.length - 1];
           console.log('Using chat:', lastChat);
+          
+          // ذخیره شناسه چت فعلی
+          setCurrentChatId(lastChat.id);
           
           // دریافت پیام‌های چت
           const history = await chats.getHistory(lastChat.id);
@@ -85,7 +90,14 @@ const ChatWindow = ({ websiteId, websiteName }) => {
     setError('');
 
     try {
-      const response = await chats.create(websiteId, newMessage);
+      // اگر چت فعلی داریم، از آن استفاده می‌کنیم
+      const response = await chats.create(websiteId, newMessage, currentChatId);
+      
+      // اگر چت جدید ایجاد شد، شناسه آن را ذخیره می‌کنیم
+      if (response.id && response.id !== currentChatId) {
+        setCurrentChatId(response.id);
+      }
+      
       const assistantMessage = {
         role: 'assistant',
         content: response.response,

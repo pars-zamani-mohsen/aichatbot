@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))  # 7 days
     ALGORITHM: str = "HS256"
     
+    # تنظیمات لاگ
+    DEBUG_MODE: bool = False  # حالت دیباگ برای لاگ‌های دقیق
+    LOG_LEVEL: str = "INFO"  # سطح لاگ پیش‌فرض
+    LOG_FORMAT: str = "%(asctime)s - %(levelname)s - %(message)s"  # فرمت لاگ
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

@@ -172,7 +172,7 @@ export const websites = {
 };
 
 export const chats = {
-  create: async (websiteId, message) => {
+  create: async (websiteId, message, chatId = null) => {
     try {
       const numericId = parseInt(websiteId);
       if (isNaN(numericId)) {
@@ -181,7 +181,8 @@ export const chats = {
       const response = await api.post('/api/chats/', {
         website_id: numericId,
         message,
-        session_id: localStorage.getItem('session_id') || undefined
+        session_id: localStorage.getItem('session_id') || undefined,
+        chat_id: chatId
       });
       return response.data;
     } catch (error) {

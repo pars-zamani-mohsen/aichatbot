@@ -60,6 +60,7 @@ class Message(MessageBase):
 class ChatBase(BaseModel):
     website_id: int
     session_id: Optional[str] = None
+    chat_id: Optional[int] = None
 
 class ChatCreate(ChatBase):
     message: str
