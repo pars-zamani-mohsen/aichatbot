@@ -22,6 +22,7 @@ class Website(Base):
     id = Column(Integer, primary_key=True, index=True)
     url = Column(String, index=True)
     domain = Column(String, index=True)
+    name = Column(String, nullable=True)  # نام اختیاری وب‌سایت
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     status = Column(String)  # pending, crawling, processing, ready, error
     created_at = Column(DateTime(timezone=True), server_default=func.now())

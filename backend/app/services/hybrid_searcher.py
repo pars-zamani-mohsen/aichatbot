@@ -37,16 +37,18 @@ class HybridSearcher:
         self.cache = {}
         self.cache_ttl = 3600  # یک ساعت
         self.max_cache_size = 1000
-        self._initialize()
 
-        # اضافه کردن آستانه شباهت به تنظیمات
-        self.similarity_threshold = settings.SIMILARITY_THRESHOLD
+        # تنظیم آستانه شباهت
+        self.similarity_threshold = 0.45  # کاهش آستانه برای نتایج بیشتر
+
+        self._initialize()
 
     def _initialize(self):
         """آماده‌سازی موتور جستجو"""
         try:
             results = self.collection.peek()
             if not results or not results['documents']:
+                logger.warning("No documents found in collection")
                 return
 
             docs = results['documents']
@@ -55,12 +57,46 @@ class HybridSearcher:
             else:
                 self.documents = [str(doc) for doc in docs]
 
-            self.documents = [doc for doc in self.documents if len(doc.strip()) > 50]
+            # فیلتر کردن اسناد خالی یا خیلی کوتاه
+            self.documents = [
+                doc for doc in self.documents 
+                if doc and isinstance(doc, str) and len(doc.strip()) > 50
+            ]
 
-            if self.documents:
-                tokenized_docs = [self._tokenize_text(doc) for doc in self.documents]
-                self.bm25 = BM25Okapi(tokenized_docs)
-                logger.info(f"تعداد اسناد بارگذاری شده: {len(self.documents)}")
+            if not self.documents:
+                logger.warning("No valid documents found after filtering")
+                return
+
+            # لاگ کردن نمونه اسناد برای بررسی
+            logger.info(f"Sample documents:")
+            for i, doc in enumerate(self.documents[:3]):
+                logger.info(f"Document {i+1}: {doc[:200]}...")
+
+            # توکن‌سازی اسناد
+            tokenized_docs = []
+            for doc in self.documents:
+                tokens = self._tokenize_text(doc)
+                if tokens:  # فقط اسنادی که توکن معتبر دارند
+                    tokenized_docs.append(tokens)
+                    # لاگ کردن نمونه توکن‌ها
+                    if len(tokenized_docs) <= 3:
+                        logger.info(f"Tokens for document {len(tokenized_docs)}: {tokens[:10]}...")
+
+            if not tokenized_docs:
+                logger.warning("No valid tokens found in documents")
+                return
+
+            # ایجاد موتور BM25
+            self.bm25 = BM25Okapi(tokenized_docs)
+            logger.info(f"تعداد اسناد بارگذاری شده: {len(self.documents)}")
+            logger.info(f"تعداد توکن‌های منحصر به فرد: {len(set([token for doc in tokenized_docs for token in doc]))}")
+
+            # تست جستجوی ساده
+            test_query = "آموزش"
+            test_tokens = self._tokenize_text(test_query)
+            if test_tokens:
+                test_scores = self.bm25.get_scores(test_tokens)
+                logger.info(f"Test BM25 search for 'آموزش': {[f'{score:.4f}' for score in test_scores[:3]]}")
 
         except Exception as e:
             logger.error(f"خطا در آماده‌سازی: {str(e)}")
@@ -70,14 +106,26 @@ class HybridSearcher:
     def _normalize_text(self, text: str) -> str:
         """نرمال‌سازی متن با پشتیبانی از فارسی و انگلیسی"""
         try:
-            text = str(text).strip()
-            lang = detect(text)
+            if not text or not isinstance(text, str):
+                return ""
 
+            text = str(text).strip()
+            if not text:
+                return ""
+
+            # تشخیص زبان
+            try:
+                lang = detect(text)
+            except:
+                lang = 'fa'  # در صورت خطا، فارسی در نظر گرفته می‌شود
+
+            # حذف کاراکترهای خاص و علائم نگارشی
             text = re.sub(r'[^\w\s\u0600-\u06FF]', ' ', text)
 
             if lang == 'fa':
+                # تبدیل اعداد عربی به فارسی
                 replacements = {
-                    'ي': 'ی', 'ك': 'ک',
+                    'ي': 'ی', 'ك': 'ک', 'ة': 'ه',
                     '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
                     '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
                     '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4',
@@ -86,65 +134,121 @@ class HybridSearcher:
                 for old, new in replacements.items():
                     text = text.replace(old, new)
             else:
+                # تبدیل به حروف کوچک برای انگلیسی
                 text = text.lower()
 
-            return re.sub(r'\s+', ' ', text).strip()
+            # حذف فاصله‌های اضافی
+            text = re.sub(r'\s+', ' ', text).strip()
+
+            return text
 
         except Exception as e:
-            logger.warning(f"خطا در نرمال‌سازی متن: {str(e)}")
-            return text.lower().strip()
+            logger.error(f"خطا در نرمال‌سازی متن: {str(e)}")
+            return ""
 
     def _tokenize_text(self, text: str) -> List[str]:
         """تقسیم متن به توکن‌ها با پشتیبانی فارسی و انگلیسی"""
         try:
-            normalized = self._normalize_text(text)
-            tokens = []
-            words = re.findall(r'[\u0600-\u06FF]+|[a-zA-Z]+|\d+', normalized)
+            if not text or not isinstance(text, str):
+                return []
 
-            for word in words:
+            normalized = self._normalize_text(text)
+            if not normalized:
+                return []
+
+            tokens = []
+            
+            # جستجوی کلمات فارسی
+            fa_words = re.findall(r'[\u0600-\u06FF]+', normalized)
+            for word in fa_words:
                 if len(word) > 1:
+                    # اضافه کردن کلمه کامل
                     tokens.append(word)
-                    if re.search(r'[\u0600-\u06FF]', word) and len(word) > 3:
+                    # اضافه کردن n-gram برای کلمات طولانی
+                    if len(word) > 3:
                         for i in range(len(word)-2):
                             tokens.append(word[i:i+3])
+                            # اضافه کردن n-gram‌های بزرگتر فقط برای کلمات خیلی طولانی
+                            if len(word) > 5:
+                                tokens.append(word[i:i+4])
+
+            # جستجوی کلمات انگلیسی
+            en_words = re.findall(r'[a-zA-Z]+', normalized)
+            for word in en_words:
+                if len(word) > 1:
+                    tokens.append(word.lower())
+                    # اضافه کردن n-gram برای کلمات انگلیسی طولانی
+                    if len(word) > 3:
+                        for i in range(len(word)-2):
+                            tokens.append(word[i:i+3].lower())
+
+            # جستجوی اعداد
+            numbers = re.findall(r'\d+', normalized)
+            tokens.extend(numbers)
+
+            # حذف توکن‌های تکراری
+            tokens = list(set(tokens))
+
+            # حذف توکن‌های خیلی کوتاه
+            tokens = [token for token in tokens if len(token) > 1]
+
+            # مرتب‌سازی توکن‌ها بر اساس طول (طولانی‌ترین اول)
+            tokens.sort(key=len, reverse=True)
+
+            # لاگ کردن توکن‌ها برای بررسی
+            if len(tokens) > 0:
+                logger.info(f"Tokens for text '{text[:50]}...': {tokens[:10]}...")
 
             return tokens
 
         except Exception as e:
-            logger.warning(f"خطا در توکن‌سازی: {str(e)}")
-            return normalized.split()
+            logger.error(f"خطا در توکن‌سازی: {str(e)}")
+            return []
 
     def search(self, query: str, n_results: int = 5, query_type: str = 'general') -> Dict:
+        """جستجو در اسناد با استفاده از ترکیب جستجوی معنایی و BM25"""
         if not self.documents:
+            logger.warning("No documents available for search")
             return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
         try:
+            # بررسی اعتبار کوئری
+            if not query or not isinstance(query, str):
+                logger.warning("Invalid query")
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+
+            query = query.strip()
+            if not query:
+                logger.warning("Empty query")
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+
+            # بررسی توکن‌های کوئری
+            query_tokens = self._tokenize_text(query)
+            if not query_tokens:
+                logger.warning("No valid tokens in query")
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+
             result = self._perform_search(query, n_results)
+
+            if not result['documents'][0]:
+                logger.info("No relevant documents found in database")
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
             if result['distances'][0]:
                 raw_scores = result['distances'][0]
                 max_score = max(raw_scores)
-                mean_score = np.mean(raw_scores)
                 threshold = self.similarity_threshold
+
+                # اگر بهترین امتیاز زیر آستانه است، یعنی اطلاعات مرتبطی در دیتابیس وجود ندارد
+                if max_score < threshold:
+                    logger.info(f"Best match score {max_score:.4f} below threshold {threshold}, no relevant information found")
+                    return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
                 # نرمال‌سازی امتیازات
                 normalized_scores = [score / max_score for score in raw_scores]
-                
-                # بررسی کیفیت نتایج با امتیازات نرمال‌شده
-                if max_score < threshold:
-                    logger.info(f"Best score {max_score:.4f} below threshold {threshold}")
-                    return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
-
-                # اگر اختلاف بین بهترین امتیاز و میانگین خیلی کم باشد، نتایج را بی‌اعتبار بدان
-                if (max_score - mean_score) < 0.1:
-                    logger.info(f"Results not distinct enough: max={max_score:.4f}, mean={mean_score:.4f}")
-                    return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
-
-                # استفاده از امتیازات نرمال‌شده برای نتایج نهایی
                 result['distances'][0] = normalized_scores
 
-                # لاگ کردن اطلاعات بیشتر برای دیباگ
-                logger.info(f"Search results - Max score: {max_score:.4f}, Mean score: {mean_score:.4f}")
+                logger.info(f"Search results - Max score: {max_score:.4f}")
                 logger.info(f"Normalized scores: {[f'{score:.4f}' for score in normalized_scores]}")
 
             return result
@@ -158,27 +262,48 @@ class HybridSearcher:
             # جستجوی معنایی
             semantic_results = self.collection.query(
                 query_texts=[query],
-                n_results=min(n_results * 2, len(self.documents))
+                n_results=min(n_results * 3, len(self.documents))
             )
 
             if not semantic_results.get('distances') or not semantic_results['distances'][0]:
-                logger.warning("No semantic search results found")
+                logger.info("No semantic matches found in database")
                 return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
             semantic_scores = semantic_results['distances'][0]
+            
+            # اگر همه امتیازات یکسان هستند، یعنی اطلاعات مرتبطی پیدا نشده
+            if np.all(semantic_scores == semantic_scores[0]):
+                logger.info("No distinct semantic matches found")
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+
+            # اگر بهترین امتیاز زیر آستانه است، لاگ می‌کنیم اما ادامه می‌دهیم
+            max_semantic_score = max(semantic_scores)
+            if max_semantic_score < self.similarity_threshold:
+                logger.info(f"Best semantic score {max_semantic_score:.4f} below threshold {self.similarity_threshold}, but continuing search")
+
             logger.info(f"Semantic Scores: {[f'{score:.4f}' for score in semantic_scores]}")
 
             # جستجوی BM25
-            bm25_scores = self.bm25.get_scores(self._tokenize_text(query))
+            tokenized_query = self._tokenize_text(query)
+            if not tokenized_query:
+                logger.info("Query contains no searchable terms")
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+
+            bm25_scores = self.bm25.get_scores(tokenized_query)
             if len(bm25_scores) == 0:
-                logger.warning("No BM25 scores found")
+                logger.info("No BM25 matches found")
                 return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
             # نرمال‌سازی امتیازات BM25
-            if max(bm25_scores) > 0:
-                bm25_scores = bm25_scores / max(bm25_scores)
-
-            logger.info(f"BM25 Scores (normalized): {[f'{score:.4f}' for score in bm25_scores]}")
+            max_bm25_score = max(bm25_scores)
+            min_bm25_score = min(bm25_scores)
+            if max_bm25_score > min_bm25_score:
+                # نرمال‌سازی به بازه [0, 1]
+                bm25_scores = (bm25_scores - min_bm25_score) / (max_bm25_score - min_bm25_score)
+                logger.info(f"BM25 Scores (normalized): {[f'{score:.4f}' for score in bm25_scores]}")
+            else:
+                logger.info("No relevant BM25 matches found")
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
             # محاسبه وزن‌های پویا
             sem_w, bm25_w = self._dynamic_weighting(query, semantic_results, bm25_scores)
@@ -190,7 +315,7 @@ class HybridSearcher:
             )
 
             if not combined_docs:
-                logger.warning("No combined results found")
+                logger.info("No combined matches found")
                 return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
             # بازمرتب‌سازی با CrossEncoder
@@ -198,21 +323,42 @@ class HybridSearcher:
             rerank_scores = self._rerank_results(doc_pairs)
             
             if len(rerank_scores) == 0:
-                logger.warning("No reranking scores found")
+                logger.info("No reranking scores available")
                 return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
-
-            # نرمال‌سازی امتیازات بازمرتب‌سازی
-            max_rerank = np.max(rerank_scores)
-            if max_rerank > 0:
-                rerank_scores = rerank_scores / max_rerank
-
-            logger.info(f"Rerank Scores (normalized): {[f'{score:.4f}' for score in rerank_scores]}")
 
             # انتخاب بهترین نتایج
             top_k = min(n_results, len(combined_docs))
-            indices = np.argsort(rerank_scores)[-top_k:][::-1]
+            indices = None
+            final_scores = None
 
-            final_scores = [float(rerank_scores[i]) for i in indices]
+            # اگر همه امتیازات بازمرتب‌سازی یکسان هستند، از امتیازات معنایی استفاده کن
+            if np.all(rerank_scores == rerank_scores[0]):
+                logger.info("Using semantic scores for ranking")
+                indices = np.argsort(semantic_scores)[-top_k:][::-1]
+                final_scores = [float(semantic_scores[i]) for i in indices]
+            else:
+                # نرمال‌سازی امتیازات بازمرتب‌سازی
+                max_rerank = np.max(rerank_scores)
+                min_rerank = np.min(rerank_scores)
+                if max_rerank > min_rerank:
+                    rerank_scores = (rerank_scores - min_rerank) / (max_rerank - min_rerank)
+                else:
+                    logger.info("No distinct reranking scores available")
+                    return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+
+                logger.info(f"Rerank Scores (normalized): {[f'{score:.4f}' for score in rerank_scores]}")
+                indices = np.argsort(rerank_scores)[-top_k:][::-1]
+                final_scores = [float(rerank_scores[i]) for i in indices]
+
+            if indices is None or final_scores is None:
+                logger.info("Failed to generate final results")
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+
+            # بررسی کیفیت نهایی نتایج
+            if np.all(final_scores == final_scores[0]):
+                logger.info("No distinct final scores available")
+                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
+
             logger.info(f"Final Scores: {[f'{score:.4f}' for score in final_scores]}")
 
             return {
@@ -259,25 +405,42 @@ class HybridSearcher:
                           query: str,
                           semantic_results: Dict,
                           bm25_scores: np.ndarray) -> Tuple[float, float]:
-        """محاسبه وزن‌های پویا"""
+        """محاسبه وزن‌های پویا برای ترکیب نتایج معنایی و BM25"""
         try:
+            # محاسبه کیفیت جستجوی معنایی
             semantic_quality = 0.0
             if semantic_results.get('distances') and semantic_results['distances'][0]:
-                semantic_quality = np.mean(semantic_results['distances'][0])
+                semantic_scores = semantic_results['distances'][0]
+                # استفاده از میانگین وزنی برای امتیازات معنایی
+                semantic_quality = np.average(semantic_scores, weights=range(1, len(semantic_scores) + 1))
 
-            bm25_quality = np.mean(bm25_scores) if len(bm25_scores) > 0 else 0.0
+            # محاسبه کیفیت جستجوی BM25
+            bm25_quality = 0.0
+            if len(bm25_scores) > 0:
+                # استفاده از میانگین وزنی برای امتیازات BM25
+                bm25_quality = np.average(bm25_scores, weights=range(1, len(bm25_scores) + 1))
+
+            # محاسبه مجموع کیفیت‌ها
             total_quality = semantic_quality + bm25_quality
 
+            # اگر کیفیت کل خیلی پایین است، از وزن‌های پیش‌فرض استفاده کن
             if total_quality < 1e-6:
                 return 0.7, 0.3
 
+            # محاسبه وزن‌های نهایی با محدودیت‌های معقول
             semantic_weight = max(0.3, min(0.8, semantic_quality / total_quality))
             bm25_weight = 1 - semantic_weight
+
+            # اطمینان از اینکه مجموع وزن‌ها برابر 1 است
+            total_weight = semantic_weight + bm25_weight
+            if total_weight != 1.0:
+                semantic_weight = semantic_weight / total_weight
+                bm25_weight = bm25_weight / total_weight
 
             return semantic_weight, bm25_weight
 
         except Exception as e:
-            logger.warning(f"خطا در محاسبه وزن‌های پویا: {str(e)}")
+            logger.error(f"خطا در محاسبه وزن‌های پویا: {str(e)}")
             return 0.7, 0.3
 
     def _rerank_results(self, doc_pairs: List[Tuple[str, str]]) -> np.ndarray:
@@ -292,13 +455,24 @@ class HybridSearcher:
             # تبدیل امتیازات به آرایه numpy
             scores = np.array(raw_scores)
             
-            # اگر همه امتیازات منفی هستند، آنها را به بازه مثبت تبدیل می‌کنیم
-            if np.all(scores < 0):
+            # اگر همه امتیازات یکسان هستند، از امتیازات معنایی استفاده می‌کنیم
+            if np.all(scores == scores[0]):
+                return np.ones(len(doc_pairs))
+            
+            # تبدیل امتیازات منفی به مثبت
+            if np.any(scores < 0):
                 scores = scores - np.min(scores)
             
             # نرمال‌سازی به بازه [0, 1]
-            if np.max(scores) > 0:
-                scores = scores / np.max(scores)
+            max_score = np.max(scores)
+            min_score = np.min(scores)
+            
+            # اگر همه امتیازات یکسان هستند، یک آرایه با امتیازات یکسان برمی‌گردانیم
+            if max_score == min_score:
+                return np.ones(len(doc_pairs))
+            
+            # نرمال‌سازی به بازه [0, 1]
+            scores = (scores - min_score) / (max_score - min_score)
             
             logger.info(f"Raw rerank scores: {[f'{score:.4f}' for score in raw_scores]}")
             logger.info(f"Normalized rerank scores: {[f'{score:.4f}' for score in scores]}")
@@ -307,7 +481,7 @@ class HybridSearcher:
 
         except Exception as e:
             logger.error(f"خطا در بازمرتب‌سازی: {str(e)}")
-            return np.array([0.0] * len(doc_pairs))
+            return np.ones(len(doc_pairs))  # در صورت خطا، امتیازات یکسان برمی‌گردانیم
 
     def _get_from_cache(self, query: str, n_results: int) -> Optional[Dict]:
         """دریافت نتایج از کش"""

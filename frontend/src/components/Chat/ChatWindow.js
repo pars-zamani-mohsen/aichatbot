@@ -14,7 +14,7 @@ import {
 import SendIcon from '@mui/icons-material/Send';
 import { chats } from '../../services/api';
 
-const ChatWindow = ({ websiteId }) => {
+const ChatWindow = ({ websiteId, websiteName }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -103,7 +103,9 @@ const ChatWindow = ({ websiteId }) => {
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Typography variant="h6">چت</Typography>
+        <Typography variant="h6">
+          {websiteName ? `چت - ${websiteName}` : 'چت'}
+        </Typography>
       </Box>
 
       <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>

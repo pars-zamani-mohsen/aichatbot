@@ -17,7 +17,10 @@ const Home = () => {
         <Grid item xs={12} md={8}>
           <Paper sx={{ height: '100%' }}>
             {selectedWebsite ? (
-              <ChatWindow websiteId={selectedWebsite.id} />
+              <ChatWindow 
+                websiteId={selectedWebsite.id} 
+                websiteName={selectedWebsite.name || selectedWebsite.url}
+              />
             ) : (
               <Box
                 sx={{

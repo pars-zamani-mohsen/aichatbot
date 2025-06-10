@@ -75,6 +75,7 @@ async def crawl_website(
         website_record = Website(
             url=str(website.url),
             domain=urlparse(str(website.url)).netloc,
+            name=website.name,  # ذخیره نام سایت
             status="pending",
             owner_id=current_user.id
         )
