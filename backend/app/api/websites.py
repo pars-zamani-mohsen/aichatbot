@@ -44,8 +44,9 @@ async def process_website_background(website_id: int, db: Session):
         db.commit()
         
         try:
-            # اجرای فاز 1: کراول
-            crawler = WebCrawlerPipeline(website.url)
+            # اجرای فاز 1: کراول با تنظیمات اختصاصی
+            crawl_settings = website.crawl_settings or {}
+            crawler = WebCrawlerPipeline(website.url, crawl_settings)
             if not await crawler.run_async():
                 raise Exception("خطا در کراول کردن سایت")
                 
@@ -112,9 +113,8 @@ async def get_website(
     current_user: User = Depends(get_current_user)
 ):
     """دریافت اطلاعات یک وب‌سایت"""
-    website = db.query(Website).filter(Website.id == website_id).first()
-    if not website:
-        raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد")
+    # بررسی مالکیت وب‌سایت (جداسازی tenant)
+    website = verify_website_ownership(website_id, current_user.id, db)
     return website
 
 @router.get("/stats/{website_id}")
@@ -125,9 +125,8 @@ async def get_website_stats(
 ):
     """دریافت آمار کراول یک وب‌سایت"""
     try:
-        website = db.query(Website).filter(Website.id == website_id).first()
-        if not website:
-            raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد")
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
             
         # خواندن فایل CSV
         base_dir = Path(__file__).parent.parent.parent
@@ -174,15 +173,12 @@ async def generate_widget_key(
 ):
     """تولید کلید عمومی برای ویجت"""
     try:
-        # بررسی مالکیت وب‌سایت
-        website = db.query(Website).filter(
-            Website.id == website_id,
-            Website.owner_id == current_user.id,
-            Website.status == "ready"
-        ).first()
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
         
-        if not website:
-            raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد یا آماده نیست")
+        # بررسی آماده بودن وب‌سایت
+        if website.status != "ready":
+            raise HTTPException(status_code=400, detail="وب‌سایت آماده نیست")
         
         # تولید کلید عمومی
         import hashlib
@@ -281,4 +277,57 @@ async def get_verification_instructions(
         
     except Exception as e:
         logger.error(f"خطا در دریافت دستورالعمل‌های تأیید: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/{website_id}/crawl-settings")
+async def update_crawl_settings(
+    website_id: int,
+    settings: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """به‌روزرسانی تنظیمات کراولینگ وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # به‌روزرسانی تنظیمات
+        website.crawl_settings = settings
+        db.commit()
+        
+        return {
+            "website_id": website_id,
+            "crawl_settings": settings,
+            "message": "تنظیمات کراولینگ با موفقیت به‌روزرسانی شد"
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در به‌روزرسانی تنظیمات کراولینگ: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{website_id}/crawl-settings")
+async def get_crawl_settings(
+    website_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت تنظیمات کراولینگ وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        return {
+            "website_id": website_id,
+            "crawl_settings": website.crawl_settings or {},
+            "default_settings": {
+                "max_pages": 100,
+                "max_depth": 3,
+                "delay": 1,
+                "respect_robots": True,
+                "user_agent": "RAG-Crawler/1.0"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت تنظیمات کراولینگ: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

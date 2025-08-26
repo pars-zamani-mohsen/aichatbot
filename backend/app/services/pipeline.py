@@ -227,7 +227,22 @@ class WebCrawlerPipeline:
                         href = link['href']
                         absolute_url = urljoin(url, href)
                         if self.is_valid_url(absolute_url):
-                            links.append(absolute_url)
+                            # حذف fragment (#) از URL
+                            clean_url = absolute_url.split('#')[0]
+                            # حذف پارامترهای اضافی
+                            if '?' in clean_url:
+                                base_url = clean_url.split('?')[0]
+                                # فقط پارامترهای مهم را نگه می‌داریم
+                                params = clean_url.split('?')[1]
+                                important_params = []
+                                for param in params.split('&'):
+                                    if any(key in param.lower() for key in ['page', 'id', 'article', 'post']):
+                                        important_params.append(param)
+                                if important_params:
+                                    clean_url = f"{base_url}?{'&'.join(important_params)}"
+                                else:
+                                    clean_url = base_url
+                            links.append(clean_url)
                             
                     return {
                         'url': url,
@@ -255,6 +270,9 @@ class WebCrawlerPipeline:
                     self.data.append(result)
                     pbar.update(1)
                     pbar.set_description(f"صفحات پردازش شده: {len(self.data)}")
+                elif isinstance(result, Exception):
+                    logger.warning(f"خطا در پردازش URL: {str(result)}")
+                    pbar.update(1)  # به‌روزرسانی progress bar حتی در صورت خطا
                     
     async def run_async(self) -> bool:
         """اجرای فرآیند کراول به صورت همزمان"""
@@ -282,9 +300,16 @@ class WebCrawlerPipeline:
                     # اضافه کردن لینک‌های جدید به صف
                     new_links = set()
                     for page_data in self.data:
-                        new_links.update(page_data['links'])
-                    urls_to_crawl.extend([link for link in new_links 
-                                        if self.should_crawl(link)])
+                        if page_data and 'links' in page_data:
+                            new_links.update(page_data['links'])
+                    
+                    # فیلتر کردن لینک‌های جدید
+                    filtered_links = [link for link in new_links 
+                                    if self.should_crawl(link) and link not in self.visited_urls]
+                    urls_to_crawl.extend(filtered_links)
+                    
+                    # حذف تکرارها
+                    urls_to_crawl = list(dict.fromkeys(urls_to_crawl))
             
             # بستن session
             await self.session.close()
