@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import List
 from sqlalchemy.orm import Session
 from ..services.pipeline import WebCrawlerPipeline, EmbeddingPipeline
+from ..services.domain_verification import DomainVerificationService
 from ..database.models import Website
 from ..database.database import get_db
 from . import schemas
@@ -12,6 +13,18 @@ from pathlib import Path
 import pandas as pd
 from ..database.models import User
 from .auth import get_current_user
+
+def verify_website_ownership(website_id: int, user_id: int, db: Session) -> Website:
+    """بررسی مالکیت وب‌سایت (جداسازی tenant)"""
+    website = db.query(Website).filter(
+        Website.id == website_id,
+        Website.owner_id == user_id
+    ).first()
+    
+    if not website:
+        raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد")
+    
+    return website
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -188,4 +201,84 @@ async def generate_widget_key(
         
     except Exception as e:
         logger.error(f"خطا در تولید کلید ویجت: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{website_id}/verify-domain")
+async def verify_domain_ownership(
+    website_id: int,
+    verification_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """تأیید مالکیت دامنه"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        method = verification_data.get("method", "html")
+        token = website.verification_token
+        
+        if not token:
+            # تولید توکن جدید
+            token = DomainVerificationService.generate_verification_token()
+            website.verification_token = token
+            db.commit()
+        
+        # تأیید مالکیت
+        is_valid, message = DomainVerificationService.verify_domain_ownership(
+            website.domain, token, method
+        )
+        
+        if is_valid:
+            website.domain_verified = True
+            db.commit()
+        
+        return {
+            "website_id": website_id,
+            "domain": website.domain,
+            "method": method,
+            "verified": is_valid,
+            "message": message,
+            "token": token
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در تأیید مالکیت دامنه: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{website_id}/verification-instructions")
+async def get_verification_instructions(
+    website_id: int,
+    method: str = "html",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت دستورالعمل‌های تأیید دامنه"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # تولید یا دریافت توکن
+        if not website.verification_token:
+            token = DomainVerificationService.generate_verification_token()
+            website.verification_token = token
+            db.commit()
+        else:
+            token = website.verification_token
+        
+        # دریافت دستورالعمل‌ها
+        instructions = DomainVerificationService.get_verification_instructions(
+            website.domain, token, method
+        )
+        
+        return {
+            "website_id": website_id,
+            "domain": website.domain,
+            "method": method,
+            "token": token,
+            "instructions": instructions
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت دستورالعمل‌های تأیید: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

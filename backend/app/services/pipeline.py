@@ -30,7 +30,7 @@ CHROMA_BASE_DIR = Path("/var/www/html/ai/backend")
 MAX_PAGES = int(os.getenv('MAX_PAGES', 100))  # مقدار پیش‌فرض 100 است
 
 class WebCrawlerPipeline:
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, crawl_settings: Dict[str, Any] = None):
         self.base_url = base_url
         self.domain = urlparse(base_url).netloc
         self.visited_urls: Set[str] = set()
@@ -39,7 +39,24 @@ class WebCrawlerPipeline:
         self.output_dir = self.base_dir / "processed_data" / self.domain
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.session = None
+        
+        # تنظیمات کراولینگ
+        self.crawl_settings = crawl_settings or {}
+        self.max_pages = self.crawl_settings.get('max_pages', MAX_PAGES)
+        self.max_depth = self.crawl_settings.get('max_depth', 3)
+        self.delay = self.crawl_settings.get('delay', 1)  # تأخیر بین درخواست‌ها (ثانیه)
+        self.respect_robots = self.crawl_settings.get('respect_robots', True)
+        self.user_agent = self.crawl_settings.get('user_agent', 'RAG-Crawler/1.0')
+        
+        # robots.txt rules
+        self.robots_rules = {
+            'allowed': set(),
+            'disallowed': set(),
+            'crawl_delay': 1
+        }
+        
         logger.info(f"Output directory created at: {self.output_dir}")
+        logger.info(f"Crawl settings: max_pages={self.max_pages}, max_depth={self.max_depth}, delay={self.delay}")
         
     def is_valid_url(self, url: str) -> bool:
         """بررسی معتبر بودن URL"""
@@ -56,6 +73,10 @@ class WebCrawlerPipeline:
             
         parsed = urlparse(url)
         if parsed.netloc != self.domain:
+            return False
+        
+        # بررسی robots.txt
+        if not self.is_allowed_by_robots(url):
             return False
             
         # حذف URL‌های با پسوندهای خاص
@@ -77,7 +98,71 @@ class WebCrawlerPipeline:
             query = url.split('?')[1].lower()
             if any(ext in query for ext in excluded_extensions):
                 return False
+        
+        # بررسی حداکثر تعداد صفحات
+        if len(self.visited_urls) >= self.max_pages:
+            return False
                 
+        return True
+    
+    async def parse_robots_txt(self):
+        """خواندن و تجزیه robots.txt"""
+        if not self.respect_robots:
+            return
+            
+        try:
+            robots_url = f"http://{self.domain}/robots.txt"
+            async with self.session.get(robots_url, headers={'User-Agent': self.user_agent}) as response:
+                if response.status == 200:
+                    content = await response.text()
+                    self._parse_robots_content(content)
+                    logger.info(f"Robots.txt loaded for {self.domain}")
+        except Exception as e:
+            logger.warning(f"Could not load robots.txt for {self.domain}: {str(e)}")
+    
+    def _parse_robots_content(self, content: str):
+        """تجزیه محتوای robots.txt"""
+        current_user_agent = None
+        
+        for line in content.split('\n'):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+                
+            if ':' in line:
+                directive, value = line.split(':', 1)
+                directive = directive.strip().lower()
+                value = value.strip()
+                
+                if directive == 'user-agent':
+                    current_user_agent = value
+                elif directive == 'allow' and (current_user_agent == '*' or current_user_agent == self.user_agent):
+                    self.robots_rules['allowed'].add(value)
+                elif directive == 'disallow' and (current_user_agent == '*' or current_user_agent == self.user_agent):
+                    self.robots_rules['disallowed'].add(value)
+                elif directive == 'crawl-delay' and (current_user_agent == '*' or current_user_agent == self.user_agent):
+                    try:
+                        self.robots_rules['crawl_delay'] = float(value)
+                    except ValueError:
+                        pass
+    
+    def is_allowed_by_robots(self, url: str) -> bool:
+        """بررسی اینکه آیا URL توسط robots.txt مجاز است"""
+        if not self.respect_robots:
+            return True
+            
+        path = urlparse(url).path
+        
+        # بررسی disallow rules
+        for disallowed in self.robots_rules['disallowed']:
+            if path.startswith(disallowed):
+                return False
+        
+        # بررسی allow rules
+        for allowed in self.robots_rules['allowed']:
+            if path.startswith(allowed):
+                return True
+        
         return True
         
     def extract_text(self, soup: BeautifulSoup) -> str:
@@ -100,6 +185,10 @@ class WebCrawlerPipeline:
     async def crawl_page(self, url: str) -> Dict[str, Any]:
         """کراول کردن یک صفحه با retry و timeout"""
         try:
+            # Rate limiting - تأخیر بین درخواست‌ها
+            delay = max(self.delay, self.robots_rules['crawl_delay'])
+            await asyncio.sleep(delay)
+            
             # تنظیمات SSL و timeout
             ssl_context = ssl.create_default_context()
             ssl_context.check_hostname = False
@@ -109,7 +198,7 @@ class WebCrawlerPipeline:
             
             # تنظیم headers
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'User-Agent': self.user_agent,
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.5',
                 'Connection': 'keep-alive',
@@ -170,10 +259,20 @@ class WebCrawlerPipeline:
     async def run_async(self) -> bool:
         """اجرای فرآیند کراول به صورت همزمان"""
         try:
+            # ایجاد session
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            self.session = aiohttp.ClientSession(connector=connector)
+            
+            # خواندن robots.txt
+            await self.parse_robots_txt()
+            
             urls_to_crawl = [self.base_url]
             
-            with tqdm(total=MAX_PAGES, desc="در حال کراول") as pbar:
-                while urls_to_crawl and len(self.data) < MAX_PAGES:
+            with tqdm(total=self.max_pages, desc="در حال کراول") as pbar:
+                while urls_to_crawl and len(self.data) < self.max_pages:
                     batch_size = min(10, len(urls_to_crawl))  # پردازش 10 URL همزمان
                     current_batch = urls_to_crawl[:batch_size]
                     urls_to_crawl = urls_to_crawl[batch_size:]
@@ -187,6 +286,9 @@ class WebCrawlerPipeline:
                     urls_to_crawl.extend([link for link in new_links 
                                         if self.should_crawl(link)])
             
+            # بستن session
+            await self.session.close()
+            
             # ذخیره داده‌ها
             if self.data:
                 df = pd.DataFrame(self.data)
@@ -198,6 +300,8 @@ class WebCrawlerPipeline:
             
         except Exception as e:
             logger.error(f"خطا در اجرای کراول: {str(e)}")
+            if self.session:
+                await self.session.close()
             return False
             
     def run(self) -> bool:

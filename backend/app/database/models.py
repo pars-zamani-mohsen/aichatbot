@@ -41,6 +41,13 @@ class Website(Base):
     public_key = Column(String, nullable=True)
     widget_config = Column(JSON, nullable=True)
     
+    # تنظیمات اختصاصی وب‌سایت
+    crawl_settings = Column(JSON, nullable=True)  # تنظیمات کراولینگ
+    rag_settings = Column(JSON, nullable=True)    # تنظیمات RAG
+    widget_settings = Column(JSON, nullable=True) # تنظیمات ویجت
+    domain_verified = Column(Boolean, default=False)  # تأیید مالکیت دامنه
+    verification_token = Column(String, nullable=True)  # توکن تأیید
+    
     # ارتباط با کاربر
     owner = relationship("User", back_populates="websites")
     
