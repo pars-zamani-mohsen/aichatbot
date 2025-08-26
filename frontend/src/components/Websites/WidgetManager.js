@@ -114,7 +114,7 @@ const WidgetManager = ({ website }) => {
     try {
       const response = await api.get(`/api/widget/snippet/${website.id}`);
       const freshSnippet = response.data.snippet;
-      
+
       const newWindow = window.open('', '_blank');
       newWindow.document.write(`
         <!DOCTYPE html>

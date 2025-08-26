@@ -56,6 +56,29 @@ def check_rate_limit(client_ip: str, site_id: int, limit: int = 100, window: int
     rate_limit_storage[key]["count"] += 1
     return True
 
+def check_abuse(client_ip: str, user_agent: str, message: str) -> bool:
+    """بررسی سوءاستفاده"""
+    # بررسی طول پیام
+    if len(message) > 1000:
+        return False
+    
+    # بررسی محتوای مشکوک
+    suspicious_patterns = [
+        'script', 'javascript:', 'eval(', 'document.cookie',
+        'alert(', 'confirm(', 'prompt(', '<script', '</script>'
+    ]
+    
+    message_lower = message.lower()
+    for pattern in suspicious_patterns:
+        if pattern in message_lower:
+            return False
+    
+    # بررسی User-Agent
+    if not user_agent or len(user_agent) < 10:
+        return False
+    
+    return True
+
 def get_client_ip(request: Request) -> str:
     """دریافت IP کلاینت"""
     forwarded = request.headers.get("X-Forwarded-For")
@@ -149,6 +172,11 @@ async def widget_chat(
         client_ip = get_client_ip(request)
         if not check_rate_limit(client_ip, site_id, limit=50, window=3600):
             raise HTTPException(status_code=429, detail="محدودیت نرخ درخواست")
+        
+        # بررسی سوءاستفاده
+        user_agent = meta.get("user_agent", "")
+        if not check_abuse(client_ip, user_agent, message):
+            raise HTTPException(status_code=400, detail="درخواست نامعتبر")
         
         # تأیید کلید
         if not verify_widget_key(site_id, key, db):
