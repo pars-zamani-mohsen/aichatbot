@@ -16,8 +16,8 @@ from ..config import settings
 
 router = APIRouter()
 
-# تنظیمات رمزنگاری - استفاده از Argon2
-pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+# تنظیمات رمزنگاری - پشتیبانی از bcrypt و Argon2
+pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -25,6 +25,19 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
+
+def migrate_password_hash(user: models.User, plain_password: str) -> bool:
+    """تبدیل hash قدیمی به Argon2"""
+    try:
+        # بررسی اینکه آیا hash فعلی bcrypt است
+        if user.hashed_password.startswith('$2b$') or user.hashed_password.startswith('$2a$'):
+            # اگر bcrypt است، آن را به Argon2 تبدیل کن
+            new_hash = pwd_context.hash(plain_password)
+            user.hashed_password = new_hash
+            return True
+        return False
+    except Exception:
+        return False
 
 def send_verification_email(email: str, token: str):
     """ارسال ایمیل تأیید"""
@@ -159,12 +172,24 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 @router.post("/token", response_model=schemas.Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="ایمیل یا رمز عبور اشتباه است",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # بررسی رمز عبور و migration در صورت نیاز
+    if not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="ایمیل یا رمز عبور اشتباه است",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # migration hash قدیمی به Argon2
+    if migrate_password_hash(user, form_data.password):
+        db.commit()
     
     # بررسی فعال بودن حساب
     if not user.is_active:
