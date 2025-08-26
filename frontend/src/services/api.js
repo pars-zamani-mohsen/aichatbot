@@ -73,12 +73,19 @@ export const auth = {
     const formData = new URLSearchParams();
     formData.append('username', username);
     formData.append('password', password);
-    
+
     const response = await api.post('/api/token', formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
+
+    // ذخیره توکن و اطلاعات کاربر
+    const { access_token, refresh_token, user } = response.data;
+    localStorage.setItem('token', access_token);
+    localStorage.setItem('refresh_token', refresh_token);
+    localStorage.setItem('userInfo', JSON.stringify(user));
+
     return response.data;
   },
 
@@ -99,7 +106,7 @@ export const websites = {
       console.log('Getting all websites...');
       const token = localStorage.getItem('token');
       console.log('Current token:', token);
-      
+
       const response = await api.get('/api/');
       console.log('Websites response:', response.data);
       return response.data;

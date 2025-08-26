@@ -89,7 +89,9 @@ class ChatResponse(BaseModel):
 # اسکیماهای توکن
 class Token(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str
+    user: dict
 
 class TokenData(BaseModel):
     email: Optional[str] = None

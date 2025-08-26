@@ -10,7 +10,10 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import PrivateRoute from './components/Auth/PrivateRoute';
-import Navbar from './components/Navbar';
+import AdminLayout from './components/Layout/AdminLayout';
+import UserLayout from './components/Layout/UserLayout';
+import AdminDashboard from './components/Dashboard/AdminDashboard';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // ایجاد تم با پشتیبانی از RTL
 const theme = createTheme({
@@ -20,10 +23,38 @@ const theme = createTheme({
   },
   palette: {
     primary: {
-      main: '#1976d2',
+      main: '#667eea',
     },
     secondary: {
-      main: '#dc004e',
+      main: '#ec4899',
+    },
+    success: {
+      main: '#10b981',
+    },
+    warning: {
+      main: '#f59e0b',
+    },
+    error: {
+      main: '#ef4444',
+    },
+  },
+  components: {
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          textTransform: 'none',
+          fontWeight: 600,
+        },
+      },
     },
   },
 });
@@ -34,27 +65,85 @@ const cacheRtl = createCache({
   stylisPlugins: [prefixer, rtlPlugin],
 });
 
+function AppContent() {
+  const { user, loading } = useAuth();
+
+  const renderLayout = () => {
+    if (!user) return null;
+
+    // اگر کاربر admin است
+    if (user.role === 'admin') {
+      return (
+        <AdminLayout>
+          <Routes>
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/admin/websites" element={<Home />} />
+            <Route path="/admin/conversations" element={<div>مدیریت گفتگوها</div>} />
+            <Route path="/admin/users" element={<div>مدیریت کاربران</div>} />
+            <Route path="/admin/reports" element={<div>گزارشات</div>} />
+            <Route path="/admin/settings" element={<div>تنظیمات سیستم</div>} />
+            <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
+          </Routes>
+        </AdminLayout>
+      );
+    }
+
+    // اگر کاربر عادی است
+    return (
+      <UserLayout>
+        <Routes>
+          <Route path="/dashboard" element={<div>داشبورد کاربر</div>} />
+          <Route path="/websites" element={<Home />} />
+          <Route path="/conversations" element={<div>گفتگوهای من</div>} />
+          <Route path="/reports" element={<div>گزارشات من</div>} />
+          <Route path="/history" element={<div>تاریخچه</div>} />
+          <Route path="/settings" element={<div>تنظیمات</div>} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </UserLayout>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      }}>
+        <div style={{ color: 'white', fontSize: '24px' }}>در حال بارگذاری...</div>
+      </div>
+    );
+  }
+
+  return (
+    <Router>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route
+          path="/*"
+          element={
+            <PrivateRoute>
+              {renderLayout()}
+            </PrivateRoute>
+          }
+        />
+      </Routes>
+    </Router>
+  );
+}
+
 function App() {
   return (
     <CacheProvider value={cacheRtl}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <Router>
-          <Navbar />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route
-              path="/"
-              element={
-                <PrivateRoute>
-                  <Home />
-                </PrivateRoute>
-              }
-            />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Router>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
       </ThemeProvider>
     </CacheProvider>
   );

@@ -11,9 +11,11 @@ import {
   Alert
 } from '@mui/material';
 import { auth } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -35,8 +37,16 @@ const Login = () => {
 
     try {
       const response = await auth.login(formData.username, formData.password);
-      localStorage.setItem('token', response.access_token);
-      navigate('/');
+
+      // به‌روزرسانی context
+      login(response.user);
+
+      // هدایت بر اساس نقش کاربر
+      if (response.user.role === 'admin') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'خطا در ورود به سیستم');
     } finally {
