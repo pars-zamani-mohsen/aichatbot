@@ -30,3 +30,310 @@ npm install
 npm start
 
 http://localhost:3000/login
+
+
+#ai_prompt
+لطفا برو پروژه من رو کامل بخون و یک بررسی کامل انجام بده
+توی این مسیر اجرا میشه
+cd /var/www/html/ai/backend
+و محیط من با این فعال میشه
+source venv/bin/activate
+و سرور رو روی این اجرا میکنم
+uvicorn app.main:app --reload --host 0.0.0.0 --port 5000
+فرانت هم توی این مسیر هست
+cd /var/www/html/ai/frontend
+و با این اجرا میکنم
+
+
+کامل بررسی کن و آماده شو برای اینکه تسک های جدید رو روی این انجام بدیم
+هر موقع ازت خواستم هم تغییرات رو کامیت کن
+### Commit Message Format:
+```
+feat: add customer status management
+fix: resolve invoice calculation bug
+docs: update API documentation
+style: improve UI components
+refactor: optimize database queries
+test: add unit tests for payment service
+```
+
+
+******************************************************************************
+------------------------------------------------------------------------------
+******************************************************************************
+
+هدف پروژه
+ساخت یک پلتفرم SaaS که:
+کاربر ثبت‌نام/ورود کند، پروفایل داشته باشد.
+وب‌سایت‌های خود را اضافه و مدیریت کند (چند سایت).
+ربات سیستم کل وب‌سایت انتخابی را کراول کند، محتوای صفحات را استخراج و پاکسازی کند، امبدینگ بگیرد و یک «رَگ» کامل بسازد.
+یک کد امبد اسنیپت به کاربر بدهد تا در وب‌سایتش قرار دهد، که یک ویجت چت هوش مصنوعی فعال شود.
+مشتریان وب‌سایت از طریق آن ویجت با مدل هوش مصنوعی گفتگو کنند؛ پاسخ‌ها با تکیه بر رَگ همان سایت (Contextual RAG) تولید شوند.
+صاحب سایت در پنل مدیریت، محتوای رَگ، تنظیمات چت‌بات، منابع صفحات و کیفیت پاسخ‌ها را مشاهده، تست و کنترل کند.
+معماری و تکنولوژی‌ها (الزامی)
+Backend: FastAPI 0.115.12 (Python 3.10.18)
+DB اصلی: PostgreSQL
+Vector Store: ChromaDB (ذخیره امبدینگ‌ها)
+ORM: SQLAlchemy
+Auth: JWT (Access/Refresh)
+Frontend: React 18.2.0 + Material-UI، RTL کامل (فارسی)، React Router
+Node.js v23.9.0 و npm 11.1.0
+کراولر وب: Async (مثلاً httpx + asyncio، یا Playwright برای جاوااسکریپت‌-رندرینگ در صورت نیاز)
+پردازش متن: پاکسازی HTML، نرمال‌سازی فارسی، chunking، metadata
+Embeddings + Reranking: ماژولار با اینترفیس واضح (امکان تعویض مدل‌ها)
+LLM پاسخ‌دهنده: اینترفیس آبستره با قابلیت انتخاب/تعویض ارائه‌دهنده
+Observability: logging ساخت‌یافته، metrics پایه، error tracking
+Docker و Docker Compose برای dev/prod
+تست: واحدی و یکپارچه (pytest) + چند تست E2E سبک
+مستندسازی: OpenAPI + README + راه‌اندازی یک‌کلیکی
+دامنه امکانات (Scope)
+1) احراز هویت و حساب کاربری
+ثبت‌نام با ایمیل و رمز عبور، فعال‌سازی ایمیل اختیاری.
+ورود با JWT (access + refresh)، گردش رفرش توکن امن.
+بازیابی رمز عبور.
+پروفایل کاربر: نام، ایمیل، تنظیمات زبان/RTL، نقش (user, admin).
+2) مدیریت وب‌سایت‌ها (Multi-tenant)
+CRUD وب‌سایت‌ها: نام، دامنه، توضیحات، مالک، وضعیت ایندکس.
+اعتبارسنجی مالکیت دامنه (اختیاری: فایل یا DNS token).
+تنظیمات اختصاصی هر وب‌سایت: زبان محتوا، قوانین ایندکس، نرخ کراول، عمق، robots احترام.
+3) کراولر و ایندکس
+صف کراول با workerهای async.
+احترام به robots.txt و rate limit.
+پشتیبانی از sitemap.xml در صورت وجود.
+استخراج لینک‌های داخلی، اجتناب از زیردامنه‌های ناخواسته.
+نرمال‌سازی URL، جلوگیری از تکرار.
+استخراج محتوا:
+رندر ساده HTML (BeautifulSoup) + گزینه headless-browser برای JS-سنگین.
+حذف منو/فوتر/اسکریپت/تبلیغات تا حد امکان.
+نگه‌داشتن ساختار: عنوان صفحه، h1/h2، bread-crumbs اگر قابل تشخیص.
+ذخیره متادیتا: url، title، hash محتوا، زمان کراول، وضعیت.
+برنامه زمان‌بندی re-crawl (manual/cron-like).
+4) ساخت رَگ (RAG Pipeline)
+Preprocess:
+نرمال‌سازی فارسی (ی/ك، نیم‌فاصله، حذف کنترل‌کاراکترها).
+Segment/Chunk صفحات با طول مناسب و overlap (قابل تنظیم).
+ذخیره mapping chunk → page/url.
+Embeddings:
+ماژول EmbeddingsProvider با پیاده‌سازی پیش‌فرض (مثلاً sentence-transformers).
+ذخیره向 امبدینگ در ChromaDB با متادیتا: site_id، url، chunk_id، title، language.
+Query:
+Hybrid retrieval (dense + lexical اختیاری)، k و filters قابل تنظیم.
+Re-ranking اختیاری برای بهبود top-k.
+Generation:
+LLMProvider قابل تعویض. پرامپت سیستم با دستور زبان فارسی، دستورالعمل استفاده از context، citation به URLها.
+Guardrails: محدود کردن hallucination، بازگشت "من مطمئن نیستم" در نبود context.
+Feedback loop: ثبت رضایت/نارضایتی کاربر نهایی، امکان refine.
+5) پنل مدیریت کاربر
+صفحه داشبورد: وضعیت ایندکس، تعداد صفحات، آخرین کراول، سلامت ویجت.
+مدیریت منابع: لیست صفحات، preview محتوا، re-crawl یک صفحه/دامنه.
+مدیریت RAG: تنظیم k، طول پاسخ، زبان پاسخ، tone، غیرفعالسازی برخی URLها.
+تست چت‌بات داخل پنل با نمایش منابع استناد (citations).
+مشاهده لاگ گفتگوهای وب‌سایت (با رضایت صاحب سایت، PII-safe)، فیلتر و جستجو.
+Export داده‌های گفتگو (CSV).
+6) ویجت چت و کد امبد
+اسنیپت جاوااسکریپت تولیدی برای هر وب‌سایت شامل:
+script tag با data-site-id و کلید عمومی.
+lazy load، iframe یا shadow DOM برای جداسازی استایل.
+UI RTL-aware، تم روشن/تاریک.
+امکان سفارشی‌سازی متن خوش‌آمد، رنگ‌ها، جایگاه، آیکون.
+Endpoint عمومی برای دریافت پاسخ چت بر اساس site_id با rate-limit و CORS امن.
+ضد سوءاستفاده: anti-abuse basic throttling، origin check، optional hCaptcha.
+7) امنیت، مقیاس‌پذیری، و DevOps
+JWT امن، hash رمز عبور با Argon2 یا bcrypt.
+جداسازی tenant با site_id و owner_id در همه کوئری‌ها.
+Rate limiting و pagination.
+CORS/CSRF مناسب برای پنل و ویجت.
+Docker Compose: سرویس‌های api, frontend, postgres, chromadb, worker.
+امکان افقی‌سازی workerهای کراول و RAG.
+بکاپ‌های PostgreSQL، snapshotهای دوره‌ای ChromaDB.
+طراحی داده‌ها (PostgreSQL)
+API طراحی (FastAPI)
+الگو: /api/v1
+
+Auth:
+
+POST /auth/register
+POST /auth/login
+POST /auth/refresh
+POST /auth/forgot-password
+POST /auth/reset-password
+Sites:
+
+GET /sites
+POST /sites
+GET /sites/{site_id}
+PATCH /sites/{site_id}
+DELETE /sites/{site_id}
+Crawl:
+
+POST /sites/{site_id}/crawl (شروع یا re-crawl)
+GET /sites/{site_id}/crawl/status
+GET /sites/{site_id}/pages (لیست صفحات ایندکس‌شده)
+GET /sites/{site_id}/pages/{page_id}
+RAG:
+
+POST /sites/{site_id}/rag/rebuild (بازساخت امبدینگ‌ها)
+GET /sites/{site_id}/rag/config
+PATCH /sites/{site_id}/rag/config
+POST /sites/{site_id}/rag/test-query (بررسی پاسخ + citations)
+Widget:
+
+GET /widget/config?site_id=...&key=...
+POST /widget/chat (body: site_id, key, messages[], meta)
+GET /widget/snippet/{site_id} (تولید اسنیپت JS)
+Conversations:
+
+GET /sites/{site_id}/conversations
+GET /sites/{site_id}/conversations/{id}
+GET /sites/{site_id}/messages?conversation_id=...
+POST /sites/{site_id}/feedback (rating, message_id)
+Admin-only:
+
+GET /admin/users, /admin/sites, health checks
+ملاحظات:
+
+همه endpoints غیر-widget نیاز به JWT دارند.
+site_id باید با owner_id تطبیق داده شود.
+جریان‌های کلیدی (Flows)
+ثبت‌نام/ورود:
+Register → Verify (اختیاری) → Login → دریافت access/refresh.
+افزودن وب‌سایت:
+Create site → تأیید مالکیت (اختیاری) → Crawl شروع می‌شود یا دستی.
+کراول و ایندکس:
+صف URL اولیه (domain root، sitemap) → fetch → extract → clean → save page → chunk → embed → upsert به Chroma → علامت‌گذاری صفحه done.
+چت کاربر نهایی:
+ویجت → /widget/chat → retrieve top-k by site_id → LLM با prompt حاوی context + دستورالعمل‌های فارسی → پاسخ با citations → ذخیره پیام/مکالمه → rate limiting.
+پنل تست:
+فرم پرسش → همان endpoint تست → نمایش منابع، لینک به صفحات.
+پرامپت سیستم برای LLM پاسخ‌دهنده (نمونه)
+نقش: دستیار دانشی وب‌سایت {site_name}.
+منابع: فقط از قطعات فراهم‌شده استفاده کن؛ اگر اطلاعات کافی نیست بگو "اطلاعات کافی در منابع من وجود ندارد."
+زبان: پاسخ به فارسی روان، محترمانه، مختصر. در پایان، منابع را با عنوان صفحه و URL فهرست کن.
+سبک: بی‌طرف، دقیق، خودداری از حدس.
+قالب پاسخ: متن + لیست منابع.
+نمونه قالب:
+
+System: "تو فقط بر اساس context پاسخ بده. اگر مطمئن نیستی، از کاربر توضیح بیشتر بخواه."
+User: پرسش کاربر
+Assistant: پاسخ + "منابع: 1) عنوان — URL ..."
+جزئیات فنی کلیدی
+Chunking:
+اندازه: 600–1000 توکن با 100–150 overlap.
+زبان فارسی: توجه به جملات و نشانه‌گذاری. شکستن بر اساس پاراگراف/هدر.
+Retrieval:
+فیلتر site_id اجباری.
+k قابل تنظیم (پیش‌فرض 5–8). max_chars per context برای جلوگیری از تجاوز توکن.
+Citations:
+نگهداری mapping chunk → page → url. در پاسخ، deduplicate URLها.
+امنیت ویجت:
+public_key در اسنیپت؛ secret سمت سرور. origin check با domain سایت.
+CORS فقط به دامنه ثبت‌شده اجازه دهد.
+کارایی:
+Batch embeddings (مثلاً 64–128 چانک).
+Upsert به Chroma با collection per site یا collection مشترک با فیلتر site_id.
+Re-crawl:
+از ETag/Last-Modified برای کاهش ترافیک استفاده شود.
+Logs/Metrics:
+زمان پاسخ retrieval/LLM، تعداد اسناد، خطاهای fetch، نرخ موفقیت.
+ویجت و اسنیپت (نمونه خروجی)
+Endpoint تولید اسنیپت:
+پاسخ: کد زیر با مقادیر پویا.
+نمونه اسنیپت:
+
+html
+<script
+  src="https://cdn.yourdomain.com/widget.js"
+  async
+  data-site-id="{{SITE_ID}}"
+  data-public-key="{{PUBLIC_KEY}}"
+></script>
+widget.js:
+ایجاد دکمه شناور، باز کردن پنجره چت، مدیریت نشست، ارسال پیام به /widget/chat.
+پشتیبانی RTL، تمینگ، throttle ورودی، نمایش منابع.
+
+معیارهای پذیرش (Acceptance Criteria)
+کاربر می‌تواند سایت اضافه کند، کراول شروع شود، صفحات در لیست دیده شوند.
+تست پرسش در پنل پاسخ صحیح با citations بدهد.
+اسنیپت در یک صفحه HTML نمونه کار کند و پاسخ‌ها از همان سایت بیاید.
+بتواند استایل و رنگبندی برای ویجت انتخاب کند
+ریت لیمیت مؤثر و CORS امن.
+ریکاوری از خطاهای شبکه کراول (retries, backoff).
+لاگ گفتگوها قابل مشاهده و export شود.
+Docker Compose بالا بیاید و سرویس‌ها سالم باشند.
+پوشش تست پایه برای auth، crawl pipeline، RAG retrieval، widget chat.
+دستورالعمل برای عامل/توسعه‌دهنده
+کد کاملاً مستند، تایپ‌هینت کامل، رعایت PEP8.
+ارائه Postman Collection یا .http برای endpoints.
+فایل‌های env نمونه (.env.example) و اسکریپت seed.
+در صورت نیاز به مدل/کلید بیرونی، interface تعریف و mock پیاده‌سازی کن.
+تحویل: ریپوی کامل، دستورالعمل نصب و اجرای محلی، و دیپلوی با Docker.
+
+
+
+******************************************************************************
+------------------------------------------------------------------------------
+******************************************************************************
+
+بر اساس بررسی جامع پروژه فعلی و مقایسه با پرامپت هدف، در ادامه گزارش کاملی از نقاط نیازمند بهبود و توسعه ارائه می‌دهم:
+📊 گزارش تحلیل پروژه فعلی
+✅ قابلیت‌های موجود و کامل
+احراز هویت پایه - ثبت‌نام/ورود با JWT
+مدیریت وب‌سایت‌ها - CRUD عملیات
+کراولر وب - استخراج محتوا از URL‌ها
+پردازش متن - chunking و embeddings
+چت‌بات RAG - پشتیبانی از چندین مدل
+فرانت‌اند React - با پشتیبانی RTL
+دیتابیس PostgreSQL - مدل‌های اصلی
+ChromaDB - ذخیره‌سازی امبدینگ‌ها
+�� نقاط بحرانی نیازمند توسعه
+1. ویجت چت و کد امبد (Critical Missing)
+❌ اسنیپت جاوااسکریپت برای وب‌سایت‌ها
+❌ Endpoint عمومی برای چت کاربران نهایی
+❌ Rate limiting و CORS امن
+❌ ضد سوءاستفاده (anti-abuse)
+❌ کد امبد با data-site-id و public key
+2. مدیریت Multi-tenant (High Priority)
+❌ جداسازی کامل tenant با site_id
+❌ اعتبارسنجی مالکیت دامنه
+❌ تنظیمات اختصاصی هر وب‌سایت
+❌ robots.txt و rate limiting کراولر
+3. پنل مدیریت پیشرفته (High Priority)
+❌ داشبورد با آمار و وضعیت
+❌ مدیریت منابع (صفحات، re-crawl)
+❌ تنظیمات RAG (k، طول پاسخ، tone)
+❌ تست چت‌بات داخل پنل
+❌ لاگ گفتگوها و export
+4. امنیت و احراز هویت (Medium Priority)
+❌ Refresh token گردش
+❌ بازیابی رمز عبور
+❌ فعال‌سازی ایمیل
+❌ نقش‌های کاربری (user, admin)
+❌ Argon2 یا bcrypt برای hash
+5. کراولر پیشرفته (Medium Priority)
+❌ صف کراول با workerهای async
+❌ پشتیبانی از sitemap.xml
+❌ Headless browser برای JS-heavy
+❌ برنامه زمان‌بندی re-crawl
+❌ ETag/Last-Modified برای بهینه‌سازی
+6. RAG Pipeline پیشرفته (Medium Priority)
+❌ Hybrid retrieval (dense + lexical)
+❌ Re-ranking اختیاری
+❌ Guardrails برای hallucination
+❌ Feedback loop (رضایت/نارضایتی)
+❌ Citations بهتر با deduplication
+7. Observability و Monitoring (Low Priority)
+❌ Logging ساخت‌یافته
+❌ Metrics پایه
+❌ Error tracking
+❌ Health checks
+8. DevOps و Deployment (Low Priority)
+❌ Docker Compose کامل
+❌ تست‌های E2E
+❌ بکاپ‌های خودکار
+❌ مقیاس‌پذیری افقی
+
+
+
+
+
+

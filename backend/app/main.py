@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database.database import engine
 from .database import models
-from .api import websites, chats, auth
+from .api import websites, chats, auth, widget
 from .config import settings
 from .middleware import error_handler, logging_middleware
 from .core.logging_config import setup_logging
@@ -37,6 +37,7 @@ app.middleware("http")(logging_middleware)
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(websites.router, prefix="/api", tags=["websites"])
 app.include_router(chats.router, prefix="/api/chats", tags=["chats"])
+app.include_router(widget.router, prefix="/api/widget", tags=["widget"])
 
 @app.get("/")
 async def root():

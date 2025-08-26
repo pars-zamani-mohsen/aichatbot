@@ -151,4 +151,41 @@ async def list_websites(
     current_user: User = Depends(get_current_user)
 ):
     """دریافت لیست همه وب‌سایت‌ها"""
-    return db.query(Website).filter(Website.owner_id == current_user.id).all() 
+    return db.query(Website).filter(Website.owner_id == current_user.id).all()
+
+@router.post("/{website_id}/generate-widget-key")
+async def generate_widget_key(
+    website_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """تولید کلید عمومی برای ویجت"""
+    try:
+        # بررسی مالکیت وب‌سایت
+        website = db.query(Website).filter(
+            Website.id == website_id,
+            Website.owner_id == current_user.id,
+            Website.status == "ready"
+        ).first()
+        
+        if not website:
+            raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد یا آماده نیست")
+        
+        # تولید کلید عمومی
+        import hashlib
+        import time
+        public_key = hashlib.md5(f"{website_id}_{website.domain}_{int(time.time())}".encode()).hexdigest()
+        
+        # ذخیره کلید در دیتابیس
+        website.public_key = public_key
+        db.commit()
+        
+        return {
+            "website_id": website_id,
+            "public_key": public_key,
+            "message": "کلید عمومی با موفقیت تولید شد"
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در تولید کلید ویجت: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 

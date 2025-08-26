@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     # تنظیمات CORS
     CORS_ORIGINS: List[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
     
+    # تنظیمات API URL
+    API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:5000")
+    
     # تنظیمات Redis
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     

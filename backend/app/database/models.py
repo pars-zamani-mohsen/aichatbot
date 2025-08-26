@@ -37,6 +37,10 @@ class Website(Base):
     collection_name = Column(String, nullable=True)
     embedding_model = Column(String, nullable=True)
     
+    # اطلاعات ویجت
+    public_key = Column(String, nullable=True)
+    widget_config = Column(JSON, nullable=True)
+    
     # ارتباط با کاربر
     owner = relationship("User", back_populates="websites")
     

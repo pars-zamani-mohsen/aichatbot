@@ -15,11 +15,14 @@ import {
   CircularProgress,
   Alert,
   IconButton,
-  LinearProgress
+  LinearProgress,
+  Tabs,
+  Tab
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { websites } from '../../services/api';
+import WidgetManager from './WidgetManager';
 
 const WebsiteManager = ({ onSelectWebsite }) => {
   const [websiteList, setWebsiteList] = useState([]);
@@ -33,14 +36,16 @@ const WebsiteManager = ({ onSelectWebsite }) => {
   const [crawlingStatus, setCrawlingStatus] = useState({});
   const [crawlingStartTime, setCrawlingStartTime] = useState({});
   const [crawlingProgress, setCrawlingProgress] = useState({});
+  const [selectedWebsite, setSelectedWebsite] = useState(null);
+  const [activeTab, setActiveTab] = useState(0);
 
   const getErrorMessage = (err) => {
     console.log('Error object:', err);
     console.log('Error response data:', err.response?.data);
-    
+
     // اگر خطا یک رشته است، مستقیماً برگردانده شود
     if (typeof err === 'string') return err;
-    
+
     // اگر خطا در response.data.detail است
     if (err.response?.data?.detail) {
       // اگر detail یک آرایه است (خطای اعتبارسنجی)
@@ -54,29 +59,29 @@ const WebsiteManager = ({ onSelectWebsite }) => {
       }
       return err.response.data.detail;
     }
-    
+
     // اگر response.data یک رشته است
     if (typeof err.response?.data === 'string') return err.response.data;
-    
+
     // اگر response.data یک شیء است
     if (err.response?.data) {
       // اگر msg وجود دارد
       if (err.response.data.msg) return err.response.data.msg;
-      
+
       // اگر type و msg وجود دارد (خطای اعتبارسنجی)
       if (err.response.data.type && err.response.data.msg) {
         return err.response.data.msg;
       }
-      
+
       // اگر loc و msg وجود دارد (خطای اعتبارسنجی)
       if (err.response.data.loc && err.response.data.msg) {
         return err.response.data.msg;
       }
-      
+
       // اگر هیچ کدام از موارد بالا نبود، کل شیء را به رشته تبدیل کن
       return JSON.stringify(err.response.data, null, 2);
     }
-    
+
     // اگر هیچ کدام از موارد بالا نبود، پیام خطای پیش‌فرض
     return 'خطا در ارتباط با سرور';
   };
@@ -113,10 +118,10 @@ const WebsiteManager = ({ onSelectWebsite }) => {
   // تابع برای محاسبه زمان تقریبی باقی‌مانده
   const getEstimatedTime = (status, startTime) => {
     if (!startTime) return '';
-    
+
     const elapsed = (Date.now() - startTime) / 1000;
     let estimatedTotal;
-    
+
     switch (status) {
       case 'crawling':
         estimatedTotal = elapsed * 2; // تخمین: زمان کراولینگ 2 برابر زمان گذشته
@@ -127,21 +132,21 @@ const WebsiteManager = ({ onSelectWebsite }) => {
       default:
         return '';
     }
-    
+
     const remaining = Math.max(0, estimatedTotal - elapsed);
     const minutes = Math.floor(remaining / 60);
     const seconds = Math.floor(remaining % 60);
-    
+
     return `${minutes} دقیقه و ${seconds} ثانیه`;
   };
 
   // تابع برای محاسبه درصد پیشرفت
   const getProgressPercentage = (status, startTime) => {
     if (!startTime) return 0;
-    
+
     const elapsed = (Date.now() - startTime) / 1000;
     let estimatedTotal;
-    
+
     switch (status) {
       case 'crawling':
         estimatedTotal = elapsed * 2;
@@ -152,7 +157,7 @@ const WebsiteManager = ({ onSelectWebsite }) => {
       default:
         return 0;
     }
-    
+
     return Math.min(95, Math.floor((elapsed / estimatedTotal) * 100));
   };
 
@@ -168,7 +173,7 @@ const WebsiteManager = ({ onSelectWebsite }) => {
       setWebsiteList(prev => [...prev, data]);
       setOpenDialog(false);
       setNewWebsite({ url: '', name: '' });
-      
+
       // شروع بررسی وضعیت کراولینگ
       const startTime = Date.now();
       setCrawlingStartTime(prev => ({
@@ -292,56 +297,76 @@ const WebsiteManager = ({ onSelectWebsite }) => {
         </Button>
       </Box>
 
+      {selectedWebsite && (
+        <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+          <Tab label="لیست وب‌سایت‌ها" />
+          <Tab label="مدیریت ویجت" />
+        </Tabs>
+      )}
+
       {error && (
         <Alert severity="error" sx={{ m: 2, whiteSpace: 'pre-line' }}>
           {error}
         </Alert>
       )}
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <List sx={{ flex: 1, overflow: 'auto' }}>
-          {websiteList.map((website) => (
-            <ListItem
-              key={website.id}
-              secondaryAction={
-                <IconButton
-                  edge="end"
-                  aria-label="delete"
-                  onClick={() => handleDeleteWebsite(website.id)}
+      {activeTab === 0 && (
+        <>
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <List sx={{ flex: 1, overflow: 'auto' }}>
+              {websiteList.map((website) => (
+                <ListItem
+                  key={website.id}
+                  secondaryAction={
+                    <IconButton
+                      edge="end"
+                      aria-label="delete"
+                      onClick={() => handleDeleteWebsite(website.id)}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  }
+                  disablePadding
                 >
-                  <DeleteIcon />
-                </IconButton>
-              }
-              disablePadding
-            >
-              <ListItemButton onClick={() => onSelectWebsite(website)}>
-                <Box sx={{ width: '100%' }}>
-                  <ListItemText
-                    primary={website.name || website.url}
-                    secondary={website.url}
-                  />
-                  {crawlingStatus[website.id] && (
-                    <Box sx={{ mt: 1 }}>
-                      <LinearProgress 
-                        variant={crawlingStatus[website.id] === 'ready' ? 'determinate' : 'indeterminate'}
-                        value={crawlingProgress[website.id] || 0}
-                        color={getStatusColor(crawlingStatus[website.id])}
-                        sx={{ mb: 0.5 }}
+                  <ListItemButton onClick={() => {
+                    setSelectedWebsite(website);
+                    onSelectWebsite(website);
+                  }}>
+                    <Box sx={{ width: '100%' }}>
+                      <ListItemText
+                        primary={website.name || website.url}
+                        secondary={website.url}
                       />
-                      <Typography variant="caption" color="text.secondary">
-                        {getStatusText(crawlingStatus[website.id], website.id)}
-                      </Typography>
+                      {crawlingStatus[website.id] && (
+                        <Box sx={{ mt: 1 }}>
+                          <LinearProgress
+                            variant={crawlingStatus[website.id] === 'ready' ? 'determinate' : 'indeterminate'}
+                            value={crawlingProgress[website.id] || 0}
+                            color={getStatusColor(crawlingStatus[website.id])}
+                            sx={{ mb: 0.5 }}
+                          />
+                          <Typography variant="caption" color="text.secondary">
+                            {getStatusText(crawlingStatus[website.id], website.id)}
+                          </Typography>
+                        </Box>
+                      )}
                     </Box>
-                  )}
-                </Box>
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </>
+      )}
+
+      {activeTab === 1 && selectedWebsite && (
+        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+          <WidgetManager website={selectedWebsite} />
+        </Box>
       )}
 
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>

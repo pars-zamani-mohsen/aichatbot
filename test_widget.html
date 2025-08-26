@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تست ویجت چت هوشمند</title>
+    <style>
+        body {
+            font-family: 'Vazirmatn', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #1976d2;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .demo-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+
+        .demo-section h2 {
+            color: #333;
+            margin-top: 0;
+        }
+
+        .demo-section p {
+            line-height: 1.6;
+            color: #666;
+        }
+
+        .highlight {
+            background-color: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid #ffc107;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🧠 تست ویجت چت هوشمند</h1>
+
+        <div class="demo-section">
+            <h2>📋 درباره این صفحه</h2>
+            <p>این صفحه برای تست عملکرد ویجت چت هوشمند طراحی شده است. ویجت چت در گوشه سمت چپ پایین صفحه قرار دارد و
+                می‌توانید با کلیک روی آن، سوالات خود را بپرسید.</p>
+        </div>
+
+        <div class="demo-section">
+            <h2>🎯 نحوه استفاده</h2>
+            <ol>
+                <li>روی دکمه چت در گوشه سمت چپ پایین صفحه کلیک کنید</li>
+                <li>سوال خود را در فیلد متنی تایپ کنید</li>
+                <li>روی دکمه "ارسال" کلیک کنید یا Enter بزنید</li>
+                <li>پاسخ هوشمند را دریافت کنید</li>
+            </ol>
+        </div>
+
+        <div class="demo-section">
+            <h2>💡 نمونه سوالات</h2>
+            <p>می‌توانید سوالات زیر را امتحان کنید:</p>
+            <ul>
+                <li>این وب‌سایت چه خدماتی ارائه می‌دهد؟</li>
+                <li>چگونه می‌توانم با شما تماس بگیرم؟</li>
+                <li>ساعات کاری شما چه زمانی است؟</li>
+                <li>آیا خدمات پشتیبانی دارید؟</li>
+            </ul>
+        </div>
+
+        <div class="highlight">
+            <strong>نکته:</strong> ویجت چت بر اساس محتوای وب‌سایت پاسخ می‌دهد. اگر وب‌سایت هنوز کراول نشده باشد، ممکن
+            است پاسخ‌های محدودی دریافت کنید.
+        </div>
+
+        <div class="demo-section">
+            <h2>🔧 ویژگی‌های ویجت</h2>
+            <ul>
+                <li>پشتیبانی کامل از زبان فارسی</li>
+                <li>رابط کاربری RTL</li>
+                <li>نمایش منابع پاسخ‌ها</li>
+                <li>طراحی ریسپانسیو</li>
+                <li>امکان شخصی‌سازی رنگ و استایل</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- ویجت چت هوشمند -->
+    <script>
+        (function () {
+            // تنظیمات ویجت
+            var config = {
+                siteId: 2, // شناسه وب‌سایت از دیتابیس
+                publicKey: localStorage.getItem('widget_public_key') || '7e71b6a644b882d19bfcfebd05763992', // کلید عمومی از localStorage یا پیش‌فرض
+                apiUrl: 'http://localhost:5000',
+                theme: {
+                    primaryColor: '#1976d2',
+                    secondaryColor: '#dc004e',
+                    backgroundColor: '#ffffff',
+                    textColor: '#333333',
+                    borderRadius: '8px'
+                }
+            };
+
+            // ایجاد استایل ویجت
+            var style = document.createElement('style');
+            style.textContent = `
+            .ai-chat-widget {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 10000;
+                font-family: 'Vazirmatn', Arial, sans-serif;
+                direction: rtl;
+            }
+            .ai-chat-button {
+                width: 60px;
+                height: 60px;
+                border-radius: 50%;
+                background-color: ${config.theme.primaryColor};
+                color: white;
+                border: none;
+                cursor: pointer;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 24px;
+                transition: all 0.3s ease;
+            }
+            .ai-chat-button:hover {
+                transform: scale(1.1);
+                box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+            }
+            .ai-chat-window {
+                position: fixed;
+                bottom: 90px;
+                right: 20px;
+                width: 350px;
+                height: 500px;
+                background-color: ${config.theme.backgroundColor};
+                border-radius: ${config.theme.borderRadius};
+                box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+                display: none;
+                flex-direction: column;
+                border: 1px solid #e0e0e0;
+            }
+            .ai-chat-header {
+                background-color: ${config.theme.primaryColor};
+                color: white;
+                padding: 15px;
+                border-radius: ${config.theme.borderRadius} ${config.theme.borderRadius} 0 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            .ai-chat-title {
+                font-weight: bold;
+                font-size: 16px;
+            }
+            .ai-chat-close {
+                background: none;
+                border: none;
+                color: white;
+                cursor: pointer;
+                font-size: 20px;
+            }
+            .ai-chat-messages {
+                flex: 1;
+                padding: 15px;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            }
+            .ai-chat-message {
+                padding: 10px 15px;
+                border-radius: 15px;
+                max-width: 80%;
+                word-wrap: break-word;
+            }
+            .ai-chat-message.user {
+                background-color: ${config.theme.primaryColor};
+                color: white;
+                align-self: flex-end;
+            }
+            .ai-chat-message.assistant {
+                background-color: #f5f5f5;
+                color: ${config.theme.textColor};
+                align-self: flex-start;
+            }
+            .ai-chat-input {
+                padding: 15px;
+                border-top: 1px solid #e0e0e0;
+                display: flex;
+                gap: 10px;
+            }
+            .ai-chat-input input {
+                flex: 1;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 20px;
+                outline: none;
+            }
+            .ai-chat-input button {
+                padding: 10px 20px;
+                background-color: ${config.theme.primaryColor};
+                color: white;
+                border: none;
+                border-radius: 20px;
+                cursor: pointer;
+            }
+            .ai-chat-input button:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+            .ai-chat-sources {
+                font-size: 12px;
+                color: #666;
+                margin-top: 5px;
+            }
+        `;
+            document.head.appendChild(style);
+
+            // ایجاد HTML ویجت
+            var widget = document.createElement('div');
+            widget.className = 'ai-chat-widget';
+            widget.innerHTML = `
+            <button class="ai-chat-button" onclick="toggleChat()">💬</button>
+            <div class="ai-chat-window" id="chatWindow">
+                <div class="ai-chat-header">
+                    <span class="ai-chat-title">پشتیبانی هوشمند</span>
+                    <button class="ai-chat-close" onclick="toggleChat()">×</button>
+                </div>
+                <div class="ai-chat-messages" id="chatMessages">
+                    <div class="ai-chat-message assistant">
+                        سلام! چطور می‌تونم کمکتون کنم؟
+                    </div>
+                </div>
+                <div class="ai-chat-input">
+                    <input type="text" id="chatInput" placeholder="سوال خود را اینجا بنویسید..." onkeypress="handleKeyPress(event)">
+                    <button onclick="sendMessage()" id="sendButton">ارسال</button>
+                </div>
+            </div>
+        `;
+            document.body.appendChild(widget);
+
+            var conversationId = null;
+            var isOpen = false;
+
+            // توابع ویجت
+            window.toggleChat = function () {
+                var window = document.getElementById('chatWindow');
+                isOpen = !isOpen;
+                window.style.display = isOpen ? 'flex' : 'none';
+                if (isOpen) {
+                    document.getElementById('chatInput').focus();
+                }
+            };
+
+            window.handleKeyPress = function (event) {
+                if (event.key === 'Enter') {
+                    sendMessage();
+                }
+            };
+
+            window.sendMessage = async function () {
+                var input = document.getElementById('chatInput');
+                var button = document.getElementById('sendButton');
+                var messages = document.getElementById('chatMessages');
+                var message = input.value.trim();
+
+                if (!message) return;
+
+                // غیرفعال کردن دکمه
+                button.disabled = true;
+                button.textContent = 'در حال ارسال...';
+
+                // اضافه کردن پیام کاربر
+                var userDiv = document.createElement('div');
+                userDiv.className = 'ai-chat-message user';
+                userDiv.textContent = message;
+                messages.appendChild(userDiv);
+
+                // پاک کردن ورودی
+                input.value = '';
+
+                // اسکرول به پایین
+                messages.scrollTop = messages.scrollHeight;
+
+                try {
+                    // ارسال درخواست به سرور
+                    var response = await fetch(config.apiUrl + '/api/widget/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            site_id: config.siteId,
+                            key: config.publicKey,
+                            message: message,
+                            conversation_id: conversationId,
+                            meta: {
+                                user_agent: navigator.userAgent,
+                                timestamp: new Date().toISOString()
+                            }
+                        })
+                    });
+
+                    var data = await response.json();
+
+                    if (response.ok) {
+                        conversationId = data.conversation_id;
+
+                        // اضافه کردن پاسخ
+                        var assistantDiv = document.createElement('div');
+                        assistantDiv.className = 'ai-chat-message assistant';
+                        assistantDiv.innerHTML = data.answer;
+
+                        // اضافه کردن منابع
+                        if (data.sources && data.sources.length > 0) {
+                            var sourcesDiv = document.createElement('div');
+                            sourcesDiv.className = 'ai-chat-sources';
+                            sourcesDiv.innerHTML = '<strong>منابع:</strong> ' + data.sources.map(s => s.title || s.url).join(', ');
+                            assistantDiv.appendChild(sourcesDiv);
+                        }
+
+                        messages.appendChild(assistantDiv);
+                    } else {
+                        throw new Error(data.detail || 'خطا در دریافت پاسخ');
+                    }
+
+                } catch (error) {
+                    console.error('خطا در ارسال پیام:', error);
+                    var errorDiv = document.createElement('div');
+                    errorDiv.className = 'ai-chat-message assistant';
+                    errorDiv.textContent = 'متأسفانه خطایی رخ داد. لطفاً دوباره تلاش کنید.';
+                    messages.appendChild(errorDiv);
+                } finally {
+                    // فعال کردن دکمه
+                    button.disabled = false;
+                    button.textContent = 'ارسال';
+
+                    // اسکرول به پایین
+                    messages.scrollTop = messages.scrollHeight;
+                }
+            };
+        })();
+    </script>
+</body>
+
+</html>
