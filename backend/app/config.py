@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))  # 7 days
     ALGORITHM: str = "HS256"
     
+    # تنظیمات SMTP برای ایمیل
+    SMTP_SERVER: str = os.getenv("SMTP_SERVER", "")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
+    
+    # تنظیمات فرانت‌اند
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    
     # تنظیمات لاگ
     DEBUG_MODE: bool = False  # حالت دیباگ برای لاگ‌های دقیق
     LOG_LEVEL: str = "INFO"  # سطح لاگ پیش‌فرض

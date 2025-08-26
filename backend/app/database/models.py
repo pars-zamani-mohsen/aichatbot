@@ -10,7 +10,12 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=False)  # نیاز به فعال‌سازی
+    is_verified = Column(Boolean, default=False)  # تأیید ایمیل
+    role = Column(String, default="user")  # user, admin
+    verification_token = Column(String, nullable=True)
+    reset_token = Column(String, nullable=True)
+    reset_token_expires = Column(DateTime, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     

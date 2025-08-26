@@ -12,6 +12,8 @@ class UserCreate(UserBase):
 class User(UserBase):
     id: int
     is_active: bool
+    is_verified: bool
+    role: str
     created_at: datetime
     
     class Config:
@@ -91,6 +93,13 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
+
+class EmailRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
 
 class SearchResult(BaseModel):
     url: str
