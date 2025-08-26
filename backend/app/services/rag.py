@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class RAGService:
-    def __init__(self, collection_name: str):
+    def __init__(self, collection_name: str, rag_settings: dict = None):
         # تنظیمات OpenAI
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
         
@@ -23,12 +23,48 @@ class RAGService:
         # تنظیمات مدل امبدینگ
         self.embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
         
+        # تنظیمات RAG
+        self.rag_settings = rag_settings or {}
+        self.k = self.rag_settings.get("k", 5)
+        self.max_response_length = self.rag_settings.get("max_response_length", 500)
+        self.temperature = self.rag_settings.get("temperature", 0.7)
+        self.tone = self.rag_settings.get("tone", "professional")
+        self.language = self.rag_settings.get("language", "persian")
+        self.include_sources = self.rag_settings.get("include_sources", True)
+        self.max_context_length = self.rag_settings.get("max_context_length", 2000)
+        
         # دستورالعمل‌های پایه برای مدل
-        self.system_prompt = """شما یک دستیار هوشمند هستید که به سوالات کاربران پاسخ می‌دهید.
+        self.system_prompt = self._generate_system_prompt()
+    
+    def _generate_system_prompt(self) -> str:
+        """تولید دستورالعمل سیستم بر اساس تنظیمات"""
+        base_prompt = """شما یک دستیار هوشمند هستید که به سوالات کاربران پاسخ می‌دهید.
 برای پاسخ به سوالات کاربر، از اطلاعات زیر استفاده کنید. اگر اطلاعات کافی در منابع نیست، این را صادقانه به کاربر بگویید.
-پاسخ‌های خود را به زبان فارسی ارائه دهید و به صورت طبیعی و محاوره‌ای صحبت کنید.
 """
-        self.system_prompt += "\nهنگام پاسخ، اگر اطلاعاتی از یک منبع خاص استفاده می‌شود، شماره منبع را به صورت [n] در متن پاسخ ذکر کن."
+        
+        # تنظیم زبان
+        if self.language == "persian":
+            base_prompt += "پاسخ‌های خود را به زبان فارسی ارائه دهید و به صورت طبیعی و محاوره‌ای صحبت کنید.\n"
+        elif self.language == "english":
+            base_prompt += "Provide your answers in English and speak naturally and conversationally.\n"
+        
+        # تنظیم تن صدا
+        tone_instructions = {
+            "professional": "پاسخ‌های خود را به صورت حرفه‌ای و رسمی ارائه دهید.\n",
+            "friendly": "پاسخ‌های خود را به صورت دوستانه و گرم ارائه دهید.\n",
+            "formal": "پاسخ‌های خود را به صورت رسمی و محترمانه ارائه دهید.\n",
+            "casual": "پاسخ‌های خود را به صورت غیررسمی و صمیمی ارائه دهید.\n"
+        }
+        base_prompt += tone_instructions.get(self.tone, tone_instructions["professional"])
+        
+        # تنظیم طول پاسخ
+        base_prompt += f"پاسخ‌های خود را حداکثر {self.max_response_length} کاراکتر نگه دارید.\n"
+        
+        # تنظیم منابع
+        if self.include_sources:
+            base_prompt += "هنگام پاسخ، اگر اطلاعاتی از یک منبع خاص استفاده می‌شود، شماره منبع را به صورت [n] در متن پاسخ ذکر کن.\n"
+        
+        return base_prompt
 
     def search_knowledge_base(self, query: str, n_results: int = 5) -> dict:
         """جستجو در پایگاه دانش"""
@@ -48,8 +84,10 @@ class RAGService:
             logger.error(f"خطا در جستجوی پایگاه دانش: {str(e)}")
             return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
-    def get_relevant_context(self, query: str, n_results: int = 3) -> str:
+    def get_relevant_context(self, query: str, n_results: int = None) -> str:
         """دریافت متن‌های مرتبط"""
+        if n_results is None:
+            n_results = self.k
         results = self.search_knowledge_base(query, n_results)
         
         if not results or not results["documents"] or not results["documents"][0]:
@@ -82,8 +120,8 @@ class RAGService:
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=messages,
-                temperature=0.5,
-                max_tokens=2000
+                temperature=self.temperature,
+                max_tokens=min(self.max_response_length * 2, 4000)  # حداکثر 4000 توکن
             )
             
             answer = response.choices[0].message.content

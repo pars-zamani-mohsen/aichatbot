@@ -23,6 +23,9 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { websites } from '../../services/api';
 import WidgetManager from './WidgetManager';
+import ResourceManager from './ResourceManager';
+import RAGSettings from './RAGSettings';
+import ConversationLogs from './ConversationLogs';
 
 const WebsiteManager = ({ onSelectWebsite }) => {
   const [websiteList, setWebsiteList] = useState([]);
@@ -301,6 +304,9 @@ const WebsiteManager = ({ onSelectWebsite }) => {
         <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
           <Tab label="لیست وب‌سایت‌ها" />
           <Tab label="مدیریت ویجت" />
+          <Tab label="مدیریت منابع" />
+          <Tab label="تنظیمات RAG" />
+          <Tab label="لاگ مکالمات" />
         </Tabs>
       )}
 
@@ -366,6 +372,24 @@ const WebsiteManager = ({ onSelectWebsite }) => {
       {activeTab === 1 && selectedWebsite && (
         <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
           <WidgetManager website={selectedWebsite} />
+        </Box>
+      )}
+
+      {activeTab === 2 && selectedWebsite && (
+        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+          <ResourceManager website={selectedWebsite} />
+        </Box>
+      )}
+
+      {activeTab === 3 && selectedWebsite && (
+        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+          <RAGSettings website={selectedWebsite} />
+        </Box>
+      )}
+
+      {activeTab === 4 && selectedWebsite && (
+        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+          <ConversationLogs website={selectedWebsite} />
         </Box>
       )}
 

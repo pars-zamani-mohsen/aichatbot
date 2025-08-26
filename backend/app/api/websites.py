@@ -10,7 +10,10 @@ import logging
 from urllib.parse import urlparse
 from datetime import datetime
 from pathlib import Path
-import pandas as pd
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 from ..database.models import User
 from .auth import get_current_user
 
@@ -330,4 +333,250 @@ async def get_crawl_settings(
         
     except Exception as e:
         logger.error(f"خطا در دریافت تنظیمات کراولینگ: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{website_id}/pages")
+async def get_website_pages(
+    website_id: int,
+    page: int = 1,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت لیست صفحات کراول شده یک وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # خواندن فایل CSV
+        base_dir = Path(__file__).parent.parent.parent
+        csv_path = base_dir / "processed_data" / website.domain / "processed_data.csv"
+        
+        if not csv_path.exists():
+            return {
+                "pages": [],
+                "total": 0,
+                "page": page,
+                "limit": limit,
+                "message": "هنوز صفحه‌ای کراول نشده است"
+            }
+        
+        # خواندن داده‌ها
+        if pd is None:
+            raise HTTPException(status_code=500, detail="pandas در دسترس نیست")
+        
+        df = pd.read_csv(csv_path)
+        total_pages = len(df)
+        
+        # صفحه‌بندی
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        df_page = df.iloc[start_idx:end_idx]
+        
+        pages = []
+        for _, row in df_page.iterrows():
+            pages.append({
+                "url": row.get('url', ''),
+                "title": row.get('title', ''),
+                "text_preview": row.get('text', '')[:200] + "..." if len(str(row.get('text', ''))) > 200 else row.get('text', ''),
+                "links_count": len(row.get('links', [])) if isinstance(row.get('links', []), list) else 0
+            })
+        
+        return {
+            "pages": pages,
+            "total": total_pages,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total_pages + limit - 1) // limit
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت صفحات: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{website_id}/re-crawl")
+async def re_crawl_website(
+    website_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """شروع مجدد کراولینگ وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # بررسی وضعیت
+        if website.status == "crawling":
+            raise HTTPException(status_code=400, detail="وب‌سایت در حال کراولینگ است")
+        
+        # به‌روزرسانی وضعیت
+        website.status = "pending"
+        website.error_message = None
+        db.commit()
+        
+        # شروع کراولینگ مجدد
+        background_tasks.add_task(process_website_background, website_id, db)
+        
+        return {
+            "website_id": website_id,
+            "message": "کراولینگ مجدد شروع شد",
+            "status": "pending"
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در شروع کراولینگ مجدد: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/{website_id}/pages/{page_url:path}")
+async def delete_website_page(
+    website_id: int,
+    page_url: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """حذف یک صفحه از وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # خواندن فایل CSV
+        base_dir = Path(__file__).parent.parent.parent
+        csv_path = base_dir / "processed_data" / website.domain / "processed_data.csv"
+        
+        if not csv_path.exists():
+            raise HTTPException(status_code=404, detail="فایل داده یافت نشد")
+        
+        # خواندن و حذف صفحه
+        if pd is None:
+            raise HTTPException(status_code=500, detail="pandas در دسترس نیست")
+        
+        df = pd.read_csv(csv_path)
+        original_count = len(df)
+        df = df[df['url'] != page_url]
+        
+        if len(df) == original_count:
+            raise HTTPException(status_code=404, detail="صفحه یافت نشد")
+        
+        # ذخیره مجدد
+        df.to_csv(csv_path, index=False)
+        
+        return {
+            "website_id": website_id,
+            "page_url": page_url,
+            "message": "صفحه با موفقیت حذف شد",
+            "remaining_pages": len(df)
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در حذف صفحه: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/{website_id}/rag-settings")
+async def update_rag_settings(
+    website_id: int,
+    settings: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """به‌روزرسانی تنظیمات RAG وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # به‌روزرسانی تنظیمات
+        website.rag_settings = settings
+        db.commit()
+        
+        return {
+            "website_id": website_id,
+            "rag_settings": settings,
+            "message": "تنظیمات RAG با موفقیت به‌روزرسانی شد"
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در به‌روزرسانی تنظیمات RAG: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{website_id}/rag-settings")
+async def get_rag_settings(
+    website_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت تنظیمات RAG وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        return {
+            "website_id": website_id,
+            "rag_settings": website.rag_settings or {},
+            "default_settings": {
+                "k": 5,
+                "max_response_length": 500,
+                "temperature": 0.7,
+                "tone": "professional",
+                "language": "persian",
+                "include_sources": True,
+                "max_context_length": 2000
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت تنظیمات RAG: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{website_id}/test-rag")
+async def test_rag_query(
+    website_id: int,
+    query_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """تست پرسش RAG برای وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # بررسی آماده بودن وب‌سایت
+        if website.status != "ready":
+            raise HTTPException(status_code=400, detail="وب‌سایت آماده نیست")
+        
+        query = query_data.get("query", "")
+        if not query:
+            raise HTTPException(status_code=400, detail="پرسش خالی است")
+        
+        # استفاده از تنظیمات RAG
+        rag_settings = website.rag_settings or {}
+        k = rag_settings.get("k", 5)
+        max_response_length = rag_settings.get("max_response_length", 500)
+        temperature = rag_settings.get("temperature", 0.7)
+        tone = rag_settings.get("tone", "professional")
+        
+        # استفاده از RAGService با تنظیمات
+        from ..services.rag import RAGService
+        
+        rag_service = RAGService(website.collection_name, rag_settings)
+        
+        # اجرای پرسش
+        answer, sources = rag_service.get_answer(query)
+        
+        return {
+            "website_id": website_id,
+            "query": query,
+            "response": answer,
+            "sources": sources,
+            "settings_used": {
+                "k": k,
+                "max_response_length": max_response_length,
+                "temperature": temperature,
+                "tone": tone,
+                "language": rag_settings.get("language", "persian"),
+                "include_sources": rag_settings.get("include_sources", True)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در تست RAG: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 

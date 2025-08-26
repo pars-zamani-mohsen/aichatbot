@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, WebSocketException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, func
 from typing import List, Dict, Optional
 import json
 import uuid
 from ..database.database import get_db
 from ..database import models
+from ..database.models import User
 from . import schemas
 from .auth import get_current_user
 from ..services.rag import RAGService
@@ -12,6 +14,7 @@ from ..config import settings
 from jose import JWTError, jwt
 from ..core.chatbot_factory import ChatbotFactory
 import logging
+from datetime import datetime
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -336,7 +339,23 @@ async def websocket_endpoint(websocket: WebSocket, website_id: int, db: Session 
     try:
         # ایجاد سرویس RAG با collection_name صحیح
         collection_name = get_collection_name_from_website_id(db, website_id)
-        rag_service = RAGService(collection_name)
+        
+        # دریافت وب‌سایت برای تنظیمات RAG
+        website = db.query(models.Website).filter(models.Website.id == website_id).first()
+        if not website:
+            raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد")
+        
+        # دریافت تنظیمات RAG
+        rag_settings = website.rag_settings or {}
+        k = rag_settings.get("k", 5)
+        max_response_length = rag_settings.get("max_response_length", 500)
+        temperature = rag_settings.get("temperature", 0.7)
+        tone = rag_settings.get("tone", "professional")
+        language = rag_settings.get("language", "persian")
+        include_sources = rag_settings.get("include_sources", True)
+        max_context_length = rag_settings.get("max_context_length", 2000)
+        
+        rag_service = RAGService(collection_name, rag_settings)
         
         while True:
             # دریافت پیام از کاربر
@@ -381,4 +400,139 @@ async def websocket_endpoint(websocket: WebSocket, website_id: int, db: Session 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
-        ) 
+        )
+
+@router.get("/websites/{website_id}/conversations")
+async def get_website_conversations(
+    website_id: int,
+    page: int = 1,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت لیست مکالمات یک وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت
+        website = db.query(models.Website).filter(
+            and_(models.Website.id == website_id, models.Website.owner_id == current_user.id)
+        ).first()
+        
+        if not website:
+            raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد")
+        
+        # دریافت مکالمات
+        offset = (page - 1) * limit
+        conversations = db.query(models.Chat).filter(
+            models.Chat.website_id == website_id
+        ).order_by(models.Chat.created_at.desc()).offset(offset).limit(limit).all()
+        
+        # شمارش کل
+        total_conversations = db.query(models.Chat).filter(models.Chat.website_id == website_id).count()
+        
+        result = []
+        for chat in conversations:
+            # آخرین پیام
+            last_message = db.query(models.Message).filter(
+                models.Message.chat_id == chat.id
+            ).order_by(models.Message.created_at.desc()).first()
+            
+            # تعداد پیام‌ها
+            message_count = db.query(models.Message).filter(models.Message.chat_id == chat.id).count()
+            
+            result.append({
+                "chat_id": chat.id,
+                "session_id": chat.session_id,
+                "created_at": chat.created_at.isoformat(),
+                "last_message": last_message.content[:100] + "..." if last_message and len(last_message.content) > 100 else (last_message.content if last_message else ""),
+                "message_count": message_count,
+                "last_activity": last_message.created_at.isoformat() if last_message else chat.created_at.isoformat()
+            })
+        
+        return {
+            "conversations": result,
+            "total": total_conversations,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total_conversations + limit - 1) // limit
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت مکالمات: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/websites/{website_id}/export")
+async def export_conversations(
+    website_id: int,
+    format: str = "csv",
+    start_date: str = None,
+    end_date: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Export مکالمات یک وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت
+        website = db.query(models.Website).filter(
+            and_(models.Website.id == website_id, models.Website.owner_id == current_user.id)
+        ).first()
+        
+        if not website:
+            raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد")
+        
+        # فیلتر تاریخ
+        query = db.query(models.Chat).filter(models.Chat.website_id == website_id)
+        
+        if start_date:
+            query = query.filter(models.Chat.created_at >= start_date)
+        if end_date:
+            query = query.filter(models.Chat.created_at <= end_date)
+        
+        conversations = query.all()
+        
+        # آماده‌سازی داده‌ها
+        export_data = []
+        for chat in conversations:
+            messages = db.query(models.Message).filter(models.Message.chat_id == chat.id).order_by(models.Message.created_at).all()
+            
+            for msg in messages:
+                export_data.append({
+                    "chat_id": chat.id,
+                    "session_id": chat.session_id,
+                    "message_id": msg.id,
+                    "role": msg.role,
+                    "content": msg.content,
+                    "created_at": msg.created_at.isoformat(),
+                    "sources": msg.sources
+                })
+        
+        if format.lower() == "csv":
+            try:
+                import pandas as pd
+                from io import StringIO
+                
+                df = pd.DataFrame(export_data)
+            except ImportError:
+                raise HTTPException(status_code=500, detail="pandas برای export CSV در دسترس نیست")
+            csv_buffer = StringIO()
+            df.to_csv(csv_buffer, index=False)
+            
+            from fastapi.responses import Response
+            return Response(
+                content=csv_buffer.getvalue(),
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename=conversations_{website.domain}_{datetime.now().strftime('%Y%m%d')}.csv"}
+            )
+        
+        elif format.lower() == "json":
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                content=export_data,
+                headers={"Content-Disposition": f"attachment; filename=conversations_{website.domain}_{datetime.now().strftime('%Y%m%d')}.json"}
+            )
+        
+        else:
+            raise HTTPException(status_code=400, detail="فرمت نامعتبر")
+        
+    except Exception as e:
+        logger.error(f"خطا در export مکالمات: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
