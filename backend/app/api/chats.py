@@ -460,6 +460,189 @@ async def get_website_conversations(
         logger.error(f"خطا در دریافت مکالمات: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/user/conversations")
+async def get_user_conversations(
+    page: int = 1,
+    limit: int = 20,
+    status: Optional[str] = Query(None, description="فیلتر بر اساس وضعیت"),
+    search: Optional[str] = Query(None, description="جستجو در پیام‌ها"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت لیست مکالمات کاربر"""
+    try:
+        # دریافت وب‌سایت‌های کاربر
+        user_websites = db.query(models.Website).filter(
+            models.Website.owner_id == current_user.id
+        ).all()
+        
+        if not user_websites:
+            return {
+                "conversations": [],
+                "total": 0,
+                "page": page,
+                "limit": limit,
+                "total_pages": 0
+            }
+        
+        website_ids = [website.id for website in user_websites]
+        
+        # دریافت مکالمات
+        offset = (page - 1) * limit
+        query = db.query(models.Chat).filter(
+            models.Chat.website_id.in_(website_ids)
+        )
+        
+        # فیلتر بر اساس وضعیت
+        if status and status != 'all':
+            if status == 'active':
+                # گفتگوهای فعال: گفتگوهایی که پیام دارند
+                query = query.join(models.Message, models.Chat.id == models.Message.chat_id)
+            elif status == 'completed':
+                # گفتگوهای تکمیل شده: گفتگوهایی که پیام ندارند
+                # استفاده از subquery برای یافتن چت‌هایی که پیام ندارند
+                from sqlalchemy import exists
+                subquery = db.query(models.Message.chat_id).filter(
+                    models.Message.chat_id == models.Chat.id
+                ).exists()
+                query = query.filter(~subquery)
+        
+        conversations = query.order_by(models.Chat.created_at.desc()).offset(offset).limit(limit).all()
+        
+        # شمارش کل
+        total_conversations = query.count()
+        
+        result = []
+        for chat in conversations:
+            # دریافت اطلاعات وب‌سایت
+            website = next((w for w in user_websites if w.id == chat.website_id), None)
+            
+            # آخرین پیام
+            last_message = db.query(models.Message).filter(
+                models.Message.chat_id == chat.id
+            ).order_by(models.Message.created_at.desc()).first()
+            
+            # تعداد پیام‌ها
+            message_count = db.query(models.Message).filter(models.Message.chat_id == chat.id).count()
+            
+            # فیلتر جستجو - بررسی در نام وب‌سایت و محتوای پیام
+            if search:
+                search_lower = search.lower()
+                website_name = website.name.lower() if website else ""
+                message_content = last_message.content.lower() if last_message else ""
+                
+                if search_lower not in website_name and search_lower not in message_content:
+                    continue
+            
+            result.append({
+                "id": chat.id,
+                "website": website.name if website else f"Website {chat.website_id}",
+                "website_id": chat.website_id,
+                "session_id": chat.session_id,
+                "message_count": message_count,
+                "status": "active" if message_count > 0 else "completed",  # منطق ساده برای وضعیت
+                "created_at": chat.created_at.isoformat(),
+                "last_message": last_message.content[:100] + "..." if last_message and len(last_message.content) > 100 else (last_message.content if last_message else ""),
+                "last_activity": last_message.created_at.isoformat() if last_message else chat.created_at.isoformat()
+            })
+        
+        return {
+            "conversations": result,
+            "total": total_conversations,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total_conversations + limit - 1) // limit
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت مکالمات کاربر: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/user/conversations/{conversation_id}")
+async def get_user_conversation_detail(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت جزئیات یک مکالمه کاربر"""
+    try:
+        # بررسی مالکیت مکالمه
+        chat = db.query(models.Chat).join(models.Website).filter(
+            and_(
+                models.Chat.id == conversation_id,
+                models.Website.owner_id == current_user.id
+            )
+        ).first()
+        
+        if not chat:
+            raise HTTPException(status_code=404, detail="مکالمه یافت نشد")
+        
+        # دریافت پیام‌ها
+        messages = db.query(models.Message).filter(
+            models.Message.chat_id == chat.id
+        ).order_by(models.Message.created_at).all()
+        
+        # دریافت اطلاعات وب‌سایت
+        website = db.query(models.Website).filter(models.Website.id == chat.website_id).first()
+        
+        # فرمت پیام‌ها
+        formatted_messages = []
+        for msg in messages:
+            formatted_messages.append({
+                "role": msg.role,
+                "content": msg.content,
+                "time": msg.created_at.strftime("%H:%M"),
+                "created_at": msg.created_at.isoformat(),
+                "sources": msg.sources if msg.role == "assistant" else None
+            })
+        
+        return {
+            "id": chat.id,
+            "website": website.name if website else f"Website {chat.website_id}",
+            "website_id": chat.website_id,
+            "session_id": chat.session_id,
+            "status": "active" if len(messages) > 0 else "completed",
+            "created_at": chat.created_at.isoformat(),
+            "message_count": len(messages),
+            "messages": formatted_messages
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت جزئیات مکالمه: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/user/conversations/{conversation_id}")
+async def delete_user_conversation(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """حذف یک مکالمه کاربر"""
+    try:
+        # بررسی مالکیت مکالمه
+        chat = db.query(models.Chat).join(models.Website).filter(
+            and_(
+                models.Chat.id == conversation_id,
+                models.Website.owner_id == current_user.id
+            )
+        ).first()
+        
+        if not chat:
+            raise HTTPException(status_code=404, detail="مکالمه یافت نشد")
+        
+        # حذف پیام‌ها
+        db.query(models.Message).filter(models.Message.chat_id == chat.id).delete()
+        
+        # حذف چت
+        db.delete(chat)
+        db.commit()
+        
+        return {"message": "مکالمه با موفقیت حذف شد"}
+        
+    except Exception as e:
+        logger.error(f"خطا در حذف مکالمه: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/websites/{website_id}/export")
 async def export_conversations(
     website_id: int,

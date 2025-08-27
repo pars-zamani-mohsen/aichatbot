@@ -240,6 +240,49 @@ export const chats = {
       throw error;
     }
   },
+
+  // API های جدید برای conversations کاربر
+  getUserConversations: async (page = 1, limit = 20, status = null, search = null) => {
+    try {
+      const params = { page, limit };
+      if (status) params.status = status;
+      if (search) params.search = search;
+
+      const response = await api.get('/api/chats/user/conversations', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting user conversations:', error);
+      throw error;
+    }
+  },
+
+  getUserConversationDetail: async (conversationId) => {
+    try {
+      const numericId = parseInt(conversationId);
+      if (isNaN(numericId)) {
+        throw new Error('شناسه مکالمه نامعتبر است');
+      }
+      const response = await api.get(`/api/chats/user/conversations/${numericId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting conversation detail:', error);
+      throw error;
+    }
+  },
+
+  deleteUserConversation: async (conversationId) => {
+    try {
+      const numericId = parseInt(conversationId);
+      if (isNaN(numericId)) {
+        throw new Error('شناسه مکالمه نامعتبر است');
+      }
+      const response = await api.delete(`/api/chats/user/conversations/${numericId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      throw error;
+    }
+  },
 };
 
 export const dashboard = {
