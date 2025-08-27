@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Grid,
@@ -35,9 +36,11 @@ import {
   Analytics
 } from '@mui/icons-material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { dashboard } from '../../services/api';
 
 const AdminDashboard = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalWebsites: 0,
     totalUsers: 0,
@@ -49,17 +52,7 @@ const AdminDashboard = () => {
 
   const [recentActivity, setRecentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // داده‌های نمونه برای نمودار
-  const chartData = [
-    { name: 'شنبه', conversations: 120, users: 45 },
-    { name: 'یکشنبه', conversations: 180, users: 62 },
-    { name: 'دوشنبه', conversations: 150, users: 58 },
-    { name: 'سه‌شنبه', conversations: 220, users: 78 },
-    { name: 'چهارشنبه', conversations: 190, users: 65 },
-    { name: 'پنج‌شنبه', conversations: 280, users: 92 },
-    { name: 'جمعه', conversations: 240, users: 85 },
-  ];
+  const [chartData, setChartData] = useState([]);
 
   const pieData = [
     { name: 'فعال', value: 75, color: '#10b981' },
@@ -68,29 +61,121 @@ const AdminDashboard = () => {
   ];
 
   useEffect(() => {
-    // شبیه‌سازی دریافت داده‌ها
-    setTimeout(() => {
-      setStats({
-        totalWebsites: 24,
-        totalUsers: 156,
-        totalConversations: 2847,
-        totalMessages: 12543,
-        activeUsers: 89,
-        systemHealth: 95
-      });
-      setRecentActivity([
-        { id: 1, type: 'user', action: 'کاربر جدید ثبت‌نام کرد', time: '2 دقیقه پیش', user: 'احمد محمدی' },
-        { id: 2, type: 'website', action: 'وب‌سایت جدید اضافه شد', time: '15 دقیقه پیش', user: 'فاطمه احمدی' },
-        { id: 3, type: 'conversation', action: 'گفتگوی جدید شروع شد', time: '32 دقیقه پیش', user: 'علی رضایی' },
-        { id: 4, type: 'system', action: 'بروزرسانی سیستم انجام شد', time: '1 ساعت پیش', user: 'سیستم' },
-      ]);
-      setLoading(false);
-    }, 1000);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        // دریافت آمار ادمین
+        const adminStats = await dashboard.getAdminStats();
+        setStats({
+          totalWebsites: adminStats?.websites?.total || 0,
+          totalUsers: adminStats?.users?.total || 0,
+          totalConversations: adminStats?.chats?.total || 0,
+          totalMessages: adminStats?.messages?.total || 0,
+          activeUsers: adminStats?.users?.active || 0,
+          systemHealth: 95,
+          // اضافه کردن trend ها
+          websiteTrend: adminStats?.websites?.trend || 0,
+          userTrend: adminStats?.users?.trend || 0,
+          chatTrend: adminStats?.chats?.trend || 0,
+          messageTrend: adminStats?.messages?.trend || 0
+        });
+
+        // دریافت فعالیت‌های اخیر
+        const recentActivityData = await dashboard.getAdminRecentActivity(5);
+
+        // دریافت آمار هفتگی
+        const weeklyStats = await dashboard.getAdminWeeklyStats();
+        setChartData(weeklyStats);
+
+        // تبدیل داده‌ها به فرمت مورد نیاز
+        const activities = [];
+
+        // کاربران جدید
+        (recentActivityData?.recent_users || []).slice(0, 2).forEach(user => {
+          activities.push({
+            id: `user-${user.id}`,
+            type: 'user',
+            action: 'کاربر جدید ثبت‌نام کرد',
+            time: formatTimeAgo(user.created_at),
+            user: user.email
+          });
+        });
+
+        // وب‌سایت‌های جدید
+        (recentActivityData?.recent_websites || []).slice(0, 2).forEach(website => {
+          activities.push({
+            id: `website-${website.id}`,
+            type: 'website',
+            action: 'وب‌سایت جدید اضافه شد',
+            time: formatTimeAgo(website.created_at),
+            user: website.owner_email
+          });
+        });
+
+        // چت‌های جدید
+        (recentActivityData?.recent_chats || []).slice(0, 1).forEach(chat => {
+          activities.push({
+            id: `chat-${chat.id}`,
+            type: 'conversation',
+            action: 'گفتگوی جدید شروع شد',
+            time: formatTimeAgo(chat.created_at),
+            user: chat.owner_email
+          });
+        });
+
+        setRecentActivity(activities);
+      } catch (error) {
+        console.error('Error fetching admin dashboard data:', error);
+        // در صورت خطا، از داده‌های خالی استفاده می‌کنیم
+        setStats({
+          totalWebsites: 0,
+          totalUsers: 0,
+          totalConversations: 0,
+          totalMessages: 0,
+          activeUsers: 0,
+          systemHealth: 0,
+          websiteTrend: 0,
+          userTrend: 0,
+          chatTrend: 0,
+          messageTrend: 0
+        });
+        setChartData([
+          { day: 'شنبه', conversations: 0, users: 0 },
+          { day: 'یکشنبه', conversations: 0, users: 0 },
+          { day: 'دوشنبه', conversations: 0, users: 0 },
+          { day: 'سه‌شنبه', conversations: 0, users: 0 },
+          { day: 'چهارشنبه', conversations: 0, users: 0 },
+          { day: 'پنج‌شنبه', conversations: 0, users: 0 },
+          { day: 'جمعه', conversations: 0, users: 0 },
+        ]);
+        setRecentActivity([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
+  const formatTimeAgo = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+
+    if (diffInMinutes < 1) return 'لحظاتی پیش';
+    if (diffInMinutes < 60) return `${diffInMinutes} دقیقه پیش`;
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours} ساعت پیش`;
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays} روز پیش`;
+  };
+
   const StatCard = ({ title, value, icon, color, trend, subtitle }) => (
-    <Card sx={{ 
-      height: '100%', 
+    <Card sx={{
+      height: '100%',
       background: `linear-gradient(135deg, ${color}15 0%, ${color}05 100%)`,
       border: `1px solid ${color}20`,
       transition: 'all 0.3s ease',
@@ -137,16 +222,16 @@ const AdminDashboard = () => {
   const ActivityItem = ({ activity }) => (
     <ListItem sx={{ px: 0 }}>
       <ListItemAvatar>
-        <Avatar sx={{ 
-          bgcolor: activity.type === 'user' ? 'primary.main' : 
-                   activity.type === 'website' ? 'success.main' : 
-                   activity.type === 'conversation' ? 'info.main' : 'warning.main',
+        <Avatar sx={{
+          bgcolor: activity.type === 'user' ? 'primary.main' :
+            activity.type === 'website' ? 'success.main' :
+              activity.type === 'conversation' ? 'info.main' : 'warning.main',
           width: 32,
           height: 32
         }}>
           {activity.type === 'user' ? <People /> :
-           activity.type === 'website' ? <Language /> :
-           activity.type === 'conversation' ? <Chat /> : <Notifications />}
+            activity.type === 'website' ? <Language /> :
+              activity.type === 'conversation' ? <Chat /> : <Notifications />}
         </Avatar>
       </ListItemAvatar>
       <ListItemText
@@ -186,8 +271,8 @@ const AdminDashboard = () => {
             value={stats.totalWebsites}
             icon={<Language />}
             color="#667eea"
-            trend={12}
-            subtitle="24 وب‌سایت فعال"
+            trend={stats.websiteTrend || 0}
+            subtitle={`${stats.totalWebsites} وب‌سایت فعال`}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -196,8 +281,8 @@ const AdminDashboard = () => {
             value={stats.totalUsers}
             icon={<People />}
             color="#10b981"
-            trend={8}
-            subtitle="89 کاربر فعال"
+            trend={stats.userTrend || 0}
+            subtitle={`${stats.activeUsers} کاربر فعال`}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -206,8 +291,8 @@ const AdminDashboard = () => {
             value={stats.totalConversations}
             icon={<Chat />}
             color="#f59e0b"
-            trend={-3}
-            subtitle="2847 گفتگو"
+            trend={stats.chatTrend || 0}
+            subtitle={`${stats.totalConversations} گفتگو`}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -216,8 +301,8 @@ const AdminDashboard = () => {
             value={stats.totalMessages}
             icon={<Assessment />}
             color="#ef4444"
-            trend={15}
-            subtitle="12543 پیام"
+            trend={stats.messageTrend || 0}
+            subtitle={`${stats.totalMessages} پیام`}
           />
         </Grid>
       </Grid>
@@ -240,7 +325,7 @@ const AdminDashboard = () => {
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
+                  <XAxis dataKey="day" />
                   <YAxis />
                   <Tooltip />
                   <Line type="monotone" dataKey="conversations" stroke="#667eea" strokeWidth={2} />
@@ -296,7 +381,7 @@ const AdminDashboard = () => {
                 <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
                   فعالیت‌های اخیر
                 </Typography>
-                <Button size="small" color="primary">
+                <Button size="small" color="primary" onClick={() => navigate('/admin/reports')}>
                   مشاهده همه
                 </Button>
               </Box>
@@ -308,6 +393,63 @@ const AdminDashboard = () => {
                   </React.Fragment>
                 ))}
               </List>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Quick Actions */}
+        <Grid item xs={12} lg={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3 }}>
+                اقدامات سریع
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    startIcon={<People />}
+                    sx={{ py: 2 }}
+                    onClick={() => navigate('/admin/users')}
+                  >
+                    مدیریت کاربران
+                  </Button>
+                </Grid>
+                <Grid item xs={6}>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    startIcon={<Language />}
+                    sx={{ py: 2 }}
+                    onClick={() => navigate('/admin/websites')}
+                  >
+                    مدیریت وب‌سایت‌ها
+                  </Button>
+                </Grid>
+                <Grid item xs={6}>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    startIcon={<Analytics />}
+                    sx={{ py: 2 }}
+                    onClick={() => navigate('/admin/reports')}
+                  >
+                    گزارش‌ها
+                  </Button>
+                </Grid>
+                <Grid item xs={6}>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    startIcon={<Security />}
+                    sx={{ py: 2 }}
+                    onClick={() => navigate('/admin/settings')}
+                  >
+                    تنظیمات سیستم
+                  </Button>
+                </Grid>
+              </Grid>
             </CardContent>
           </Card>
         </Grid>

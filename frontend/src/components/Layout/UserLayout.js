@@ -252,11 +252,10 @@ const UserLayout = ({ children }) => {
                     }
                 }}
             >
-                <MenuItem onClick={handleProfileMenuClose}>
-                    <AccountCircle sx={{ mr: 1 }} />
-                    پروفایل من
-                </MenuItem>
-                <MenuItem onClick={handleProfileMenuClose}>
+                <MenuItem onClick={() => {
+                    handleProfileMenuClose();
+                    navigate('/settings');
+                }}>
                     <Settings sx={{ mr: 1 }} />
                     تنظیمات حساب
                 </MenuItem>

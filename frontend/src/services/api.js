@@ -7,6 +7,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 15000, // 15 ثانیه timeout
 });
 
 // اضافه کردن توکن به درخواست‌ها
@@ -16,6 +17,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // اضافه کردن Content-Type برای درخواست‌های GET
+    if (config.method === 'get') {
+      config.headers['Content-Type'] = 'application/json';
+    }
+
     console.log('Request Details:', {
       url: config.url,
       method: config.method,
@@ -58,8 +65,24 @@ api.interceptors.response.use(
       data: error.response?.data,
       headers: error.response?.headers,
       params: error.config?.params,
-      message: error.message
+      message: error.message,
+      code: error.code
     });
+
+    // اگر درخواست abort شده یا timeout، خطا را نادیده بگیریم
+    if (error.code === 'ECONNABORTED' || error.message === 'Request aborted' || error.message.includes('timeout')) {
+      console.log('Request was aborted or timed out, ignoring error');
+      // برگرداندن داده‌های خالی با ساختار صحیح
+      return Promise.resolve({
+        data: {
+          websites: { total: 0, ready: 0, trend: 0 },
+          users: { total: 0, active: 0, trend: 0 },
+          chats: { total: 0, trend: 0 },
+          messages: { total: 0, trend: 0 }
+        }
+      });
+    }
+
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';
@@ -112,6 +135,20 @@ export const websites = {
       return response.data;
     } catch (error) {
       console.error('Error in getAll:', error);
+
+      // اگر درخواست abort شده، دوباره تلاش کنیم
+      if (error.code === 'ECONNABORTED' || error.message === 'Request aborted') {
+        console.log('Request aborted, retrying...');
+        try {
+          const retryResponse = await api.get('/api/');
+          console.log('Retry successful:', retryResponse.data);
+          return retryResponse.data;
+        } catch (retryError) {
+          console.error('Retry failed:', retryError);
+          throw retryError;
+        }
+      }
+
       if (error.response?.status === 422) {
         console.error('Validation Error Details:', {
           status: error.response.status,
@@ -227,6 +264,162 @@ export const chats = {
       throw error;
     }
   },
+};
+
+export const dashboard = {
+  // آمار داشبورد کاربر
+  getUserStats: async () => {
+    try {
+      const response = await api.get('/api/dashboard/stats');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting user stats:', error);
+
+      // اگر درخواست abort شده یا timeout، دوباره تلاش کنیم
+      if (error.code === 'ECONNABORTED' || error.message === 'Request aborted' || error.message.includes('timeout')) {
+        console.log('Request aborted or timed out, retrying user stats...');
+        try {
+          const retryResponse = await api.get('/api/dashboard/stats');
+          return retryResponse.data;
+        } catch (retryError) {
+          console.error('Retry failed:', retryError);
+        }
+      }
+
+      // در صورت خطا، داده‌های خالی برگردانیم
+      return {
+        websites: { total: 0, ready: 0 },
+        chats: { total: 0, trend: 0 },
+        messages: { total: 0, trend: 0 }
+      };
+    }
+  },
+
+  getUserRecentActivity: async (limit = 10) => {
+    try {
+      const response = await api.get('/api/dashboard/recent-activity', {
+        params: { limit }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting user recent activity:', error);
+
+      // اگر درخواست abort شده یا timeout، دوباره تلاش کنیم
+      if (error.code === 'ECONNABORTED' || error.message === 'Request aborted' || error.message.includes('timeout')) {
+        console.log('Request aborted or timed out, retrying recent activity...');
+        try {
+          const retryResponse = await api.get('/api/dashboard/recent-activity', {
+            params: { limit }
+          });
+          return retryResponse.data;
+        } catch (retryError) {
+          console.error('Retry failed:', retryError);
+        }
+      }
+
+      // در صورت خطا، داده‌های خالی برگردانیم
+      return {
+        recent_websites: [],
+        recent_chats: [],
+        recent_messages: []
+      };
+    }
+  },
+
+  getWebsiteDetailedStats: async (websiteId) => {
+    try {
+      const response = await api.get(`/api/dashboard/websites/${websiteId}/detailed-stats`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting website detailed stats:', error);
+      throw error;
+    }
+  },
+
+  // آمار داشبورد ادمین
+  getAdminStats: async () => {
+    try {
+      const response = await api.get('/api/dashboard/admin/stats');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting admin stats:', error);
+      // در صورت خطا، داده‌های خالی برگردانیم
+      return {
+        websites: { total: 0, trend: 0 },
+        users: { total: 0, active: 0, trend: 0 },
+        chats: { total: 0, trend: 0 },
+        messages: { total: 0, trend: 0 }
+      };
+    }
+  },
+
+  getAdminRecentActivity: async (limit = 10) => {
+    try {
+      const response = await api.get('/api/dashboard/admin/recent-activity', {
+        params: { limit }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting admin recent activity:', error);
+      // در صورت خطا، داده‌های خالی برگردانیم
+      return {
+        recent_users: [],
+        recent_websites: [],
+        recent_chats: []
+      };
+    }
+  },
+
+  // آمار هفتگی
+  getWeeklyStats: async () => {
+    try {
+      const response = await api.get('/api/dashboard/weekly-stats');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting weekly stats:', error);
+
+      // اگر درخواست abort شده یا timeout، دوباره تلاش کنیم
+      if (error.code === 'ECONNABORTED' || error.message === 'Request aborted' || error.message.includes('timeout')) {
+        console.log('Request aborted or timed out, retrying weekly stats...');
+        try {
+          const retryResponse = await api.get('/api/dashboard/weekly-stats');
+          return retryResponse.data;
+        } catch (retryError) {
+          console.error('Retry failed:', retryError);
+        }
+      }
+
+      // در صورت خطا، داده‌های خالی برگردانیم
+      return [
+        { day: 'شنبه', conversations: 0, messages: 0 },
+        { day: 'یکشنبه', conversations: 0, messages: 0 },
+        { day: 'دوشنبه', conversations: 0, messages: 0 },
+        { day: 'سه‌شنبه', conversations: 0, messages: 0 },
+        { day: 'چهارشنبه', conversations: 0, messages: 0 },
+        { day: 'پنج‌شنبه', conversations: 0, messages: 0 },
+        { day: 'جمعه', conversations: 0, messages: 0 },
+      ];
+    }
+  },
+
+  getAdminWeeklyStats: async () => {
+    try {
+      const response = await api.get('/api/dashboard/admin/weekly-stats');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting admin weekly stats:', error);
+      // در صورت خطا، داده‌های خالی برگردانیم
+      return [
+        { day: 'شنبه', conversations: 0, users: 0 },
+        { day: 'یکشنبه', conversations: 0, users: 0 },
+        { day: 'دوشنبه', conversations: 0, users: 0 },
+        { day: 'سه‌شنبه', conversations: 0, users: 0 },
+        { day: 'چهارشنبه', conversations: 0, users: 0 },
+        { day: 'پنج‌شنبه', conversations: 0, users: 0 },
+        { day: 'جمعه', conversations: 0, users: 0 },
+      ];
+    }
+  }
 };
 
 export default api; 

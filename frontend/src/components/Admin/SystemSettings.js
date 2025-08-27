@@ -1,0 +1,595 @@
+import React, { useState, useEffect } from 'react';
+import {
+    Box,
+    Card,
+    CardContent,
+    Typography,
+    Grid,
+    Button,
+    TextField,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Switch,
+    FormControlLabel,
+    Divider,
+    Alert,
+    LinearProgress,
+    Chip,
+    IconButton,
+    Tooltip
+} from '@mui/material';
+import {
+    Save,
+    Refresh,
+    Security,
+    Email,
+    Storage,
+    Speed,
+    Notifications,
+    CloudUpload,
+    Backup,
+    Restore
+} from '@mui/icons-material';
+
+const SystemSettings = () => {
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [settings, setSettings] = useState({
+        // تنظیمات عمومی
+        siteName: 'RAG Chatbot System',
+        siteDescription: 'سیستم چت‌بات هوشمند با قابلیت RAG',
+        maintenanceMode: false,
+        debugMode: false,
+
+        // تنظیمات ایمیل
+        smtpServer: 'smtp.gmail.com',
+        smtpPort: 587,
+        smtpUsername: 'noreply@example.com',
+        smtpPassword: '',
+        emailFrom: 'noreply@example.com',
+
+        // تنظیمات امنیت
+        sessionTimeout: 30,
+        maxLoginAttempts: 5,
+        passwordMinLength: 8,
+        requireEmailVerification: true,
+        enableTwoFactor: false,
+
+        // تنظیمات RAG
+        defaultK: 5,
+        maxResponseLength: 500,
+        defaultTemperature: 0.7,
+        defaultLanguage: 'fa',
+
+        // تنظیمات کراولر
+        maxPagesPerSite: 100,
+        crawlDelay: 1,
+        respectRobotsTxt: true,
+        userAgent: 'RAG-Chatbot-Crawler/1.0',
+
+        // تنظیمات ذخیره‌سازی
+        maxFileSize: 10,
+        allowedFileTypes: ['jpg', 'png', 'pdf', 'txt'],
+        backupEnabled: true,
+        backupFrequency: 'daily',
+
+        // تنظیمات اعلان‌ها
+        emailNotifications: true,
+        slackNotifications: false,
+        slackWebhook: '',
+        notifyOnError: true,
+        notifyOnNewUser: true
+    });
+
+    useEffect(() => {
+        // شبیه‌سازی دریافت تنظیمات
+        setTimeout(() => {
+            setLoading(false);
+        }, 1000);
+    }, []);
+
+    const handleSettingChange = (key, value) => {
+        setSettings(prev => ({
+            ...prev,
+            [key]: value
+        }));
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        // شبیه‌سازی ذخیره تنظیمات
+        setTimeout(() => {
+            setSaving(false);
+            // نمایش پیام موفقیت
+        }, 2000);
+    };
+
+    const handleReset = () => {
+        // بازگردانی تنظیمات پیش‌فرض
+        setSettings({
+            siteName: 'RAG Chatbot System',
+            siteDescription: 'سیستم چت‌بات هوشمند با قابلیت RAG',
+            maintenanceMode: false,
+            debugMode: false,
+            smtpServer: 'smtp.gmail.com',
+            smtpPort: 587,
+            smtpUsername: 'noreply@example.com',
+            smtpPassword: '',
+            emailFrom: 'noreply@example.com',
+            sessionTimeout: 30,
+            maxLoginAttempts: 5,
+            passwordMinLength: 8,
+            requireEmailVerification: true,
+            enableTwoFactor: false,
+            defaultK: 5,
+            maxResponseLength: 500,
+            defaultTemperature: 0.7,
+            defaultLanguage: 'fa',
+            maxPagesPerSite: 100,
+            crawlDelay: 1,
+            respectRobotsTxt: true,
+            userAgent: 'RAG-Chatbot-Crawler/1.0',
+            maxFileSize: 10,
+            allowedFileTypes: ['jpg', 'png', 'pdf', 'txt'],
+            backupEnabled: true,
+            backupFrequency: 'daily',
+            emailNotifications: true,
+            slackNotifications: false,
+            slackWebhook: '',
+            notifyOnError: true,
+            notifyOnNewUser: true
+        });
+    };
+
+    if (loading) {
+        return (
+            <Box sx={{ p: 3 }}>
+                <LinearProgress />
+            </Box>
+        );
+    }
+
+    return (
+        <Box sx={{ p: 3 }}>
+            {/* Header */}
+            <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                    <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        تنظیمات سیستم
+                    </Typography>
+                    <Typography variant="body1" color="text.secondary">
+                        مدیریت تنظیمات کلی سیستم و پیکربندی‌ها
+                    </Typography>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button
+                        variant="outlined"
+                        startIcon={<Refresh />}
+                        onClick={handleReset}
+                    >
+                        بازگردانی
+                    </Button>
+                    <Button
+                        variant="contained"
+                        startIcon={<Save />}
+                        onClick={handleSave}
+                        disabled={saving}
+                    >
+                        {saving ? 'در حال ذخیره...' : 'ذخیره تنظیمات'}
+                    </Button>
+                </Box>
+            </Box>
+
+            <Grid container spacing={3}>
+                {/* تنظیمات عمومی */}
+                <Grid item xs={12} md={6}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                                <Speed sx={{ mr: 1, color: 'primary.main' }} />
+                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                    تنظیمات عمومی
+                                </Typography>
+                            </Box>
+
+                            <TextField
+                                fullWidth
+                                label="نام سایت"
+                                value={settings.siteName}
+                                onChange={(e) => handleSettingChange('siteName', e.target.value)}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <TextField
+                                fullWidth
+                                label="توضیحات سایت"
+                                value={settings.siteDescription}
+                                onChange={(e) => handleSettingChange('siteDescription', e.target.value)}
+                                multiline
+                                rows={2}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={settings.maintenanceMode}
+                                        onChange={(e) => handleSettingChange('maintenanceMode', e.target.checked)}
+                                    />
+                                }
+                                label="حالت نگهداری"
+                                sx={{ mb: 1 }}
+                            />
+
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={settings.debugMode}
+                                        onChange={(e) => handleSettingChange('debugMode', e.target.checked)}
+                                    />
+                                }
+                                label="حالت دیباگ"
+                            />
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* تنظیمات ایمیل */}
+                <Grid item xs={12} md={6}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                                <Email sx={{ mr: 1, color: 'primary.main' }} />
+                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                    تنظیمات ایمیل
+                                </Typography>
+                            </Box>
+
+                            <TextField
+                                fullWidth
+                                label="SMTP Server"
+                                value={settings.smtpServer}
+                                onChange={(e) => handleSettingChange('smtpServer', e.target.value)}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <TextField
+                                fullWidth
+                                label="SMTP Port"
+                                type="number"
+                                value={settings.smtpPort}
+                                onChange={(e) => handleSettingChange('smtpPort', parseInt(e.target.value))}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <TextField
+                                fullWidth
+                                label="نام کاربری SMTP"
+                                value={settings.smtpUsername}
+                                onChange={(e) => handleSettingChange('smtpUsername', e.target.value)}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <TextField
+                                fullWidth
+                                label="رمز عبور SMTP"
+                                type="password"
+                                value={settings.smtpPassword}
+                                onChange={(e) => handleSettingChange('smtpPassword', e.target.value)}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <TextField
+                                fullWidth
+                                label="ایمیل فرستنده"
+                                value={settings.emailFrom}
+                                onChange={(e) => handleSettingChange('emailFrom', e.target.value)}
+                            />
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* تنظیمات امنیت */}
+                <Grid item xs={12} md={6}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                                <Security sx={{ mr: 1, color: 'error.main' }} />
+                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                    تنظیمات امنیت
+                                </Typography>
+                            </Box>
+
+                            <TextField
+                                fullWidth
+                                label="مدت زمان نشست (دقیقه)"
+                                type="number"
+                                value={settings.sessionTimeout}
+                                onChange={(e) => handleSettingChange('sessionTimeout', parseInt(e.target.value))}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <TextField
+                                fullWidth
+                                label="حداکثر تلاش ورود"
+                                type="number"
+                                value={settings.maxLoginAttempts}
+                                onChange={(e) => handleSettingChange('maxLoginAttempts', parseInt(e.target.value))}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <TextField
+                                fullWidth
+                                label="حداقل طول رمز عبور"
+                                type="number"
+                                value={settings.passwordMinLength}
+                                onChange={(e) => handleSettingChange('passwordMinLength', parseInt(e.target.value))}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={settings.requireEmailVerification}
+                                        onChange={(e) => handleSettingChange('requireEmailVerification', e.target.checked)}
+                                    />
+                                }
+                                label="نیاز به تأیید ایمیل"
+                                sx={{ mb: 1 }}
+                            />
+
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={settings.enableTwoFactor}
+                                        onChange={(e) => handleSettingChange('enableTwoFactor', e.target.checked)}
+                                    />
+                                }
+                                label="احراز هویت دو مرحله‌ای"
+                            />
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* تنظیمات RAG */}
+                <Grid item xs={12} md={6}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                                <Storage sx={{ mr: 1, color: 'success.main' }} />
+                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                    تنظیمات RAG
+                                </Typography>
+                            </Box>
+
+                            <TextField
+                                fullWidth
+                                label="تعداد نتایج پیش‌فرض (K)"
+                                type="number"
+                                value={settings.defaultK}
+                                onChange={(e) => handleSettingChange('defaultK', parseInt(e.target.value))}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <TextField
+                                fullWidth
+                                label="حداکثر طول پاسخ"
+                                type="number"
+                                value={settings.maxResponseLength}
+                                onChange={(e) => handleSettingChange('maxResponseLength', parseInt(e.target.value))}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <TextField
+                                fullWidth
+                                label="دمای پیش‌فرض"
+                                type="number"
+                                step="0.1"
+                                value={settings.defaultTemperature}
+                                onChange={(e) => handleSettingChange('defaultTemperature', parseFloat(e.target.value))}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <FormControl fullWidth>
+                                <InputLabel>زبان پیش‌فرض</InputLabel>
+                                <Select
+                                    value={settings.defaultLanguage}
+                                    label="زبان پیش‌فرض"
+                                    onChange={(e) => handleSettingChange('defaultLanguage', e.target.value)}
+                                >
+                                    <MenuItem value="fa">فارسی</MenuItem>
+                                    <MenuItem value="en">انگلیسی</MenuItem>
+                                    <MenuItem value="ar">عربی</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* تنظیمات کراولر */}
+                <Grid item xs={12} md={6}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                                <CloudUpload sx={{ mr: 1, color: 'warning.main' }} />
+                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                    تنظیمات کراولر
+                                </Typography>
+                            </Box>
+
+                            <TextField
+                                fullWidth
+                                label="حداکثر صفحات در هر سایت"
+                                type="number"
+                                value={settings.maxPagesPerSite}
+                                onChange={(e) => handleSettingChange('maxPagesPerSite', parseInt(e.target.value))}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <TextField
+                                fullWidth
+                                label="تأخیر کراول (ثانیه)"
+                                type="number"
+                                step="0.1"
+                                value={settings.crawlDelay}
+                                onChange={(e) => handleSettingChange('crawlDelay', parseFloat(e.target.value))}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <TextField
+                                fullWidth
+                                label="User Agent"
+                                value={settings.userAgent}
+                                onChange={(e) => handleSettingChange('userAgent', e.target.value)}
+                                sx={{ mb: 2 }}
+                            />
+
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={settings.respectRobotsTxt}
+                                        onChange={(e) => handleSettingChange('respectRobotsTxt', e.target.checked)}
+                                    />
+                                }
+                                label="احترام به robots.txt"
+                            />
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* تنظیمات اعلان‌ها */}
+                <Grid item xs={12} md={6}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                                <Notifications sx={{ mr: 1, color: 'info.main' }} />
+                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                    تنظیمات اعلان‌ها
+                                </Typography>
+                            </Box>
+
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={settings.emailNotifications}
+                                        onChange={(e) => handleSettingChange('emailNotifications', e.target.checked)}
+                                    />
+                                }
+                                label="اعلان‌های ایمیل"
+                                sx={{ mb: 1 }}
+                            />
+
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={settings.slackNotifications}
+                                        onChange={(e) => handleSettingChange('slackNotifications', e.target.checked)}
+                                    />
+                                }
+                                label="اعلان‌های Slack"
+                                sx={{ mb: 2 }}
+                            />
+
+                            {settings.slackNotifications && (
+                                <TextField
+                                    fullWidth
+                                    label="Slack Webhook URL"
+                                    value={settings.slackWebhook}
+                                    onChange={(e) => handleSettingChange('slackWebhook', e.target.value)}
+                                    sx={{ mb: 2 }}
+                                />
+                            )}
+
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={settings.notifyOnError}
+                                        onChange={(e) => handleSettingChange('notifyOnError', e.target.checked)}
+                                    />
+                                }
+                                label="اعلان خطاها"
+                                sx={{ mb: 1 }}
+                            />
+
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={settings.notifyOnNewUser}
+                                        onChange={(e) => handleSettingChange('notifyOnNewUser', e.target.checked)}
+                                    />
+                                }
+                                label="اعلان کاربران جدید"
+                            />
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* تنظیمات پشتیبان‌گیری */}
+                <Grid item xs={12}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                                <Backup sx={{ mr: 1, color: 'secondary.main' }} />
+                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                    تنظیمات پشتیبان‌گیری
+                                </Typography>
+                            </Box>
+
+                            <Grid container spacing={2}>
+                                <Grid item xs={12} md={6}>
+                                    <FormControlLabel
+                                        control={
+                                            <Switch
+                                                checked={settings.backupEnabled}
+                                                onChange={(e) => handleSettingChange('backupEnabled', e.target.checked)}
+                                            />
+                                        }
+                                        label="فعال‌سازی پشتیبان‌گیری خودکار"
+                                        sx={{ mb: 2 }}
+                                    />
+
+                                    <FormControl fullWidth>
+                                        <InputLabel>فرکانس پشتیبان‌گیری</InputLabel>
+                                        <Select
+                                            value={settings.backupFrequency}
+                                            label="فرکانس پشتیبان‌گیری"
+                                            onChange={(e) => handleSettingChange('backupFrequency', e.target.value)}
+                                        >
+                                            <MenuItem value="hourly">ساعتی</MenuItem>
+                                            <MenuItem value="daily">روزانه</MenuItem>
+                                            <MenuItem value="weekly">هفتگی</MenuItem>
+                                            <MenuItem value="monthly">ماهانه</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                </Grid>
+
+                                <Grid item xs={12} md={6}>
+                                    <Box sx={{ display: 'flex', gap: 2 }}>
+                                        <Button
+                                            variant="outlined"
+                                            startIcon={<Backup />}
+                                            fullWidth
+                                        >
+                                            ایجاد پشتیبان دستی
+                                        </Button>
+                                        <Button
+                                            variant="outlined"
+                                            startIcon={<Restore />}
+                                            fullWidth
+                                        >
+                                            بازیابی
+                                        </Button>
+                                    </Box>
+                                </Grid>
+                            </Grid>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
+        </Box>
+    );
+};
+
+export default SystemSettings;

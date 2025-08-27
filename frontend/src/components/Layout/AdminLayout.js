@@ -252,11 +252,10 @@ const AdminLayout = ({ children }) => {
                     }
                 }}
             >
-                <MenuItem onClick={handleProfileMenuClose}>
-                    <AccountCircle sx={{ mr: 1 }} />
-                    پروفایل
-                </MenuItem>
-                <MenuItem onClick={handleProfileMenuClose}>
+                <MenuItem onClick={() => {
+                    handleProfileMenuClose();
+                    navigate('/admin/settings');
+                }}>
                     <Settings sx={{ mr: 1 }} />
                     تنظیمات
                 </MenuItem>

@@ -191,6 +191,10 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     if migrate_password_hash(user, form_data.password):
         db.commit()
     
+    # به‌روزرسانی last_login
+    user.last_login = datetime.utcnow()
+    db.commit()
+    
     # بررسی فعال بودن حساب
     if not user.is_active:
         raise HTTPException(

@@ -13,6 +13,15 @@ import PrivateRoute from './components/Auth/PrivateRoute';
 import AdminLayout from './components/Layout/AdminLayout';
 import UserLayout from './components/Layout/UserLayout';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
+import UserDashboard from './components/Dashboard/UserDashboard';
+import UserManagement from './components/Admin/UserManagement';
+import ConversationManagement from './components/Admin/ConversationManagement';
+import Reports from './components/Admin/Reports';
+import SystemSettings from './components/Admin/SystemSettings';
+import UserConversations from './components/User/UserConversations';
+import UserReports from './components/User/UserReports';
+import UserHistory from './components/User/UserHistory';
+import UserSettings from './components/User/UserSettings';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // ایجاد تم با پشتیبانی از RTL
@@ -78,10 +87,10 @@ function AppContent() {
           <Routes>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/websites" element={<Home />} />
-            <Route path="/admin/conversations" element={<div>مدیریت گفتگوها</div>} />
-            <Route path="/admin/users" element={<div>مدیریت کاربران</div>} />
-            <Route path="/admin/reports" element={<div>گزارشات</div>} />
-            <Route path="/admin/settings" element={<div>تنظیمات سیستم</div>} />
+            <Route path="/admin/conversations" element={<ConversationManagement />} />
+            <Route path="/admin/users" element={<UserManagement />} />
+            <Route path="/admin/reports" element={<Reports />} />
+            <Route path="/admin/settings" element={<SystemSettings />} />
             <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
           </Routes>
         </AdminLayout>
@@ -92,12 +101,12 @@ function AppContent() {
     return (
       <UserLayout>
         <Routes>
-          <Route path="/dashboard" element={<div>داشبورد کاربر</div>} />
+          <Route path="/dashboard" element={<UserDashboard />} />
           <Route path="/websites" element={<Home />} />
-          <Route path="/conversations" element={<div>گفتگوهای من</div>} />
-          <Route path="/reports" element={<div>گزارشات من</div>} />
-          <Route path="/history" element={<div>تاریخچه</div>} />
-          <Route path="/settings" element={<div>تنظیمات</div>} />
+          <Route path="/conversations" element={<UserConversations />} />
+          <Route path="/reports" element={<UserReports />} />
+          <Route path="/history" element={<UserHistory />} />
+          <Route path="/settings" element={<UserSettings />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </UserLayout>

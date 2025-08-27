@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, or_, cast, Date
 from typing import List, Dict, Any
 try:
     import pandas as pd
@@ -8,7 +8,7 @@ except ImportError:
     pd = None
 from pathlib import Path
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ..database.database import get_db
 from ..database.models import User, Website, Chat, Message
@@ -46,18 +46,18 @@ async def get_dashboard_stats(
         ).count()
         
         # آمار امروز
-        today = datetime.now().date()
+        today = datetime.now(timezone.utc).date()
         today_chats = db.query(Chat).join(Website).filter(
             and_(
                 Website.owner_id == current_user.id,
-                func.date(Chat.created_at) == today
+                cast(Chat.created_at, Date) == today
             )
         ).count()
         
         today_messages = db.query(Message).join(Chat).join(Website).filter(
             and_(
                 Website.owner_id == current_user.id,
-                func.date(Message.created_at) == today
+                cast(Message.created_at, Date) == today
             )
         ).count()
         
@@ -66,6 +66,33 @@ async def get_dashboard_stats(
         for website in db.query(Website).filter(Website.owner_id == current_user.id).all():
             if website.crawl_info and 'total_pages' in website.crawl_info:
                 total_pages += website.crawl_info['total_pages']
+        
+        # محاسبه آمار هفته گذشته برای trend
+        week_ago = datetime.now(timezone.utc).date() - timedelta(days=7)
+        two_weeks_ago = datetime.now(timezone.utc).date() - timedelta(days=14)
+        
+        # آمار هفته گذشته
+        last_week_chats = db.query(Chat).join(Website).filter(
+            and_(
+                Website.owner_id == current_user.id,
+                cast(Chat.created_at, Date) >= two_weeks_ago,
+                cast(Chat.created_at, Date) < week_ago
+            )
+        ).count()
+        
+        last_week_messages = db.query(Message).join(Chat).join(Website).filter(
+            and_(
+                Website.owner_id == current_user.id,
+                cast(Message.created_at, Date) >= two_weeks_ago,
+                cast(Message.created_at, Date) < week_ago
+            )
+        ).count()
+        
+        # محاسبه trend ها
+        def calculate_trend(current, previous):
+            if previous == 0:
+                return 100 if current > 0 else 0
+            return round(((current - previous) / previous) * 100, 1)
         
         return {
             "websites": {
@@ -76,11 +103,13 @@ async def get_dashboard_stats(
             },
             "chats": {
                 "total": total_chats,
-                "today": today_chats
+                "today": today_chats,
+                "trend": calculate_trend(today_chats, last_week_chats)
             },
             "messages": {
                 "total": total_messages,
-                "today": today_messages
+                "today": today_messages,
+                "trend": calculate_trend(today_messages, last_week_messages)
             },
             "pages": {
                 "total_crawled": total_pages
@@ -114,27 +143,27 @@ async def get_website_detailed_stats(
         total_messages = db.query(Message).join(Chat).filter(Chat.website_id == website_id).count()
         
         # آمار امروز
-        today = datetime.now().date()
+        today = datetime.now(timezone.utc).date()
         today_chats = db.query(Chat).filter(
             and_(
                 Chat.website_id == website_id,
-                func.date(Chat.created_at) == today
+                cast(Chat.created_at, Date) == today
             )
         ).count()
         
         today_messages = db.query(Message).join(Chat).filter(
             and_(
                 Chat.website_id == website_id,
-                func.date(Message.created_at) == today
+                cast(Message.created_at, Date) == today
             )
         ).count()
         
         # آمار هفته گذشته
-        week_ago = datetime.now().date() - timedelta(days=7)
+        week_ago = datetime.now(timezone.utc).date() - timedelta(days=7)
         weekly_chats = db.query(Chat).filter(
             and_(
                 Chat.website_id == website_id,
-                func.date(Chat.created_at) >= week_ago
+                cast(Chat.created_at, Date) >= week_ago
             )
         ).count()
         
@@ -170,6 +199,168 @@ async def get_website_detailed_stats(
         
     except Exception as e:
         logger.error(f"خطا در دریافت آمار تفصیلی: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/admin/stats")
+async def get_admin_dashboard_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت آمار کلی داشبورد ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # آمار کلی
+        total_users = db.query(User).count()
+        total_websites = db.query(Website).count()
+        total_chats = db.query(Chat).count()
+        total_messages = db.query(Message).count()
+        
+        # کاربران فعال (آخرین 7 روز)
+        week_ago = datetime.now(timezone.utc).date() - timedelta(days=7)
+        active_users = db.query(User).filter(
+            and_(
+                User.last_login.isnot(None),
+                cast(User.last_login, Date) >= week_ago
+            )
+        ).count()
+        
+        # وب‌سایت‌های فعال
+        active_websites = db.query(Website).filter(Website.status == "ready").count()
+        
+        # آمار امروز
+        today = datetime.now(timezone.utc).date()
+        today_users = db.query(User).filter(cast(User.created_at, Date) == today).count()
+        today_websites = db.query(Website).filter(cast(Website.created_at, Date) == today).count()
+        today_chats = db.query(Chat).filter(cast(Chat.created_at, Date) == today).count()
+        today_messages = db.query(Message).filter(cast(Message.created_at, Date) == today).count()
+        
+        # محاسبه آمار هفته گذشته برای trend
+        week_ago = datetime.now(timezone.utc).date() - timedelta(days=7)
+        two_weeks_ago = datetime.now(timezone.utc).date() - timedelta(days=14)
+        
+        # آمار هفته گذشته
+        last_week_users = db.query(User).filter(
+            and_(
+                cast(User.created_at, Date) >= two_weeks_ago,
+                cast(User.created_at, Date) < week_ago
+            )
+        ).count()
+        
+        last_week_websites = db.query(Website).filter(
+            and_(
+                cast(Website.created_at, Date) >= two_weeks_ago,
+                cast(Website.created_at, Date) < week_ago
+            )
+        ).count()
+        
+        last_week_chats = db.query(Chat).filter(
+            and_(
+                cast(Chat.created_at, Date) >= two_weeks_ago,
+                cast(Chat.created_at, Date) < week_ago
+            )
+        ).count()
+        
+        last_week_messages = db.query(Message).filter(
+            and_(
+                cast(Message.created_at, Date) >= two_weeks_ago,
+                cast(Message.created_at, Date) < week_ago
+            )
+        ).count()
+        
+        # محاسبه trend ها
+        def calculate_trend(current, previous):
+            if previous == 0:
+                return 100 if current > 0 else 0
+            return round(((current - previous) / previous) * 100, 1)
+        
+        return {
+            "users": {
+                "total": total_users,
+                "active": active_users,
+                "today_new": today_users,
+                "trend": calculate_trend(today_users, last_week_users)
+            },
+            "websites": {
+                "total": total_websites,
+                "active": active_websites,
+                "today_new": today_websites,
+                "trend": calculate_trend(today_websites, last_week_websites)
+            },
+            "chats": {
+                "total": total_chats,
+                "today": today_chats,
+                "trend": calculate_trend(today_chats, last_week_chats)
+            },
+            "messages": {
+                "total": total_messages,
+                "today": today_messages,
+                "trend": calculate_trend(today_messages, last_week_messages)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت آمار ادمین: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/admin/recent-activity")
+async def get_admin_recent_activity(
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت فعالیت‌های اخیر برای ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # کاربران جدید
+        recent_users = db.query(User).order_by(User.created_at.desc()).limit(limit).all()
+        
+        # وب‌سایت‌های جدید
+        recent_websites = db.query(Website).order_by(Website.created_at.desc()).limit(limit).all()
+        
+        # چت‌های جدید
+        recent_chats = db.query(Chat).order_by(Chat.created_at.desc()).limit(limit).all()
+        
+        return {
+            "recent_users": [
+                {
+                    "id": user.id,
+                    "email": user.email,
+                    "role": user.role,
+                    "created_at": user.created_at.isoformat(),
+                    "is_active": user.is_active
+                }
+                for user in recent_users
+            ],
+            "recent_websites": [
+                {
+                    "id": website.id,
+                    "name": website.name or website.domain,
+                    "owner_email": website.owner.email,
+                    "status": website.status,
+                    "created_at": website.created_at.isoformat()
+                }
+                for website in recent_websites
+            ],
+            "recent_chats": [
+                {
+                    "id": chat.id,
+                    "website_name": chat.website.name or chat.website.domain,
+                    "owner_email": chat.website.owner.email,
+                    "created_at": chat.created_at.isoformat(),
+                    "message_count": len(chat.messages)
+                }
+                for chat in recent_chats
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت فعالیت‌های اخیر ادمین: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/recent-activity")
@@ -228,4 +419,116 @@ async def get_recent_activity(
         
     except Exception as e:
         logger.error(f"خطا در دریافت فعالیت‌های اخیر: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/weekly-stats")
+async def get_weekly_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت آمار هفتگی برای نمودار"""
+    try:
+        # محاسبه تاریخ‌های هفته گذشته
+        today = datetime.now(timezone.utc).date()
+        week_ago = today - timedelta(days=7)
+        
+        # نام‌های روزهای هفته به فارسی
+        day_names = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه']
+        
+        weekly_data = []
+        
+        for i in range(7):
+            current_date = week_ago + timedelta(days=i)
+            day_name = day_names[current_date.weekday()]
+            
+            # آمار چت‌ها برای این روز
+            day_chats = db.query(Chat).join(Website).filter(
+                and_(
+                    Website.owner_id == current_user.id,
+                    cast(Chat.created_at, Date) == current_date
+                )
+            ).count()
+            
+            # آمار پیام‌ها برای این روز
+            day_messages = db.query(Message).join(Chat).join(Website).filter(
+                and_(
+                    Website.owner_id == current_user.id,
+                    cast(Message.created_at, Date) == current_date
+                )
+            ).count()
+            
+            # آمار وب‌سایت‌های فعال برای این روز
+            day_websites = db.query(Website).filter(
+                and_(
+                    Website.owner_id == current_user.id,
+                    Website.status == "ready"
+                )
+            ).count()
+            
+            weekly_data.append({
+                "day": day_name,
+                "conversations": day_chats,
+                "messages": day_messages,
+                "websites": day_websites
+            })
+        
+        return weekly_data
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت آمار هفتگی: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/admin/weekly-stats")
+async def get_admin_weekly_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت آمار هفتگی برای ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # محاسبه تاریخ‌های هفته گذشته
+        today = datetime.now(timezone.utc).date()
+        week_ago = today - timedelta(days=7)
+        
+        # نام‌های روزهای هفته به فارسی
+        day_names = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه']
+        
+        weekly_data = []
+        
+        for i in range(7):
+            current_date = week_ago + timedelta(days=i)
+            day_name = day_names[current_date.weekday()]
+            
+            # آمار چت‌ها برای این روز
+            day_chats = db.query(Chat).filter(
+                cast(Chat.created_at, Date) == current_date
+            ).count()
+            
+            # آمار کاربران فعال برای این روز
+            day_users = db.query(User).filter(
+                and_(
+                    User.last_login.isnot(None),
+                    cast(User.last_login, Date) == current_date
+                )
+            ).count()
+            
+            # آمار وب‌سایت‌های جدید برای این روز
+            day_websites = db.query(Website).filter(
+                cast(Website.created_at, Date) == current_date
+            ).count()
+            
+            weekly_data.append({
+                "day": day_name,
+                "conversations": day_chats,
+                "users": day_users,
+                "websites": day_websites
+            })
+        
+        return weekly_data
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت آمار هفتگی ادمین: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
