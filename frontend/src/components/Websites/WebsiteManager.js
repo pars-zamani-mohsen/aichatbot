@@ -43,8 +43,6 @@ const WebsiteManager = ({ onSelectWebsite }) => {
   const [activeTab, setActiveTab] = useState(0);
 
   const getErrorMessage = (err) => {
-    console.log('Error object:', err);
-    console.log('Error response data:', err.response?.data);
 
     // اگر خطا یک رشته است، مستقیماً برگردانده شود
     if (typeof err === 'string') return err;
@@ -93,9 +91,7 @@ const WebsiteManager = ({ onSelectWebsite }) => {
     setLoading(true);
     setError('');
     try {
-      console.log('Fetching websites...');
       const data = await websites.getAll();
-      console.log('Received data:', data);
       setWebsiteList(data);
     } catch (err) {
       console.error('Error details:', err.response || err);
@@ -170,9 +166,7 @@ const WebsiteManager = ({ onSelectWebsite }) => {
     setLoading(true);
     setError('');
     try {
-      console.log('Adding website:', newWebsite);
       const data = await websites.create(newWebsite);
-      console.log('Added website:', data);
       setWebsiteList(prev => [...prev, data]);
       setOpenDialog(false);
       setNewWebsite({ url: '', name: '' });
@@ -202,9 +196,7 @@ const WebsiteManager = ({ onSelectWebsite }) => {
     setLoading(true);
     setError('');
     try {
-      console.log('Deleting website:', id);
       await websites.delete(id);
-      console.log('Website deleted successfully');
       setWebsiteList(prev => prev.filter(website => website.id !== id));
     } catch (err) {
       console.error('Error deleting website:', err.response || err);

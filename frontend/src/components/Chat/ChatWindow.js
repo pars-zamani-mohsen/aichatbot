@@ -40,19 +40,16 @@ const ChatWindow = ({ websiteId, websiteName }) => {
       try {
         // ابتدا چت‌های وب‌سایت را دریافت می‌کنیم
         const websiteChats = await chats.getWebsiteChats(websiteId);
-        console.log('Website chats:', websiteChats);
         
         if (websiteChats && websiteChats.length > 0) {
           // از آخرین چت استفاده می‌کنیم
           const lastChat = websiteChats[websiteChats.length - 1];
-          console.log('Using chat:', lastChat);
           
           // ذخیره شناسه چت فعلی
           setCurrentChatId(lastChat.id);
           
           // دریافت پیام‌های چت
           const history = await chats.getHistory(lastChat.id);
-          console.log('Chat history:', history);
           
           if (history && history.length > 0) {
             const formattedMessages = history.map(msg => ({

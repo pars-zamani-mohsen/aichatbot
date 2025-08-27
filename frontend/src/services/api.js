@@ -23,18 +23,7 @@ api.interceptors.request.use(
       config.headers['Content-Type'] = 'application/json';
     }
 
-    console.log('Request Details:', {
-      url: config.url,
-      method: config.method,
-      baseURL: config.baseURL,
-      fullURL: `${config.baseURL}${config.url}`,
-      headers: {
-        ...config.headers,
-        Authorization: config.headers.Authorization ? 'Bearer [REDACTED]' : undefined
-      },
-      data: config.data,
-      params: config.params
-    });
+
     return config;
   },
   (error) => {
@@ -46,14 +35,7 @@ api.interceptors.request.use(
 // مدیریت خطاهای 401
 api.interceptors.response.use(
   (response) => {
-    console.log('Response Details:', {
-      url: response.config.url,
-      fullURL: `${response.config.baseURL}${response.config.url}`,
-      status: response.status,
-      statusText: response.statusText,
-      data: response.data,
-      headers: response.headers
-    });
+
     return response;
   },
   (error) => {
@@ -71,7 +53,6 @@ api.interceptors.response.use(
 
     // اگر درخواست abort شده یا timeout، خطا را نادیده بگیریم
     if (error.code === 'ECONNABORTED' || error.message === 'Request aborted' || error.message.includes('timeout')) {
-      console.log('Request was aborted or timed out, ignoring error');
       // برگرداندن داده‌های خالی با ساختار صحیح
       return Promise.resolve({
         data: {
@@ -126,22 +107,17 @@ export const auth = {
 export const websites = {
   getAll: async () => {
     try {
-      console.log('Getting all websites...');
       const token = localStorage.getItem('token');
-      console.log('Current token:', token);
 
       const response = await api.get('/api/');
-      console.log('Websites response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error in getAll:', error);
 
       // اگر درخواست abort شده، دوباره تلاش کنیم
       if (error.code === 'ECONNABORTED' || error.message === 'Request aborted') {
-        console.log('Request aborted, retrying...');
         try {
           const retryResponse = await api.get('/api/');
-          console.log('Retry successful:', retryResponse.data);
           return retryResponse.data;
         } catch (retryError) {
           console.error('Retry failed:', retryError);
@@ -277,7 +253,6 @@ export const dashboard = {
 
       // اگر درخواست abort شده یا timeout، دوباره تلاش کنیم
       if (error.code === 'ECONNABORTED' || error.message === 'Request aborted' || error.message.includes('timeout')) {
-        console.log('Request aborted or timed out, retrying user stats...');
         try {
           const retryResponse = await api.get('/api/dashboard/stats');
           return retryResponse.data;
@@ -380,7 +355,6 @@ export const dashboard = {
 
       // اگر درخواست abort شده یا timeout، دوباره تلاش کنیم
       if (error.code === 'ECONNABORTED' || error.message === 'Request aborted' || error.message.includes('timeout')) {
-        console.log('Request aborted or timed out, retrying weekly stats...');
         try {
           const retryResponse = await api.get('/api/dashboard/weekly-stats');
           return retryResponse.data;

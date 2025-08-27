@@ -69,7 +69,7 @@ const Reports = () => {
 
     const handleExport = (type) => {
         // شبیه‌سازی export
-        console.log(`Exporting ${type} report...`);
+
     };
 
     if (loading) {
