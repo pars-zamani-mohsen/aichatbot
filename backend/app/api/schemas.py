@@ -38,6 +38,7 @@ class Website(WebsiteBase):
     error_message: Optional[str] = None
     collection_name: Optional[str] = None
     embedding_model: Optional[str] = None
+    public_key: Optional[str] = None
     
     class Config:
         from_attributes = True

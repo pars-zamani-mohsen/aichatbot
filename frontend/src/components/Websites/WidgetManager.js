@@ -31,15 +31,30 @@ const WidgetManager = ({ website }) => {
   const [showSnippet, setShowSnippet] = useState(false);
 
   useEffect(() => {
-    // اول کلید ذخیره شده در localStorage را بررسی کن
-    const savedKey = localStorage.getItem('widget_public_key');
-    if (savedKey) {
-      setPublicKey(savedKey);
-    } else if (website?.public_key) {
-      // اگر کلید ذخیره شده نبود، از وب‌سایت بگیر
-      setPublicKey(website.public_key);
-      localStorage.setItem('widget_public_key', website.public_key);
+    if (website) {
+      // برای هر وب‌سایت کلید جداگانه در localStorage ذخیره کن
+      const storageKey = `widget_public_key_${website.id}`;
+      const savedKey = localStorage.getItem(storageKey);
+
+      if (website.public_key) {
+        // اگر وب‌سایت public_key دارد، از آن استفاده کن
+        setPublicKey(website.public_key);
+        localStorage.setItem(storageKey, website.public_key);
+      } else if (savedKey) {
+        // اگر در localStorage ذخیره شده، از آن استفاده کن
+        setPublicKey(savedKey);
+      } else {
+        // اگر هیچ کلیدی وجود ندارد، فیلد را خالی کن
+        setPublicKey('');
+        localStorage.removeItem(storageKey);
+      }
+    } else {
+      setPublicKey('');
     }
+
+    // پاک کردن snippet قبلی
+    setWidgetSnippet('');
+    setShowSnippet(false);
   }, [website]);
 
   const generateWidgetKey = async () => {
@@ -51,8 +66,9 @@ const WidgetManager = ({ website }) => {
       const newPublicKey = response.data.public_key;
       setPublicKey(newPublicKey);
 
-      // ذخیره کلید در localStorage
-      localStorage.setItem('widget_public_key', newPublicKey);
+      // ذخیره کلید در localStorage برای این وب‌سایت
+      const storageKey = `widget_public_key_${website.id}`;
+      localStorage.setItem(storageKey, newPublicKey);
 
       setSnackbar({
         open: true,
@@ -71,7 +87,10 @@ const WidgetManager = ({ website }) => {
   };
 
   const clearWidgetKey = () => {
-    localStorage.removeItem('widget_public_key');
+    if (website) {
+      const storageKey = `widget_public_key_${website.id}`;
+      localStorage.removeItem(storageKey);
+    }
     setPublicKey('');
     setSnackbar({
       open: true,
