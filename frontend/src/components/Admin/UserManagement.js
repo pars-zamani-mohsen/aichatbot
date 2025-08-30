@@ -41,7 +41,8 @@ import {
     CalendarToday,
     AdminPanelSettings,
     Search,
-    Refresh
+    Refresh,
+    Lock
 } from '@mui/icons-material';
 import { dashboard } from '../../services/api';
 
@@ -56,6 +57,10 @@ const UserManagement = () => {
         is_active: true,
         is_verified: true
     });
+    const [passwordDialog, setPasswordDialog] = useState(false);
+    const [passwordUser, setPasswordUser] = useState(null);
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [page, setPage] = useState(1);
@@ -68,15 +73,15 @@ const UserManagement = () => {
         try {
             setLoading(true);
             setError('');
-            
+
             const response = await dashboard.getAdminUsers(
-                page, 
-                20, 
-                searchTerm || null, 
+                page,
+                20,
+                searchTerm || null,
                 roleFilter !== 'all' ? roleFilter : null,
                 statusFilter !== 'all' ? statusFilter : null
             );
-            
+
             setUsers(response.users);
             setTotalPages(response.total_pages);
         } catch (err) {
@@ -127,7 +132,7 @@ const UserManagement = () => {
     const handleSubmit = async () => {
         try {
             setError('');
-            
+
             if (editingUser) {
                 // به‌روزرسانی کاربر
                 await dashboard.updateAdminUser(editingUser.id, {
@@ -137,7 +142,7 @@ const UserManagement = () => {
                 });
                 setSuccess('کاربر با موفقیت به‌روزرسانی شد');
             }
-            
+
             handleCloseDialog();
             fetchUsers();
         } catch (err) {
@@ -172,6 +177,49 @@ const UserManagement = () => {
     const handleStatusFilterChange = (event) => {
         setStatusFilter(event.target.value);
         setPage(1);
+    };
+
+    const handleOpenPasswordDialog = (user) => {
+        setPasswordUser(user);
+        setNewPassword('');
+        setConfirmPassword('');
+        setPasswordDialog(true);
+    };
+
+    const handleClosePasswordDialog = () => {
+        setPasswordDialog(false);
+        setPasswordUser(null);
+        setNewPassword('');
+        setConfirmPassword('');
+        setError('');
+    };
+
+    const handleChangePassword = async () => {
+        try {
+            setError('');
+
+            if (!newPassword) {
+                setError('کلمه عبور جدید الزامی است');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                setError('کلمه عبور باید حداقل 6 کاراکتر باشد');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                setError('کلمه عبور و تکرار آن یکسان نیستند');
+                return;
+            }
+
+            await dashboard.changeUserPassword(passwordUser.id, newPassword);
+            setSuccess('کلمه عبور کاربر با موفقیت تغییر یافت');
+            handleClosePasswordDialog();
+        } catch (err) {
+            console.error('Error changing password:', err);
+            setError('خطا در تغییر کلمه عبور');
+        }
     };
 
     const formatDate = (dateString) => {
@@ -229,7 +277,7 @@ const UserManagement = () => {
                                 ),
                             }}
                         />
-                        
+
                         <FormControl size="small" sx={{ minWidth: 120 }}>
                             <InputLabel>نقش</InputLabel>
                             <Select
@@ -242,7 +290,7 @@ const UserManagement = () => {
                                 <MenuItem value="user">کاربر</MenuItem>
                             </Select>
                         </FormControl>
-                        
+
                         <FormControl size="small" sx={{ minWidth: 120 }}>
                             <InputLabel>وضعیت</InputLabel>
                             <Select
@@ -255,7 +303,7 @@ const UserManagement = () => {
                                 <MenuItem value="inactive">غیرفعال</MenuItem>
                             </Select>
                         </FormControl>
-                        
+
                         <Button
                             variant="outlined"
                             startIcon={<Refresh />}
@@ -338,6 +386,15 @@ const UserManagement = () => {
                                                                 <Edit />
                                                             </IconButton>
                                                         </Tooltip>
+                                                        <Tooltip title="تغییر کلمه عبور">
+                                                            <IconButton
+                                                                size="small"
+                                                                color="warning"
+                                                                onClick={() => handleOpenPasswordDialog(user)}
+                                                            >
+                                                                <Lock />
+                                                            </IconButton>
+                                                        </Tooltip>
                                                         <Tooltip title="حذف">
                                                             <IconButton
                                                                 size="small"
@@ -354,7 +411,7 @@ const UserManagement = () => {
                                     </TableBody>
                                 </Table>
                             </TableContainer>
-                            
+
                             {/* Pagination */}
                             {totalPages > 1 && (
                                 <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
@@ -424,6 +481,51 @@ const UserManagement = () => {
                     <Button onClick={handleCloseDialog}>انصراف</Button>
                     <Button onClick={handleSubmit} variant="contained">
                         {editingUser ? 'به‌روزرسانی' : 'افزودن'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Password Change Dialog */}
+            <Dialog open={passwordDialog} onClose={handleClosePasswordDialog} maxWidth="sm" fullWidth>
+                <DialogTitle>
+                    تغییر کلمه عبور کاربر
+                    {passwordUser && (
+                        <Typography variant="body2" color="text.secondary">
+                            {passwordUser.email}
+                        </Typography>
+                    )}
+                </DialogTitle>
+                <DialogContent>
+                    <Box sx={{ pt: 1 }}>
+                        <TextField
+                            fullWidth
+                            label="کلمه عبور جدید"
+                            type="password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            sx={{ mb: 2 }}
+                            helperText="حداقل 6 کاراکتر"
+                        />
+                        <TextField
+                            fullWidth
+                            label="تکرار کلمه عبور جدید"
+                            type="password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            sx={{ mb: 2 }}
+                            error={newPassword !== confirmPassword && confirmPassword !== ''}
+                            helperText={newPassword !== confirmPassword && confirmPassword !== '' ? 'کلمه عبور و تکرار آن یکسان نیستند' : ''}
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleClosePasswordDialog}>انصراف</Button>
+                    <Button
+                        onClick={handleChangePassword}
+                        variant="contained"
+                        disabled={!newPassword || newPassword.length < 6 || newPassword !== confirmPassword}
+                    >
+                        تغییر کلمه عبور
                     </Button>
                 </DialogActions>
             </Dialog>

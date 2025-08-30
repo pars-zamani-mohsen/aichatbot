@@ -902,11 +902,53 @@ async def update_admin_user(
             "role": user.role,
             "is_active": user.is_active,
             "is_verified": user.is_verified,
-            "updated_at": user.updated_at.isoformat() if user.updated_at else None
+            "message": "کاربر با موفقیت به‌روزرسانی شد"
         }
         
     except Exception as e:
         logger.error(f"خطا در به‌روزرسانی کاربر: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/admin/users/{user_id}/password")
+async def change_user_password(
+    user_id: int,
+    password_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """تغییر کلمه عبور کاربر توسط ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # پیدا کردن کاربر
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="کاربر یافت نشد")
+        
+        # بررسی کلمه عبور جدید
+        new_password = password_data.get('new_password')
+        if not new_password:
+            raise HTTPException(status_code=400, detail="کلمه عبور جدید الزامی است")
+        
+        if len(new_password) < 6:
+            raise HTTPException(status_code=400, detail="کلمه عبور باید حداقل 6 کاراکتر باشد")
+        
+        # هش کردن کلمه عبور جدید
+        from .auth import get_password_hash
+        user.hashed_password = get_password_hash(new_password)
+        
+        db.commit()
+        
+        return {
+            "id": user.id,
+            "email": user.email,
+            "message": "کلمه عبور کاربر با موفقیت تغییر یافت"
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در تغییر کلمه عبور کاربر: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/admin/users/{user_id}")

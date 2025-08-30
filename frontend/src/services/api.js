@@ -598,6 +598,18 @@ export const dashboard = {
     }
   },
 
+  changeUserPassword: async (userId, newPassword) => {
+    try {
+      const response = await api.put(`/api/dashboard/admin/users/${userId}/password`, {
+        new_password: newPassword
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error changing user password:', error);
+      throw error;
+    }
+  },
+
   // ==================== مدیریت وب‌سایت‌ها ====================
   getAdminWebsites: async (page = 1, limit = 20, search = null, status = null, ownerId = null) => {
     try {
