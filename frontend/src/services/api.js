@@ -204,6 +204,30 @@ export const auth = {
     }
   },
 
+  // بازیابی کلمه عبور
+  forgotPassword: async (email) => {
+    try {
+      const response = await api.post('/api/forgot-password', { email });
+      return response.data;
+    } catch (error) {
+      console.error('Error requesting password reset:', error);
+      throw error;
+    }
+  },
+
+  resetPassword: async (token, newPassword) => {
+    try {
+      const response = await api.post('/api/reset-password', {
+        token,
+        new_password: newPassword
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      throw error;
+    }
+  },
+
   loginWith2FA: async (code, email) => {
     try {
       const response = await api.post('/api/login-2fa', { code, email });

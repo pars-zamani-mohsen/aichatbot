@@ -197,6 +197,13 @@ const Login = () => {
           >
             {loading ? 'در حال ورود...' : 'ورود'}
           </Button>
+          
+          <Box sx={{ textAlign: 'center', mb: 2 }}>
+            <Link component={RouterLink} to="/forgot-password" variant="body2" sx={{ color: 'text.secondary' }}>
+              {'فراموشی کلمه عبور؟'}
+            </Link>
+          </Box>
+          
           <Box sx={{ textAlign: 'center' }}>
             <Link component={RouterLink} to="/register" variant="body2">
               {'حساب کاربری ندارید؟ ثبت نام کنید'}

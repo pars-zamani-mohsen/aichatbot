@@ -801,7 +801,7 @@ async def verify_email(token: str, db: Session = Depends(get_db)):
 @router.post("/forgot-password")
 async def forgot_password(email: schemas.EmailRequest, db: Session = Depends(get_db)):
     """درخواست بازیابی رمز عبور"""
-    user = db.query(models.User).filter(models.User.email == email).first()
+    user = db.query(models.User).filter(models.User.email == email.email).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -817,6 +817,10 @@ async def forgot_password(email: schemas.EmailRequest, db: Session = Depends(get
     # ارسال ایمیل بازیابی
     if hasattr(settings, 'SMTP_SERVER') and settings.SMTP_SERVER:
         send_reset_password_email(email.email, reset_token)
+    else:
+        # در محیط local، توکن را در console نمایش دهیم
+        logger.info(f"کد بازیابی کلمه عبور برای {email.email}: {reset_token}")
+        logger.info(f"لینک بازیابی: http://localhost:3000/reset-password?token={reset_token}")
     
     return {"message": "ایمیل بازیابی رمز عبور ارسال شد"}
 
@@ -867,4 +871,36 @@ async def resend_verification(email: schemas.EmailRequest, db: Session = Depends
     if hasattr(settings, 'SMTP_SERVER') and settings.SMTP_SERVER:
         send_verification_email(email.email, verification_token)
     
-    return {"message": "ایمیل تأیید مجدداً ارسال شد"} 
+    return {"message": "ایمیل تأیید مجدداً ارسال شد"}
+
+@router.get("/debug/reset-tokens")
+async def debug_reset_tokens(db: Session = Depends(get_db)):
+    """نمایش توکن‌های بازیابی فعال (فقط برای تست)"""
+    try:
+        # فقط در محیط development
+        import os
+        if os.getenv('ENVIRONMENT') != 'development':
+            raise HTTPException(status_code=404, detail="Not found")
+        
+        users_with_tokens = db.query(models.User).filter(
+            models.User.reset_token.isnot(None),
+            models.User.reset_token_expires > datetime.utcnow()
+        ).all()
+        
+        tokens = []
+        for user in users_with_tokens:
+            tokens.append({
+                "email": user.email,
+                "reset_token": user.reset_token,
+                "expires_at": user.reset_token_expires.isoformat() if user.reset_token_expires else None,
+                "reset_link": f"http://localhost:3000/reset-password?token={user.reset_token}"
+            })
+        
+        return {
+            "active_tokens": tokens,
+            "count": len(tokens)
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در نمایش توکن‌ها: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
