@@ -66,7 +66,9 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('userInfo');
+      // به جای redirect، خطا را reject کنیم تا component بتواند آن را handle کند
     }
     return Promise.reject(error);
   }

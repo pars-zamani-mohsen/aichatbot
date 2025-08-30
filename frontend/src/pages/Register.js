@@ -47,7 +47,24 @@ const Register = () => {
       });
       navigate('/login');
     } catch (err) {
-      setError(err.response?.data?.detail || 'خطا در ثبت نام');
+      console.error('Register error:', err);
+      
+      // بررسی انواع مختلف خطا
+      if (err.response?.status === 400) {
+        if (err.response?.data?.detail?.includes('ایمیل قبلاً ثبت شده')) {
+          setError('این ایمیل قبلاً ثبت شده است');
+        } else {
+          setError(err.response?.data?.detail || 'اطلاعات ورودی نامعتبر است');
+        }
+      } else if (err.response?.status === 422) {
+        setError('لطفاً تمام فیلدها را پر کنید');
+      } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        setError('اتصال به سرور برقرار نشد. لطفاً دوباره تلاش کنید');
+      } else if (err.message?.includes('Network Error')) {
+        setError('خطا در اتصال به سرور. لطفاً اتصال اینترنت خود را بررسی کنید');
+      } else {
+        setError(err.response?.data?.detail || 'خطا در ثبت نام. لطفاً دوباره تلاش کنید');
+      }
     } finally {
       setLoading(false);
     }

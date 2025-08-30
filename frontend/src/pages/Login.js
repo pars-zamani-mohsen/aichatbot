@@ -48,7 +48,22 @@ const Login = () => {
         navigate('/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'خطا در ورود به سیستم');
+      console.error('Login error:', err);
+      
+      // بررسی انواع مختلف خطا
+      if (err.response?.status === 401) {
+        setError('ایمیل یا رمز عبور اشتباه است');
+      } else if (err.response?.status === 400) {
+        setError(err.response?.data?.detail || 'اطلاعات ورودی نامعتبر است');
+      } else if (err.response?.status === 422) {
+        setError('لطفاً تمام فیلدها را پر کنید');
+      } else if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        setError('اتصال به سرور برقرار نشد. لطفاً دوباره تلاش کنید');
+      } else if (err.message?.includes('Network Error')) {
+        setError('خطا در اتصال به سرور. لطفاً اتصال اینترنت خود را بررسی کنید');
+      } else {
+        setError(err.response?.data?.detail || 'خطا در ورود به سیستم. لطفاً دوباره تلاش کنید');
+      }
     } finally {
       setLoading(false);
     }
