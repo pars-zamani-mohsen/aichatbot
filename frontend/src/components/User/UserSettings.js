@@ -19,7 +19,8 @@ import {
     Chip,
     Avatar,
     IconButton,
-    Tooltip
+    Tooltip,
+    Snackbar
 } from '@mui/material';
 import {
     Save,
@@ -33,17 +34,20 @@ import {
     Visibility,
     VisibilityOff
 } from '@mui/icons-material';
+import { auth } from '../../services/api';
 
 const UserSettings = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [error, setError] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
+    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const [settings, setSettings] = useState({
         // اطلاعات شخصی
-        firstName: 'علی',
-        lastName: 'احمدی',
-        email: 'user@example.com',
-        phone: '+98 912 123 4567',
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
 
         // تنظیمات امنیت
         currentPassword: '',
@@ -71,11 +75,55 @@ const UserSettings = () => {
     });
 
     useEffect(() => {
-        // شبیه‌سازی دریافت تنظیمات
-        setTimeout(() => {
-            setLoading(false);
-        }, 1000);
+        fetchUserSettings();
     }, []);
+
+    const fetchUserSettings = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+
+            const userSettings = await auth.getUserSettings();
+
+            // تبدیل ساختار داده‌ها
+            setSettings({
+                // اطلاعات شخصی
+                firstName: userSettings.personal?.firstName || '',
+                lastName: userSettings.personal?.lastName || '',
+                email: userSettings.personal?.email || '',
+                phone: userSettings.personal?.phone || '',
+
+                // تنظیمات امنیت
+                currentPassword: '',
+                newPassword: '',
+                confirmPassword: '',
+                twoFactorEnabled: userSettings.security?.twoFactorEnabled || false,
+
+                // تنظیمات اعلان‌ها
+                emailNotifications: userSettings.notifications?.emailNotifications ?? true,
+                pushNotifications: userSettings.notifications?.pushNotifications ?? true,
+                smsNotifications: userSettings.notifications?.smsNotifications ?? false,
+                notifyOnNewConversation: userSettings.notifications?.notifyOnNewConversation ?? true,
+                notifyOnWebsiteUpdate: userSettings.notifications?.notifyOnWebsiteUpdate ?? true,
+
+                // تنظیمات ظاهری
+                language: userSettings.appearance?.language || 'fa',
+                theme: userSettings.appearance?.theme || 'light',
+                timezone: userSettings.appearance?.timezone || 'Asia/Tehran',
+
+                // تنظیمات RAG
+                defaultK: userSettings.rag?.defaultK || 5,
+                maxResponseLength: userSettings.rag?.maxResponseLength || 500,
+                defaultTemperature: userSettings.rag?.defaultTemperature || 0.7,
+                defaultLanguage: userSettings.rag?.defaultLanguage || 'fa'
+            });
+        } catch (err) {
+            setError('خطا در دریافت تنظیمات کاربر');
+            console.error('Error fetching user settings:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleSettingChange = (key, value) => {
         setSettings(prev => ({
@@ -85,44 +133,125 @@ const UserSettings = () => {
     };
 
     const handleSave = async () => {
-        setSaving(true);
-        // شبیه‌سازی ذخیره تنظیمات
-        setTimeout(() => {
+        try {
+            setSaving(true);
+            setError(null);
+
+            // تبدیل ساختار داده‌ها برای ارسال به API
+            const userSettings = {
+                personal: {
+                    firstName: settings.firstName,
+                    lastName: settings.lastName,
+                    email: settings.email,
+                    phone: settings.phone
+                },
+                security: {
+                    twoFactorEnabled: settings.twoFactorEnabled
+                },
+                notifications: {
+                    emailNotifications: settings.emailNotifications,
+                    pushNotifications: settings.pushNotifications,
+                    smsNotifications: settings.smsNotifications,
+                    notifyOnNewConversation: settings.notifyOnNewConversation,
+                    notifyOnWebsiteUpdate: settings.notifyOnWebsiteUpdate
+                },
+                appearance: {
+                    language: settings.language,
+                    theme: settings.theme,
+                    timezone: settings.timezone
+                },
+                rag: {
+                    defaultK: settings.defaultK,
+                    maxResponseLength: settings.maxResponseLength,
+                    defaultTemperature: settings.defaultTemperature,
+                    defaultLanguage: settings.defaultLanguage
+                }
+            };
+
+            await auth.updateUserSettings(userSettings);
+
+            setSnackbar({
+                open: true,
+                message: 'تنظیمات با موفقیت ذخیره شد',
+                severity: 'success'
+            });
+        } catch (err) {
+            setError('خطا در ذخیره تنظیمات');
+            console.error('Error saving settings:', err);
+        } finally {
             setSaving(false);
-            // نمایش پیام موفقیت
-        }, 2000);
+        }
+    };
+
+    const handleChangePassword = async () => {
+        try {
+            if (settings.newPassword !== settings.confirmPassword) {
+                setSnackbar({
+                    open: true,
+                    message: 'رمز عبور جدید و تأیید آن مطابقت ندارند',
+                    severity: 'error'
+                });
+                return;
+            }
+
+            if (settings.newPassword.length < 6) {
+                setSnackbar({
+                    open: true,
+                    message: 'رمز عبور باید حداقل 6 کاراکتر باشد',
+                    severity: 'error'
+                });
+                return;
+            }
+
+            await auth.changePassword({
+                currentPassword: settings.currentPassword,
+                newPassword: settings.newPassword,
+                confirmPassword: settings.confirmPassword
+            });
+
+            // پاک کردن فیلدهای رمز عبور
+            setSettings(prev => ({
+                ...prev,
+                currentPassword: '',
+                newPassword: '',
+                confirmPassword: ''
+            }));
+
+            setSnackbar({
+                open: true,
+                message: 'رمز عبور با موفقیت تغییر کرد',
+                severity: 'success'
+            });
+        } catch (err) {
+            setSnackbar({
+                open: true,
+                message: err.response?.data?.detail || 'خطا در تغییر رمز عبور',
+                severity: 'error'
+            });
+        }
     };
 
     const handleReset = () => {
-        // بازگردانی تنظیمات پیش‌فرض
-        setSettings({
-            firstName: 'علی',
-            lastName: 'احمدی',
-            email: 'user@example.com',
-            phone: '+98 912 123 4567',
-            currentPassword: '',
-            newPassword: '',
-            confirmPassword: '',
-            twoFactorEnabled: false,
-            emailNotifications: true,
-            pushNotifications: true,
-            smsNotifications: false,
-            notifyOnNewConversation: true,
-            notifyOnWebsiteUpdate: true,
-            language: 'fa',
-            theme: 'light',
-            timezone: 'Asia/Tehran',
-            defaultK: 5,
-            maxResponseLength: 500,
-            defaultTemperature: 0.7,
-            defaultLanguage: 'fa'
-        });
+        fetchUserSettings();
     };
 
     if (loading) {
         return (
             <Box sx={{ p: 3 }}>
                 <LinearProgress />
+            </Box>
+        );
+    }
+
+    if (error) {
+        return (
+            <Box sx={{ p: 3 }}>
+                <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                </Alert>
+                <Button variant="outlined" onClick={fetchUserSettings}>
+                    تلاش مجدد
+                </Button>
             </Box>
         );
     }
@@ -276,7 +405,18 @@ const UserSettings = () => {
                                     />
                                 }
                                 label="احراز هویت دو مرحله‌ای"
+                                sx={{ mb: 2 }}
                             />
+
+                            <Button
+                                variant="contained"
+                                color="primary"
+                                onClick={handleChangePassword}
+                                disabled={!settings.currentPassword || !settings.newPassword || !settings.confirmPassword}
+                                fullWidth
+                            >
+                                تغییر رمز عبور
+                            </Button>
                         </CardContent>
                     </Card>
                 </Grid>
@@ -468,6 +608,21 @@ const UserSettings = () => {
                     </Card>
                 </Grid>
             </Grid>
+
+            {/* Snackbar */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
+            >
+                <Alert
+                    onClose={() => setSnackbar({ ...snackbar, open: false })}
+                    severity={snackbar.severity}
+                    sx={{ width: '100%' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </Box>
     );
 };

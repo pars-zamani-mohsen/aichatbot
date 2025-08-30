@@ -22,6 +22,9 @@ class User(Base):
     
     # ارتباط با سایت‌ها
     websites = relationship("Website", back_populates="owner")
+    
+    # ارتباط با تنظیمات
+    settings = relationship("UserSettings", back_populates="user", uselist=False)
 
 class Website(Base):
     __tablename__ = "websites"
@@ -88,4 +91,42 @@ class Message(Base):
     chat = relationship("Chat", back_populates="messages")
 
     def __repr__(self):
-        return f"<Message(id={self.id}, chat_id={self.chat_id}, role={self.role})>" 
+        return f"<Message(id={self.id}, chat_id={self.chat_id}, role={self.role})>"
+
+class UserSettings(Base):
+    __tablename__ = "user_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    
+    # اطلاعات شخصی
+    first_name = Column(String, nullable=True)
+    last_name = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    
+    # تنظیمات امنیت
+    two_factor_enabled = Column(Boolean, default=False)
+    
+    # تنظیمات اعلان‌ها
+    email_notifications = Column(Boolean, default=True)
+    push_notifications = Column(Boolean, default=True)
+    sms_notifications = Column(Boolean, default=False)
+    notify_on_new_conversation = Column(Boolean, default=True)
+    notify_on_website_update = Column(Boolean, default=True)
+    
+    # تنظیمات ظاهری
+    language = Column(String, default="fa")
+    theme = Column(String, default="light")
+    timezone = Column(String, default="Asia/Tehran")
+    
+    # تنظیمات RAG
+    default_k = Column(Integer, default=5)
+    max_response_length = Column(Integer, default=500)
+    default_temperature = Column(Integer, default=7)  # 0.7 * 10
+    default_language = Column(String, default="fa")
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # ارتباط با کاربر
+    user = relationship("User", back_populates="settings") 

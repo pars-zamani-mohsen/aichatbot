@@ -102,6 +102,66 @@ export const auth = {
     localStorage.removeItem('token');
     window.location.href = '/login';
   },
+
+  // تنظیمات کاربر
+  getUserSettings: async () => {
+    try {
+      const response = await api.get('/api/settings');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting user settings:', error);
+      // در صورت خطا، تنظیمات پیش‌فرض برگردانیم
+      return {
+        personal: {
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: ''
+        },
+        security: {
+          twoFactorEnabled: false
+        },
+        notifications: {
+          emailNotifications: true,
+          pushNotifications: true,
+          smsNotifications: false,
+          notifyOnNewConversation: true,
+          notifyOnWebsiteUpdate: true
+        },
+        appearance: {
+          language: 'fa',
+          theme: 'light',
+          timezone: 'Asia/Tehran'
+        },
+        rag: {
+          defaultK: 5,
+          maxResponseLength: 500,
+          defaultTemperature: 0.7,
+          defaultLanguage: 'fa'
+        }
+      };
+    }
+  },
+
+  updateUserSettings: async (settings) => {
+    try {
+      const response = await api.put('/api/settings', settings);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating user settings:', error);
+      throw error;
+    }
+  },
+
+  changePassword: async (passwordData) => {
+    try {
+      const response = await api.post('/api/change-password', passwordData);
+      return response.data;
+    } catch (error) {
+      console.error('Error changing password:', error);
+      throw error;
+    }
+  }
 };
 
 export const websites = {

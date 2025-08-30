@@ -19,6 +19,11 @@ class User(UserBase):
     class Config:
         from_attributes = True
 
+class PasswordChange(BaseModel):
+    currentPassword: str
+    newPassword: str
+    confirmPassword: str
+
 # اسکیماهای سایت
 class WebsiteBase(BaseModel):
     url: HttpUrl

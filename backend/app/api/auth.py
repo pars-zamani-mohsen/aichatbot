@@ -13,6 +13,9 @@ from ..database.database import get_db
 from ..database import models
 from . import schemas
 from ..config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -223,6 +226,172 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 @router.get("/me", response_model=schemas.User)
 async def read_users_me(current_user: models.User = Depends(get_current_user)):
     return current_user
+
+@router.get("/settings")
+async def get_user_settings(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """دریافت تنظیمات کاربر"""
+    try:
+        # دریافت تنظیمات از دیتابیس
+        user_settings = db.query(models.UserSettings).filter(models.UserSettings.user_id == current_user.id).first()
+        
+        if not user_settings:
+            # اگر تنظیمات وجود ندارد، تنظیمات پیش‌فرض ایجاد کن
+            user_settings = models.UserSettings(
+                user_id=current_user.id,
+                first_name=current_user.email.split('@')[0],
+                last_name="",
+                phone="",
+                two_factor_enabled=False,
+                email_notifications=True,
+                push_notifications=True,
+                sms_notifications=False,
+                notify_on_new_conversation=True,
+                notify_on_website_update=True,
+                language="fa",
+                theme="light",
+                timezone="Asia/Tehran",
+                default_k=5,
+                max_response_length=500,
+                default_temperature=7,
+                default_language="fa"
+            )
+            db.add(user_settings)
+            db.commit()
+            db.refresh(user_settings)
+        
+        return {
+            "personal": {
+                "firstName": user_settings.first_name or "",
+                "lastName": user_settings.last_name or "",
+                "email": current_user.email,
+                "phone": user_settings.phone or ""
+            },
+            "security": {
+                "twoFactorEnabled": user_settings.two_factor_enabled
+            },
+            "notifications": {
+                "emailNotifications": user_settings.email_notifications,
+                "pushNotifications": user_settings.push_notifications,
+                "smsNotifications": user_settings.sms_notifications,
+                "notifyOnNewConversation": user_settings.notify_on_new_conversation,
+                "notifyOnWebsiteUpdate": user_settings.notify_on_website_update
+            },
+            "appearance": {
+                "language": user_settings.language,
+                "theme": user_settings.theme,
+                "timezone": user_settings.timezone
+            },
+            "rag": {
+                "defaultK": user_settings.default_k,
+                "maxResponseLength": user_settings.max_response_length,
+                "defaultTemperature": user_settings.default_temperature / 10.0,  # تبدیل به float
+                "defaultLanguage": user_settings.default_language
+            }
+        }
+    except Exception as e:
+        logger.error(f"خطا در دریافت تنظیمات کاربر: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/settings")
+async def update_user_settings(
+    settings: dict,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """به‌روزرسانی تنظیمات کاربر"""
+    try:
+        # دریافت تنظیمات موجود یا ایجاد جدید
+        user_settings = db.query(models.UserSettings).filter(models.UserSettings.user_id == current_user.id).first()
+        
+        if not user_settings:
+            user_settings = models.UserSettings(user_id=current_user.id)
+            db.add(user_settings)
+        
+        # به‌روزرسانی اطلاعات شخصی
+        if "personal" in settings:
+            personal = settings["personal"]
+            user_settings.first_name = personal.get("firstName", "")
+            user_settings.last_name = personal.get("lastName", "")
+            user_settings.phone = personal.get("phone", "")
+        
+        # به‌روزرسانی تنظیمات امنیت
+        if "security" in settings:
+            security = settings["security"]
+            user_settings.two_factor_enabled = security.get("twoFactorEnabled", False)
+        
+        # به‌روزرسانی تنظیمات اعلان‌ها
+        if "notifications" in settings:
+            notifications = settings["notifications"]
+            user_settings.email_notifications = notifications.get("emailNotifications", True)
+            user_settings.push_notifications = notifications.get("pushNotifications", True)
+            user_settings.sms_notifications = notifications.get("smsNotifications", False)
+            user_settings.notify_on_new_conversation = notifications.get("notifyOnNewConversation", True)
+            user_settings.notify_on_website_update = notifications.get("notifyOnWebsiteUpdate", True)
+        
+        # به‌روزرسانی تنظیمات ظاهری
+        if "appearance" in settings:
+            appearance = settings["appearance"]
+            user_settings.language = appearance.get("language", "fa")
+            user_settings.theme = appearance.get("theme", "light")
+            user_settings.timezone = appearance.get("timezone", "Asia/Tehran")
+        
+        # به‌روزرسانی تنظیمات RAG
+        if "rag" in settings:
+            rag = settings["rag"]
+            user_settings.default_k = rag.get("defaultK", 5)
+            user_settings.max_response_length = rag.get("maxResponseLength", 500)
+            user_settings.default_temperature = int(rag.get("defaultTemperature", 0.7) * 10)  # تبدیل به integer
+            user_settings.default_language = rag.get("defaultLanguage", "fa")
+        
+        db.commit()
+        db.refresh(user_settings)
+        
+        logger.info(f"User {current_user.id} updated settings successfully")
+        
+        return {
+            "message": "تنظیمات با موفقیت به‌روزرسانی شد",
+            "settings": settings
+        }
+    except Exception as e:
+        logger.error(f"خطا در به‌روزرسانی تنظیمات کاربر: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/change-password")
+async def change_password(
+    password_data: schemas.PasswordChange,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """تغییر رمز عبور کاربر"""
+    try:
+        current_password = password_data.currentPassword
+        new_password = password_data.newPassword
+        confirm_password = password_data.confirmPassword
+        
+        # بررسی رمز عبور فعلی
+        if not verify_password(current_password, current_user.hashed_password):
+            raise HTTPException(status_code=400, detail="رمز عبور فعلی اشتباه است")
+        
+        # بررسی تطبیق رمز عبور جدید
+        if new_password != confirm_password:
+            raise HTTPException(status_code=400, detail="رمز عبور جدید و تأیید آن مطابقت ندارند")
+        
+        # بررسی طول رمز عبور
+        if len(new_password) < 6:
+            raise HTTPException(status_code=400, detail="رمز عبور باید حداقل 6 کاراکتر باشد")
+        
+        # به‌روزرسانی رمز عبور
+        current_user.hashed_password = get_password_hash(new_password)
+        db.commit()
+        
+        return {
+            "message": "رمز عبور با موفقیت تغییر کرد"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در تغییر رمز عبور: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/refresh")
 async def refresh_access_token(refresh_token: str, db: Session = Depends(get_db)):
