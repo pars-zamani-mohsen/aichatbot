@@ -461,6 +461,37 @@ export const dashboard = {
         conversation_status: []
       };
     }
+  },
+
+  // تاریخچه کاربر
+  getUserHistory: async (page = 1, limit = 20, activityType = null, search = null) => {
+    try {
+      const params = { page, limit };
+      if (activityType && activityType !== 'all') {
+        params.activity_type = activityType;
+      }
+      if (search) {
+        params.search = search;
+      }
+
+      const response = await api.get('/api/dashboard/user/history', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting user history:', error);
+      // در صورت خطا، داده‌های خالی برگردانیم
+      return {
+        activities: [],
+        stats: {
+          websites_added: 0,
+          conversations: 0,
+          crawls_completed: 0,
+          settings_changed: 0
+        },
+        total: 0,
+        page: 1,
+        limit: 20
+      };
+    }
   }
 };
 

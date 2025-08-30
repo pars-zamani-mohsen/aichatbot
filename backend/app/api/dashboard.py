@@ -592,6 +592,158 @@ async def get_user_reports(
         logger.error(f"خطا در دریافت گزارشات کاربر: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/user/history")
+async def get_user_history(
+    page: int = 1,
+    limit: int = 20,
+    activity_type: str = None,
+    search: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت تاریخچه فعالیت‌های کاربر"""
+    try:
+        offset = (page - 1) * limit
+        
+        # ایجاد query base
+        base_query = db.query(Website).filter(Website.owner_id == current_user.id)
+        
+        # فیلتر بر اساس نوع فعالیت
+        if activity_type and activity_type != 'all':
+            if activity_type == 'website_added':
+                base_query = base_query.filter(Website.created_at.isnot(None))
+            elif activity_type == 'website_updated':
+                base_query = base_query.filter(Website.updated_at.isnot(None))
+        
+        # فیلتر بر اساس جستجو
+        if search:
+            base_query = base_query.filter(
+                or_(
+                    Website.name.contains(search),
+                    Website.domain.contains(search)
+                )
+            )
+        
+        # دریافت وب‌سایت‌ها
+        websites = base_query.order_by(Website.created_at.desc()).offset(offset).limit(limit).all()
+        
+        # دریافت چت‌ها
+        chats_query = db.query(Chat).join(Website).filter(Website.owner_id == current_user.id)
+        if activity_type and activity_type != 'all':
+            if activity_type == 'conversation_started':
+                chats_query = chats_query.filter(Chat.created_at.isnot(None))
+            elif activity_type == 'conversation_ended':
+                # چت‌هایی که پیام دارند (پایان یافته)
+                chats_query = chats_query.filter(Chat.id.in_(
+                    db.query(Message.chat_id).distinct()
+                ))
+        
+        chats = chats_query.order_by(Chat.created_at.desc()).offset(offset).limit(limit).all()
+        
+        # ترکیب و مرتب‌سازی فعالیت‌ها
+        activities = []
+        
+        # فعالیت‌های وب‌سایت
+        for website in websites:
+            activities.append({
+                "id": f"website_{website.id}",
+                "type": "website_added",
+                "title": "وب‌سایت جدید اضافه شد",
+                "description": f"وب‌سایت {website.name or website.domain} به سیستم اضافه شد",
+                "website": website.name or website.domain,
+                "timestamp": website.created_at.isoformat() if website.created_at else None,
+                "status": "completed",
+                "icon": "Language",
+                "color": "primary"
+            })
+            
+            # اگر وب‌سایت به‌روزرسانی شده
+            if website.updated_at and website.updated_at != website.created_at:
+                activities.append({
+                    "id": f"website_update_{website.id}",
+                    "type": "website_updated",
+                    "title": "وب‌سایت به‌روزرسانی شد",
+                    "description": f"تنظیمات وب‌سایت {website.name or website.domain} به‌روزرسانی شد",
+                    "website": website.name or website.domain,
+                    "timestamp": website.updated_at.isoformat(),
+                    "status": "completed",
+                    "icon": "Edit",
+                    "color": "primary"
+                })
+            
+            # اگر کراول تکمیل شده
+            if website.status == "ready" and website.crawl_info:
+                activities.append({
+                    "id": f"crawl_{website.id}",
+                    "type": "crawl_completed",
+                    "title": "کراول تکمیل شد",
+                    "description": f"کراول وب‌سایت {website.name or website.domain} با موفقیت تکمیل شد",
+                    "website": website.name or website.domain,
+                    "timestamp": website.updated_at.isoformat() if website.updated_at else website.created_at.isoformat(),
+                    "status": "completed",
+                    "icon": "Language",
+                    "color": "info"
+                })
+        
+        # فعالیت‌های چت
+        for chat in chats:
+            # بررسی اینکه آیا این چت پیام دارد یا نه
+            has_messages = db.query(Message).filter(Message.chat_id == chat.id).first() is not None
+            
+            if has_messages:
+                activities.append({
+                    "id": f"conversation_end_{chat.id}",
+                    "type": "conversation_ended",
+                    "title": "گفتگو پایان یافت",
+                    "description": f"گفتگوی وب‌سایت {chat.website.name or chat.website.domain} پایان یافت",
+                    "website": chat.website.name or chat.website.domain,
+                    "timestamp": chat.updated_at.isoformat() if chat.updated_at else chat.created_at.isoformat(),
+                    "status": "completed",
+                    "icon": "Chat",
+                    "color": "secondary"
+                })
+            else:
+                activities.append({
+                    "id": f"conversation_start_{chat.id}",
+                    "type": "conversation_started",
+                    "title": "گفتگوی جدید شروع شد",
+                    "description": f"گفتگوی جدید در وب‌سایت {chat.website.name or chat.website.domain} شروع شد",
+                    "website": chat.website.name or chat.website.domain,
+                    "timestamp": chat.created_at.isoformat(),
+                    "status": "active",
+                    "icon": "Chat",
+                    "color": "success"
+                })
+        
+        # مرتب‌سازی بر اساس timestamp
+        activities.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        # محاسبه آمار
+        total_websites = db.query(Website).filter(Website.owner_id == current_user.id).count()
+        total_conversations = db.query(Chat).join(Website).filter(Website.owner_id == current_user.id).count()
+        completed_crawls = db.query(Website).filter(
+            and_(Website.owner_id == current_user.id, Website.status == "ready")
+        ).count()
+        
+        stats = {
+            "websites_added": total_websites,
+            "conversations": total_conversations,
+            "crawls_completed": completed_crawls,
+            "settings_changed": 0  # این می‌تواند بر اساس log های واقعی محاسبه شود
+        }
+        
+        return {
+            "activities": activities,
+            "stats": stats,
+            "total": len(activities),
+            "page": page,
+            "limit": limit
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت تاریخچه کاربر: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/admin/weekly-stats")
 async def get_admin_weekly_stats(
     db: Session = Depends(get_db),

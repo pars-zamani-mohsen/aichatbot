@@ -21,7 +21,8 @@ import {
   Divider,
   IconButton,
   Tooltip,
-  Grid
+  Grid,
+  Alert
 } from '@mui/material';
 import {
   Search,
@@ -37,88 +38,49 @@ import {
   AccessTime,
   Person
 } from '@mui/icons-material';
+import { dashboard } from '../../services/api';
 
 const UserHistory = () => {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-
-  // داده‌های نمونه
-  const historyData = [
-    {
-      id: 1,
-      type: 'website_added',
-      title: 'وب‌سایت جدید اضافه شد',
-      description: 'وب‌سایت example.com به سیستم اضافه شد',
-      website: 'example.com',
-      timestamp: '2024-01-15T10:30:00Z',
-      status: 'completed',
-      icon: <Language />,
-      color: 'primary'
-    },
-    {
-      id: 2,
-      type: 'conversation_started',
-      title: 'گفتگوی جدید شروع شد',
-      description: 'گفتگوی جدید در وب‌سایت test.com شروع شد',
-      website: 'test.com',
-      timestamp: '2024-01-15T09:15:00Z',
-      status: 'active',
-      icon: <Chat />,
-      color: 'success'
-    },
-    {
-      id: 3,
-      type: 'settings_changed',
-      title: 'تنظیمات تغییر کرد',
-      description: 'تنظیمات RAG برای وب‌سایت demo.com تغییر کرد',
-      website: 'demo.com',
-      timestamp: '2024-01-14T16:45:00Z',
-      status: 'completed',
-      icon: <Settings />,
-      color: 'warning'
-    },
-    {
-      id: 4,
-      type: 'crawl_completed',
-      title: 'کراول تکمیل شد',
-      description: 'کراول وب‌سایت site.com با موفقیت تکمیل شد',
-      website: 'site.com',
-      timestamp: '2024-01-14T14:20:00Z',
-      status: 'completed',
-      icon: <Language />,
-      color: 'info'
-    },
-    {
-      id: 5,
-      type: 'conversation_ended',
-      title: 'گفتگو پایان یافت',
-      description: 'گفتگوی وب‌سایت example.com پایان یافت',
-      website: 'example.com',
-      timestamp: '2024-01-14T11:30:00Z',
-      status: 'completed',
-      icon: <Chat />,
-      color: 'secondary'
-    },
-    {
-      id: 6,
-      type: 'website_updated',
-      title: 'وب‌سایت به‌روزرسانی شد',
-      description: 'تنظیمات وب‌سایت test.com به‌روزرسانی شد',
-      website: 'test.com',
-      timestamp: '2024-01-13T15:10:00Z',
-      status: 'completed',
-      icon: <Edit />,
-      color: 'primary'
-    }
-  ];
+  const [historyData, setHistoryData] = useState([]);
+  const [stats, setStats] = useState({
+    websites_added: 0,
+    conversations: 0,
+    crawls_completed: 0,
+    settings_changed: 0
+  });
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    // شبیه‌سازی دریافت داده‌ها
-    setTimeout(() => {
+    fetchHistoryData();
+  }, [page, filter, searchTerm]);
+
+  const fetchHistoryData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await dashboard.getUserHistory(
+        page,
+        20,
+        filter === 'all' ? null : filter,
+        searchTerm || null
+      );
+
+      setHistoryData(response.activities || []);
+      setStats(response.stats || {});
+      setTotal(response.total || 0);
+    } catch (err) {
+      setError('خطا در دریافت تاریخچه فعالیت‌ها');
+      console.error('Error fetching history:', err);
+    } finally {
       setLoading(false);
-    }, 1000);
-  }, []);
+    }
+  };
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -127,9 +89,9 @@ const UserHistory = () => {
 
   const formatTime = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString('fa-IR', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    return date.toLocaleTimeString('fa-IR', {
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -153,18 +115,33 @@ const UserHistory = () => {
     }
   };
 
-  const filteredHistory = historyData.filter(item => {
-    const matchesFilter = filter === 'all' || item.type === filter;
-    const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.website.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
+  const getIconComponent = (iconName) => {
+    switch (iconName) {
+      case 'Language': return <Language />;
+      case 'Chat': return <Chat />;
+      case 'Settings': return <Settings />;
+      case 'Edit': return <Edit />;
+      default: return <Language />;
+    }
+  };
 
   if (loading) {
     return (
       <Box sx={{ p: 3 }}>
         <LinearProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+        <Button variant="outlined" onClick={fetchHistoryData}>
+          تلاش مجدد
+        </Button>
       </Box>
     );
   }
@@ -199,9 +176,9 @@ const UserHistory = () => {
                 )
               }}
             />
-            
+
             <FilterList sx={{ color: 'text.secondary' }} />
-            
+
             <FormControl size="small" sx={{ minWidth: 150 }}>
               <InputLabel>نوع فعالیت</InputLabel>
               <Select
@@ -225,6 +202,7 @@ const UserHistory = () => {
               onClick={() => {
                 setFilter('all');
                 setSearchTerm('');
+                setPage(1);
               }}
             >
               پاک کردن فیلترها
@@ -238,16 +216,16 @@ const UserHistory = () => {
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-              فعالیت‌های اخیر ({filteredHistory.length})
+              فعالیت‌های اخیر ({historyData.length})
             </Typography>
-            <Chip 
-              label={`نمایش ${filteredHistory.length} از ${historyData.length} فعالیت`} 
-              size="small" 
-              variant="outlined" 
+            <Chip
+              label={`نمایش ${historyData.length} از ${total} فعالیت`}
+              size="small"
+              variant="outlined"
             />
           </Box>
 
-          {filteredHistory.length === 0 ? (
+          {historyData.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
               <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
                 هیچ فعالیتی یافت نشد
@@ -258,12 +236,12 @@ const UserHistory = () => {
             </Box>
           ) : (
             <List sx={{ p: 0 }}>
-              {filteredHistory.map((item, index) => (
+              {historyData.map((item, index) => (
                 <React.Fragment key={item.id}>
                   <ListItem sx={{ px: 0, py: 2 }}>
                     <ListItemAvatar>
                       <Avatar sx={{ bgcolor: `${item.color}.main` }}>
-                        {item.icon}
+                        {getIconComponent(item.icon)}
                       </Avatar>
                     </ListItemAvatar>
                     <ListItemText
@@ -272,9 +250,9 @@ const UserHistory = () => {
                           <Typography variant="body1" sx={{ fontWeight: 500 }}>
                             {item.title}
                           </Typography>
-                          <Chip 
-                            label={getStatusText(item.status)} 
-                            size="small" 
+                          <Chip
+                            label={getStatusText(item.status)}
+                            size="small"
                             color={getStatusColor(item.status)}
                             variant="outlined"
                           />
@@ -316,7 +294,7 @@ const UserHistory = () => {
                       </Tooltip>
                     </Box>
                   </ListItem>
-                  {index < filteredHistory.length - 1 && <Divider />}
+                  {index < historyData.length - 1 && <Divider />}
                 </React.Fragment>
               ))}
             </List>
@@ -330,7 +308,7 @@ const UserHistory = () => {
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main', mb: 1 }}>
-                {historyData.filter(h => h.type === 'website_added').length}
+                {stats.websites_added}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 وب‌سایت‌های اضافه شده
@@ -342,7 +320,7 @@ const UserHistory = () => {
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'success.main', mb: 1 }}>
-                {historyData.filter(h => h.type.includes('conversation')).length}
+                {stats.conversations}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 گفتگوهای انجام شده
@@ -354,7 +332,7 @@ const UserHistory = () => {
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'warning.main', mb: 1 }}>
-                {historyData.filter(h => h.type === 'settings_changed').length}
+                {stats.settings_changed}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 تغییرات تنظیمات
@@ -366,7 +344,7 @@ const UserHistory = () => {
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'info.main', mb: 1 }}>
-                {historyData.filter(h => h.type === 'crawl_completed').length}
+                {stats.crawls_completed}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 کراول‌های تکمیل شده
