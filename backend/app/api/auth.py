@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -7,6 +7,7 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 import secrets
 import smtplib
+import random
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from ..database.database import get_db
@@ -106,6 +107,46 @@ def send_reset_password_email(email: str, token: str):
         print(f"خطا در ارسال ایمیل: {str(e)}")
         return False
 
+def generate_2fa_code() -> str:
+    """تولید کد 6 رقمی برای 2FA"""
+    return str(random.randint(100000, 999999))
+
+def send_2fa_code_email(email: str, code: str):
+    """ارسال کد 2FA به ایمیل"""
+    try:
+        # اگر تنظیمات SMTP موجود نیست، فقط لاگ کنیم (برای تست)
+        if not settings.SMTP_SERVER or not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
+            logger.info(f"کد 2FA برای {email}: {code}")
+            return True
+            
+        msg = MIMEMultipart()
+        msg['From'] = settings.SMTP_USERNAME
+        msg['To'] = email
+        msg['Subject'] = "کد احراز هویت دو مرحله‌ای"
+        
+        body = f"""
+        سلام!
+        
+        کد احراز هویت شما: {code}
+        
+        این کد تا 5 دقیقه معتبر است.
+        
+        اگر شما این درخواست را نکرده‌اید، این ایمیل را نادیده بگیرید.
+        """
+        
+        msg.attach(MIMEText(body, 'plain'))
+        
+        server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT)
+        server.starttls()
+        server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        
+        return True
+    except Exception as e:
+        logger.error(f"خطا در ارسال کد 2FA: {str(e)}")
+        return False
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     if expires_delta:
@@ -174,54 +215,138 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/token", response_model=schemas.Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.email == form_data.username).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="ایمیل یا رمز عبور اشتباه است",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # بررسی رمز عبور و migration در صورت نیاز
-    if not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="ایمیل یا رمز عبور اشتباه است",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # migration hash قدیمی به Argon2
-    if migrate_password_hash(user, form_data.password):
+    """لاگین کاربر"""
+    try:
+        logger.info(f"درخواست لاگین - ایمیل: {form_data.username}")
+        
+        # بررسی وجود کاربر
+        user = db.query(models.User).filter(models.User.email == form_data.username).first()
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="ایمیل یا رمز عبور اشتباه است",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # بررسی rate limiting
+        user_settings = db.query(models.UserSettings).filter(models.UserSettings.user_id == user.id).first()
+        if not user_settings:
+            user_settings = models.UserSettings(user_id=user.id)
+            db.add(user_settings)
+            db.commit()
+        
+        # بررسی قفل لاگین
+        if user_settings.login_locked_until and user_settings.login_locked_until > datetime.now(timezone.utc):
+            remaining_time = user_settings.login_locked_until - datetime.now(timezone.utc)
+            minutes = int(remaining_time.total_seconds() // 60)
+            seconds = int(remaining_time.total_seconds() % 60)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"حساب کاربری به دلیل تلاش‌های ناموفق قفل شده است. {minutes} دقیقه و {seconds} ثانیه دیگر تلاش کنید."
+            )
+        
+        # بررسی فاصله زمانی بین تلاش‌ها (حداقل 2 ثانیه)
+        if user_settings.last_login_attempt:
+            time_diff = datetime.now(timezone.utc) - user_settings.last_login_attempt
+            if time_diff.total_seconds() < 2:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="لطفاً 2 ثانیه صبر کنید و دوباره تلاش کنید."
+                )
+        
+        # بررسی رمز عبور و migration در صورت نیاز
+        if not verify_password(form_data.password, user.hashed_password):
+            # افزایش تعداد تلاش‌های ناموفق
+            user_settings.login_attempts += 1
+            user_settings.last_login_attempt = datetime.now(timezone.utc)
+            
+            # اگر 5 بار تلاش ناموفق، قفل کردن برای 30 دقیقه
+            if user_settings.login_attempts >= 5:
+                user_settings.login_locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
+                user_settings.login_attempts = 0
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="به دلیل 5 تلاش ناموفق، حساب کاربری برای 30 دقیقه قفل شده است."
+                )
+            
+            db.commit()
+            remaining_attempts = 5 - user_settings.login_attempts
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"ایمیل یا رمز عبور اشتباه است. {remaining_attempts} تلاش باقی‌مانده است.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # migration hash قدیمی به Argon2
+        if migrate_password_hash(user, form_data.password):
+            db.commit()
+        
+        # به‌روزرسانی last_login و reset کردن تلاش‌های ناموفق
+        user.last_login = datetime.utcnow()
+        user_settings.login_attempts = 0
+        user_settings.login_locked_until = None
+        user_settings.last_login_attempt = None
         db.commit()
-    
-    # به‌روزرسانی last_login
-    user.last_login = datetime.utcnow()
-    db.commit()
-    
-    # بررسی فعال بودن حساب
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="حساب کاربری شما فعال نیست. لطفاً ایمیل خود را تأیید کنید."
+        
+        # بررسی فعال بودن حساب
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="حساب کاربری شما فعال نیست. لطفاً ایمیل خود را تأیید کنید."
+            )
+        
+        # بررسی 2FA
+        user_settings = db.query(models.UserSettings).filter(models.UserSettings.user_id == user.id).first()
+        
+        if user_settings and user_settings.two_factor_enabled:
+            # تولید کد 2FA جدید
+            code = generate_2fa_code()
+            user_settings.two_factor_code = code
+            user_settings.two_factor_expires = datetime.now(timezone.utc) + timedelta(minutes=5)
+            db.commit()
+            
+            # ارسال کد به ایمیل
+            if send_2fa_code_email(user.email, code):
+                raise HTTPException(
+                    status_code=status.HTTP_202_ACCEPTED,
+                    detail="کد احراز هویت دو مرحله‌ای به ایمیل شما ارسال شد",
+                    headers={"X-Requires-2FA": "true"}
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="خطا در ارسال کد احراز هویت"
+                )
+        
+        # اگر 2FA فعال نیست، لاگین مستقیم
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.email, "role": user.role}, expires_delta=access_token_expires
         )
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email, "role": user.role}, expires_delta=access_token_expires
-    )
-    refresh_token = create_refresh_token(data={"sub": user.email})
-    
-    return {
-        "access_token": access_token, 
-        "refresh_token": refresh_token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "role": user.role,
-            "is_verified": user.is_verified
+        refresh_token = create_refresh_token(data={"sub": user.email})
+        
+        return {
+            "access_token": access_token, 
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "role": user.role,
+                "is_verified": user.is_verified
+            }
         }
-    }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در لاگین: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="خطا در ورود به سیستم"
+        )
 
 @router.get("/me", response_model=schemas.User)
 async def read_users_me(current_user: models.User = Depends(get_current_user)):
@@ -391,6 +516,198 @@ async def change_password(
         raise
     except Exception as e:
         logger.error(f"خطا در تغییر رمز عبور: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/enable-2fa")
+async def enable_2fa(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """فعال‌سازی احراز هویت دو مرحله‌ای"""
+    try:
+        # دریافت تنظیمات کاربر
+        user_settings = db.query(models.UserSettings).filter(models.UserSettings.user_id == current_user.id).first()
+        
+        if not user_settings:
+            user_settings = models.UserSettings(user_id=current_user.id)
+            db.add(user_settings)
+        
+        # تولید کد 6 رقمی
+        code = generate_2fa_code()
+        
+        # ذخیره کد و زمان انقضا (5 دقیقه)
+        user_settings.two_factor_code = code
+        user_settings.two_factor_expires = datetime.now(timezone.utc) + timedelta(minutes=5)
+        
+        db.commit()
+        
+        # ارسال کد به ایمیل
+        if send_2fa_code_email(current_user.email, code):
+            return {
+                "message": "کد احراز هویت به ایمیل شما ارسال شد",
+                "email": current_user.email
+            }
+        else:
+            raise HTTPException(status_code=500, detail="خطا در ارسال کد به ایمیل")
+            
+    except Exception as e:
+        logger.error(f"خطا در فعال‌سازی 2FA: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/verify-2fa")
+async def verify_2fa(
+    code_data: schemas.TwoFactorCode,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """تأیید کد 2FA و فعال‌سازی"""
+    try:
+        # دریافت تنظیمات کاربر
+        user_settings = db.query(models.UserSettings).filter(models.UserSettings.user_id == current_user.id).first()
+        
+        if not user_settings or not user_settings.two_factor_code:
+            raise HTTPException(status_code=400, detail="کد احراز هویت یافت نشد")
+        
+        # بررسی انقضای کد
+        if user_settings.two_factor_expires and user_settings.two_factor_expires < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="کد احراز هویت منقضی شده است")
+        
+        # بررسی صحت کد
+        if user_settings.two_factor_code != code_data.code:
+            raise HTTPException(status_code=400, detail="کد احراز هویت اشتباه است")
+        
+        # فعال‌سازی 2FA
+        user_settings.two_factor_enabled = True
+        user_settings.two_factor_code = None  # پاک کردن کد
+        user_settings.two_factor_expires = None
+        
+        db.commit()
+        
+        return {
+            "message": "احراز هویت دو مرحله‌ای با موفقیت فعال شد"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در تأیید 2FA: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/disable-2fa")
+async def disable_2fa(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """غیرفعال‌سازی احراز هویت دو مرحله‌ای"""
+    try:
+        # دریافت تنظیمات کاربر
+        user_settings = db.query(models.UserSettings).filter(models.UserSettings.user_id == current_user.id).first()
+        
+        if not user_settings:
+            raise HTTPException(status_code=400, detail="تنظیمات کاربر یافت نشد")
+        
+        # غیرفعال‌سازی 2FA
+        user_settings.two_factor_enabled = False
+        user_settings.two_factor_code = None
+        user_settings.two_factor_expires = None
+        
+        db.commit()
+        
+        return {
+            "message": "احراز هویت دو مرحله‌ای غیرفعال شد"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در غیرفعال‌سازی 2FA: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/login-2fa")
+async def login_with_2fa(
+    code_data: schemas.TwoFactorCode,
+    db: Session = Depends(get_db)
+):
+    """لاگین با کد 2FA"""
+    try:
+        # دریافت کاربر با ایمیل
+        user = db.query(models.User).filter(models.User.email == code_data.email).first()
+        if not user:
+            raise HTTPException(status_code=400, detail="کاربر یافت نشد")
+        
+        # دریافت تنظیمات کاربر
+        user_settings = db.query(models.UserSettings).filter(models.UserSettings.user_id == user.id).first()
+        
+        if not user_settings or not user_settings.two_factor_enabled:
+            raise HTTPException(status_code=400, detail="احراز هویت دو مرحله‌ای فعال نیست")
+        
+        # بررسی قفل 2FA
+        if user_settings.two_factor_locked_until and user_settings.two_factor_locked_until > datetime.now(timezone.utc):
+            remaining_time = user_settings.two_factor_locked_until - datetime.now(timezone.utc)
+            minutes = int(remaining_time.total_seconds() // 60)
+            seconds = int(remaining_time.total_seconds() % 60)
+            raise HTTPException(
+                status_code=400, 
+                detail=f"حساب کاربری به دلیل تلاش‌های ناموفق قفل شده است. {minutes} دقیقه و {seconds} ثانیه دیگر تلاش کنید."
+            )
+        
+        # بررسی کد
+        if user_settings.two_factor_code != code_data.code:
+            # افزایش تعداد تلاش‌های ناموفق
+            user_settings.two_factor_attempts += 1
+            
+            # اگر 3 بار تلاش ناموفق، قفل کردن برای 15 دقیقه
+            if user_settings.two_factor_attempts >= 3:
+                user_settings.two_factor_locked_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+                user_settings.two_factor_attempts = 0
+                db.commit()
+                raise HTTPException(
+                    status_code=400, 
+                    detail="به دلیل 3 تلاش ناموفق، حساب کاربری برای 15 دقیقه قفل شده است."
+                )
+            
+            db.commit()
+            remaining_attempts = 3 - user_settings.two_factor_attempts
+            raise HTTPException(
+                status_code=400, 
+                detail=f"کد احراز هویت اشتباه است. {remaining_attempts} تلاش باقی‌مانده است."
+            )
+        
+        # بررسی انقضای کد
+        if user_settings.two_factor_expires and user_settings.two_factor_expires < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="کد احراز هویت منقضی شده است")
+        
+        # پاک کردن کد استفاده شده و reset کردن تلاش‌ها
+        user_settings.two_factor_code = None
+        user_settings.two_factor_expires = None
+        user_settings.two_factor_attempts = 0
+        user_settings.two_factor_locked_until = None
+        db.commit()
+        
+        # تولید توکن دسترسی
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.email, "role": user.role}, 
+            expires_delta=access_token_expires
+        )
+        refresh_token = create_refresh_token(data={"sub": user.email})
+        
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "role": user.role,
+                "is_verified": user.is_verified
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در لاگین 2FA: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/refresh")

@@ -86,6 +86,14 @@ export const auth = {
       },
     });
 
+    // بررسی status code
+    if (response.status === 202) {
+      // نیاز به 2FA
+      const error = new Error('2FA required');
+      error.response = response;
+      throw error;
+    }
+
     // ذخیره توکن و اطلاعات کاربر
     const { access_token, refresh_token, user } = response.data;
     localStorage.setItem('token', access_token);
@@ -161,6 +169,54 @@ export const auth = {
       return response.data;
     } catch (error) {
       console.error('Error changing password:', error);
+      throw error;
+    }
+  },
+
+  // احراز هویت دو مرحله‌ای
+  enable2FA: async () => {
+    try {
+      const response = await api.post('/api/enable-2fa');
+      return response.data;
+    } catch (error) {
+      console.error('Error enabling 2FA:', error);
+      throw error;
+    }
+  },
+
+  verify2FA: async (code) => {
+    try {
+      const response = await api.post('/api/verify-2fa', { code });
+      return response.data;
+    } catch (error) {
+      console.error('Error verifying 2FA:', error);
+      throw error;
+    }
+  },
+
+  disable2FA: async () => {
+    try {
+      const response = await api.post('/api/disable-2fa');
+      return response.data;
+    } catch (error) {
+      console.error('Error disabling 2FA:', error);
+      throw error;
+    }
+  },
+
+  loginWith2FA: async (code, email) => {
+    try {
+      const response = await api.post('/api/login-2fa', { code, email });
+
+      // ذخیره توکن و اطلاعات کاربر
+      const { access_token, refresh_token, user } = response.data;
+      localStorage.setItem('token', access_token);
+      localStorage.setItem('refresh_token', refresh_token);
+      localStorage.setItem('userInfo', JSON.stringify(user));
+
+      return response.data;
+    } catch (error) {
+      console.error('Error logging in with 2FA:', error);
       throw error;
     }
   }

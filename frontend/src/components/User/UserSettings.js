@@ -20,7 +20,11 @@ import {
     Avatar,
     IconButton,
     Tooltip,
-    Snackbar
+    Snackbar,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions
 } from '@mui/material';
 import {
     Save,
@@ -42,6 +46,10 @@ const UserSettings = () => {
     const [error, setError] = useState(null);
     const [showPassword, setShowPassword] = useState(false);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+    const [show2FADialog, setShow2FADialog] = useState(false);
+    const [twoFACode, setTwoFACode] = useState('');
+    const [twoFALoading, setTwoFALoading] = useState(false);
+    const [twoFAEmail, setTwoFAEmail] = useState('');
     const [settings, setSettings] = useState({
         // اطلاعات شخصی
         firstName: '',
@@ -235,6 +243,91 @@ const UserSettings = () => {
         fetchUserSettings();
     };
 
+    const handleEnable2FA = async () => {
+        try {
+            setTwoFALoading(true);
+            setError(null);
+
+            const response = await auth.enable2FA();
+            setTwoFAEmail(response.email);
+            setShow2FADialog(true);
+
+            setSnackbar({
+                open: true,
+                message: 'کد احراز هویت به ایمیل شما ارسال شد',
+                severity: 'info'
+            });
+        } catch (err) {
+            setError(err.response?.data?.detail || 'خطا در فعال‌سازی احراز هویت دو مرحله‌ای');
+        } finally {
+            setTwoFALoading(false);
+        }
+    };
+
+    const handleVerify2FA = async () => {
+        if (!twoFACode.trim()) {
+            setError('لطفاً کد احراز هویت را وارد کنید');
+            return;
+        }
+
+        try {
+            setTwoFALoading(true);
+            setError(null);
+
+            await auth.verify2FA(twoFACode);
+
+            // به‌روزرسانی وضعیت 2FA
+            setSettings(prev => ({
+                ...prev,
+                twoFactorEnabled: true
+            }));
+
+            setShow2FADialog(false);
+            setTwoFACode('');
+
+            setSnackbar({
+                open: true,
+                message: 'احراز هویت دو مرحله‌ای با موفقیت فعال شد',
+                severity: 'success'
+            });
+        } catch (err) {
+            setError(err.response?.data?.detail || 'کد احراز هویت اشتباه است');
+        } finally {
+            setTwoFALoading(false);
+        }
+    };
+
+    const handleDisable2FA = async () => {
+        try {
+            setSaving(true);
+            setError(null);
+
+            await auth.disable2FA();
+
+            // به‌روزرسانی وضعیت 2FA
+            setSettings(prev => ({
+                ...prev,
+                twoFactorEnabled: false
+            }));
+
+            setSnackbar({
+                open: true,
+                message: 'احراز هویت دو مرحله‌ای غیرفعال شد',
+                severity: 'success'
+            });
+        } catch (err) {
+            setError(err.response?.data?.detail || 'خطا در غیرفعال‌سازی احراز هویت دو مرحله‌ای');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handle2FAClose = () => {
+        setShow2FADialog(false);
+        setTwoFACode('');
+        setError(null);
+    };
+
     if (loading) {
         return (
             <Box sx={{ p: 3 }}>
@@ -397,16 +490,43 @@ const UserSettings = () => {
                                 sx={{ mb: 2 }}
                             />
 
-                            <FormControlLabel
-                                control={
-                                    <Switch
-                                        checked={settings.twoFactorEnabled}
-                                        onChange={(e) => handleSettingChange('twoFactorEnabled', e.target.checked)}
-                                    />
-                                }
-                                label="احراز هویت دو مرحله‌ای"
-                                sx={{ mb: 2 }}
-                            />
+                            <Box sx={{ mb: 2 }}>
+                                <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                                    احراز هویت دو مرحله‌ای
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                    برای امنیت بیشتر، کد تأیید به ایمیل شما ارسال می‌شود
+                                </Typography>
+
+                                {settings.twoFactorEnabled ? (
+                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                        <Chip
+                                            label="فعال"
+                                            color="success"
+                                            size="small"
+                                        />
+                                        <Button
+                                            variant="outlined"
+                                            color="error"
+                                            size="small"
+                                            onClick={handleDisable2FA}
+                                            disabled={saving}
+                                        >
+                                            غیرفعال‌سازی
+                                        </Button>
+                                    </Box>
+                                ) : (
+                                    <Button
+                                        variant="outlined"
+                                        color="primary"
+                                        size="small"
+                                        onClick={handleEnable2FA}
+                                        disabled={twoFALoading}
+                                    >
+                                        {twoFALoading ? 'در حال ارسال...' : 'فعال‌سازی'}
+                                    </Button>
+                                )}
+                            </Box>
 
                             <Button
                                 variant="contained"
@@ -623,6 +743,46 @@ const UserSettings = () => {
                     {snackbar.message}
                 </Alert>
             </Snackbar>
+
+            {/* Dialog برای 2FA */}
+            <Dialog open={show2FADialog} onClose={handle2FAClose} maxWidth="sm" fullWidth>
+                <DialogTitle>
+                    احراز هویت دو مرحله‌ای
+                </DialogTitle>
+                <DialogContent>
+                    <Typography variant="body1" sx={{ mb: 2 }}>
+                        کد احراز هویت به ایمیل {twoFAEmail} ارسال شد. لطفاً کد را وارد کنید:
+                    </Typography>
+
+                    {error && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            {error}
+                        </Alert>
+                    )}
+
+                    <TextField
+                        fullWidth
+                        label="کد احراز هویت"
+                        value={twoFACode}
+                        onChange={(e) => setTwoFACode(e.target.value)}
+                        placeholder="000000"
+                        inputProps={{ maxLength: 6 }}
+                        dir="rtl"
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handle2FAClose} disabled={twoFALoading}>
+                        انصراف
+                    </Button>
+                    <Button
+                        onClick={handleVerify2FA}
+                        variant="contained"
+                        disabled={twoFALoading || !twoFACode.trim()}
+                    >
+                        {twoFALoading ? 'در حال تأیید...' : 'تأیید'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

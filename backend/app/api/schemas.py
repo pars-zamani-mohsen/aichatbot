@@ -24,6 +24,14 @@ class PasswordChange(BaseModel):
     newPassword: str
     confirmPassword: str
 
+class TwoFactorCode(BaseModel):
+    code: str
+    email: str
+
+class TwoFactorResponse(BaseModel):
+    message: str
+    email: str = None
+
 # اسکیماهای سایت
 class WebsiteBase(BaseModel):
     url: HttpUrl

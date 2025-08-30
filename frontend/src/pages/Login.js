@@ -8,7 +8,12 @@ import {
   Button,
   Link,
   Box,
-  Alert
+  Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  CircularProgress
 } from '@mui/material';
 import { auth } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,6 +27,10 @@ const Login = () => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [show2FADialog, setShow2FADialog] = useState(false);
+  const [twoFACode, setTwoFACode] = useState('');
+  const [twoFALoading, setTwoFALoading] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
 
   const handleChange = (e) => {
     setFormData({
@@ -49,10 +58,17 @@ const Login = () => {
       }
     } catch (err) {
       console.error('Login error:', err);
-      
+
       // بررسی انواع مختلف خطا
-      if (err.response?.status === 401) {
-        setError('ایمیل یا رمز عبور اشتباه است');
+      if (err.response?.status === 202) {
+        // نیاز به 2FA
+        setUserEmail(formData.username);
+        setShow2FADialog(true);
+        setError('');
+      } else if (err.response?.status === 429) {
+        setError(err.response?.data?.detail || 'تعداد درخواست‌ها بیش از حد مجاز است. لطفاً صبر کنید');
+      } else if (err.response?.status === 401) {
+        setError(err.response?.data?.detail || 'ایمیل یا رمز عبور اشتباه است');
       } else if (err.response?.status === 400) {
         setError(err.response?.data?.detail || 'اطلاعات ورودی نامعتبر است');
       } else if (err.response?.status === 422) {
@@ -67,6 +83,45 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handle2FASubmit = async () => {
+    if (!twoFACode.trim()) {
+      setError('لطفاً کد احراز هویت را وارد کنید');
+      return;
+    }
+
+    setTwoFALoading(true);
+    setError('');
+
+    try {
+      const response = await auth.loginWith2FA(twoFACode, userEmail);
+
+      // به‌روزرسانی context
+      login(response.user);
+
+      // بستن dialog
+      setShow2FADialog(false);
+      setTwoFACode('');
+
+      // هدایت بر اساس نقش کاربر
+      if (response.user.role === 'admin') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (err) {
+      console.error('2FA error:', err);
+      setError(err.response?.data?.detail || 'کد احراز هویت اشتباه است');
+    } finally {
+      setTwoFALoading(false);
+    }
+  };
+
+  const handle2FAClose = () => {
+    setShow2FADialog(false);
+    setTwoFACode('');
+    setError('');
   };
 
   return (
@@ -125,6 +180,46 @@ const Login = () => {
           </Box>
         </Box>
       </Paper>
+
+      {/* Dialog برای 2FA */}
+      <Dialog open={show2FADialog} onClose={handle2FAClose} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          احراز هویت دو مرحله‌ای
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            کد احراز هویت به ایمیل {userEmail} ارسال شد. لطفاً کد را وارد کنید:
+          </Typography>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          <TextField
+            fullWidth
+            label="کد احراز هویت"
+            value={twoFACode}
+            onChange={(e) => setTwoFACode(e.target.value)}
+            placeholder="000000"
+            inputProps={{ maxLength: 6 }}
+            dir="rtl"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handle2FAClose} disabled={twoFALoading}>
+            انصراف
+          </Button>
+          <Button
+            onClick={handle2FASubmit}
+            variant="contained"
+            disabled={twoFALoading || !twoFACode.trim()}
+          >
+            {twoFALoading ? <CircularProgress size={20} /> : 'تأیید'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

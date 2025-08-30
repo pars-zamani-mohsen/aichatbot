@@ -106,6 +106,15 @@ class UserSettings(Base):
     
     # تنظیمات امنیت
     two_factor_enabled = Column(Boolean, default=False)
+    two_factor_code = Column(String, nullable=True)
+    two_factor_expires = Column(DateTime(timezone=True), nullable=True)
+    two_factor_attempts = Column(Integer, default=0)
+    two_factor_locked_until = Column(DateTime(timezone=True), nullable=True)
+    
+    # Rate limiting برای لاگین
+    login_attempts = Column(Integer, default=0)
+    login_locked_until = Column(DateTime(timezone=True), nullable=True)
+    last_login_attempt = Column(DateTime(timezone=True), nullable=True)
     
     # تنظیمات اعلان‌ها
     email_notifications = Column(Boolean, default=True)
