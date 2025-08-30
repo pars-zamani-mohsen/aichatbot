@@ -15,6 +15,7 @@ import UserLayout from './components/Layout/UserLayout';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
 import UserDashboard from './components/Dashboard/UserDashboard';
 import UserManagement from './components/Admin/UserManagement';
+import WebsiteManagement from './components/Admin/WebsiteManagement';
 import ConversationManagement from './components/Admin/ConversationManagement';
 import Reports from './components/Admin/Reports';
 import SystemSettings from './components/Admin/SystemSettings';
@@ -87,7 +88,7 @@ function AppContent() {
         <AdminLayout>
           <Routes>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            <Route path="/admin/websites" element={<Home />} />
+            <Route path="/admin/websites" element={<WebsiteManagement />} />
             <Route path="/admin/conversations" element={<ConversationManagement />} />
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/reports" element={<Reports />} />
