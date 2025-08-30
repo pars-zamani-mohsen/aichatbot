@@ -63,15 +63,15 @@ const WebsiteManagement = () => {
         try {
             setLoading(true);
             setError('');
-            
+
             const response = await dashboard.getAdminWebsites(
-                page, 
-                20, 
-                searchTerm || null, 
+                page,
+                20,
+                searchTerm || null,
                 statusFilter !== 'all' ? statusFilter : null,
                 ownerFilter !== 'all' ? parseInt(ownerFilter) : null
             );
-            
+
             setWebsites(response.websites);
             setTotalPages(response.total_pages);
         } catch (err) {
@@ -199,7 +199,7 @@ const WebsiteManagement = () => {
                                 ),
                             }}
                         />
-                        
+
                         <FormControl size="small" sx={{ minWidth: 150 }}>
                             <InputLabel>وضعیت</InputLabel>
                             <Select
@@ -214,7 +214,7 @@ const WebsiteManagement = () => {
                                 <MenuItem value="pending">در انتظار</MenuItem>
                             </Select>
                         </FormControl>
-                        
+
                         <FormControl size="small" sx={{ minWidth: 150 }}>
                             <InputLabel>مالک</InputLabel>
                             <Select
@@ -226,7 +226,7 @@ const WebsiteManagement = () => {
                                 {/* اینجا می‌توان لیست کاربران را اضافه کرد */}
                             </Select>
                         </FormControl>
-                        
+
                         <Button
                             variant="outlined"
                             startIcon={<Refresh />}
@@ -307,16 +307,16 @@ const WebsiteManagement = () => {
                                                         />
                                                     </TableCell>
                                                     <TableCell>
-                                                        <Chip 
-                                                            label={website.conversations_count} 
-                                                            size="small" 
+                                                        <Chip
+                                                            label={website.conversations_count}
+                                                            size="small"
                                                             icon={<Chat />}
                                                         />
                                                     </TableCell>
                                                     <TableCell>
-                                                        <Chip 
-                                                            label={website.messages_count} 
-                                                            size="small" 
+                                                        <Chip
+                                                            label={website.messages_count}
+                                                            size="small"
                                                             icon={<Message />}
                                                         />
                                                     </TableCell>
@@ -375,7 +375,7 @@ const WebsiteManagement = () => {
                                     </TableBody>
                                 </Table>
                             </TableContainer>
-                            
+
                             {/* Pagination */}
                             {totalPages > 1 && (
                                 <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
@@ -393,10 +393,10 @@ const WebsiteManagement = () => {
             </Card>
 
             {/* Website Details Dialog */}
-            <Dialog 
-                open={openDialog} 
-                onClose={() => setOpenDialog(false)} 
-                maxWidth="md" 
+            <Dialog
+                open={openDialog}
+                onClose={() => setOpenDialog(false)}
+                maxWidth="md"
                 fullWidth
             >
                 <DialogTitle>
@@ -436,7 +436,7 @@ const WebsiteManagement = () => {
                                         />
                                     </Box>
                                 </Grid>
-                                
+
                                 <Grid item xs={12} md={6}>
                                     <Typography variant="h6" sx={{ mb: 2 }}>
                                         اطلاعات مالک
@@ -450,7 +450,7 @@ const WebsiteManagement = () => {
                                         <Typography variant="body1">{selectedWebsite.owner_id}</Typography>
                                     </Box>
                                 </Grid>
-                                
+
                                 <Grid item xs={12} md={6}>
                                     <Typography variant="h6" sx={{ mb: 2 }}>
                                         آمار
@@ -468,7 +468,7 @@ const WebsiteManagement = () => {
                                         <Typography variant="body1">{getCrawlInfo(selectedWebsite.crawl_info).pages}</Typography>
                                     </Box>
                                 </Grid>
-                                
+
                                 <Grid item xs={12} md={6}>
                                     <Typography variant="h6" sx={{ mb: 2 }}>
                                         تاریخ‌ها

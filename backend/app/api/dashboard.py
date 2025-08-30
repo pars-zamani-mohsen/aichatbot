@@ -1110,8 +1110,8 @@ async def get_admin_conversations(
         
         offset = (page - 1) * limit
         
-        # ایجاد query base
-        query = db.query(Chat)
+        # ایجاد query base با join
+        query = db.query(Chat).join(Website)
         
         # فیلتر بر اساس وب‌سایت
         if website_id:
@@ -1119,7 +1119,7 @@ async def get_admin_conversations(
         
         # فیلتر بر اساس کاربر
         if user_id:
-            query = query.join(Website).filter(Website.owner_id == user_id)
+            query = query.filter(Website.owner_id == user_id)
         
         # شمارش کل
         total = query.count()
@@ -1137,7 +1137,7 @@ async def get_admin_conversations(
                     "owner_email": chat.website.owner.email,
                     "owner_id": chat.website.owner_id,
                     "created_at": chat.created_at.isoformat(),
-                    "updated_at": chat.updated_at.isoformat() if chat.updated_at else None,
+                    "updated_at": chat.created_at.isoformat(),  # Chat model doesn't have updated_at
                     "messages_count": db.query(Message).filter(Message.chat_id == chat.id).count(),
                     "last_message": db.query(Message).filter(Message.chat_id == chat.id).order_by(Message.created_at.desc()).first()
                 }
