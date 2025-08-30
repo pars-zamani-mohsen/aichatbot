@@ -436,6 +436,31 @@ export const dashboard = {
         { day: 'جمعه', conversations: 0, users: 0 },
       ];
     }
+  },
+
+  // گزارشات کاربر
+  getUserReports: async (timeRange = '7d') => {
+    try {
+      const response = await api.get('/api/dashboard/user/reports', {
+        params: { time_range: timeRange }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting user reports:', error);
+      // در صورت خطا، داده‌های خالی برگردانیم
+      return {
+        summary: {
+          total_conversations: 0,
+          total_messages: 0,
+          active_websites: 0,
+          satisfaction_rate: 0,
+          period_conversations: 0,
+          period_messages: 0
+        },
+        websites_stats: [],
+        conversation_status: []
+      };
+    }
   }
 };
 

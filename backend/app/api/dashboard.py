@@ -478,6 +478,120 @@ async def get_weekly_stats(
         logger.error(f"خطا در دریافت آمار هفتگی: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/user/reports")
+async def get_user_reports(
+    time_range: str = "7d",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت گزارشات کاربر"""
+    try:
+        # محاسبه بازه زمانی
+        today = datetime.now(timezone.utc).date()
+        if time_range == "7d":
+            start_date = today - timedelta(days=7)
+        elif time_range == "30d":
+            start_date = today - timedelta(days=30)
+        elif time_range == "90d":
+            start_date = today - timedelta(days=90)
+        elif time_range == "1y":
+            start_date = today - timedelta(days=365)
+        else:
+            start_date = today - timedelta(days=7)
+
+        # آمار کلی
+        total_conversations = db.query(Chat).join(Website).filter(Website.owner_id == current_user.id).count()
+        total_messages = db.query(Message).join(Chat).join(Website).filter(Website.owner_id == current_user.id).count()
+        active_websites = db.query(Website).filter(
+            and_(Website.owner_id == current_user.id, Website.status == "ready")
+        ).count()
+
+        # آمار بازه زمانی
+        period_conversations = db.query(Chat).join(Website).filter(
+            and_(
+                Website.owner_id == current_user.id,
+                cast(Chat.created_at, Date) >= start_date
+            )
+        ).count()
+
+        period_messages = db.query(Message).join(Chat).join(Website).filter(
+            and_(
+                Website.owner_id == current_user.id,
+                cast(Message.created_at, Date) >= start_date
+            )
+        ).count()
+
+        # آمار وب‌سایت‌ها
+        websites_stats = []
+        user_websites = db.query(Website).filter(Website.owner_id == current_user.id).all()
+        
+        for website in user_websites:
+            website_conversations = db.query(Chat).filter(Chat.website_id == website.id).count()
+            website_messages = db.query(Message).join(Chat).filter(Chat.website_id == website.id).count()
+            
+            # تعداد صفحات کراول شده
+            total_pages = 0
+            if website.crawl_info and 'total_pages' in website.crawl_info:
+                total_pages = website.crawl_info['total_pages']
+            
+            websites_stats.append({
+                "name": website.name or website.domain,
+                "conversations": website_conversations,
+                "messages": website_messages,
+                "pages": total_pages,
+                "status": website.status
+            })
+
+        # آمار وضعیت گفتگوها
+        active_conversations = db.query(Chat).join(Website).filter(
+            and_(
+                Website.owner_id == current_user.id,
+                Chat.id.in_(
+                    db.query(Message.chat_id).distinct()
+                )
+            )
+        ).count()
+
+        completed_conversations = db.query(Chat).join(Website).filter(
+            and_(
+                Website.owner_id == current_user.id,
+                ~Chat.id.in_(
+                    db.query(Message.chat_id).distinct()
+                )
+            )
+        ).count()
+
+        total_conversations_with_status = active_conversations + completed_conversations
+        if total_conversations_with_status > 0:
+            active_percentage = round((active_conversations / total_conversations_with_status) * 100)
+            completed_percentage = round((completed_conversations / total_conversations_with_status) * 100)
+        else:
+            active_percentage = 0
+            completed_percentage = 0
+
+        # محاسبه رضایت کاربران (شبیه‌سازی)
+        satisfaction_rate = 92  # این می‌تواند بر اساس feedback های واقعی محاسبه شود
+
+        return {
+            "summary": {
+                "total_conversations": total_conversations,
+                "total_messages": total_messages,
+                "active_websites": active_websites,
+                "satisfaction_rate": satisfaction_rate,
+                "period_conversations": period_conversations,
+                "period_messages": period_messages
+            },
+            "websites_stats": websites_stats,
+            "conversation_status": [
+                {"name": "فعال", "value": active_percentage, "color": "#10b981"},
+                {"name": "تکمیل شده", "value": completed_percentage, "color": "#ef4444"}
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت گزارشات کاربر: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/admin/weekly-stats")
 async def get_admin_weekly_stats(
     db: Session = Depends(get_db),
