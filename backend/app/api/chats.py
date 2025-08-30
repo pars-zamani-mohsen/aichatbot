@@ -13,6 +13,7 @@ from ..services.rag import RAGService
 from ..config import settings
 from jose import JWTError, jwt
 from ..core.chatbot_factory import ChatbotFactory
+from ..services.notification_service import NotificationService
 import logging
 from datetime import datetime
 
@@ -139,6 +140,14 @@ async def create_chat(
             db.commit()
             db.refresh(db_chat)
             logger.info(f"چت جدید ایجاد شد: {db_chat.id}")
+            
+            # ارسال اعلان چت جدید
+            NotificationService.notify_new_conversation(
+                db=db,
+                user_id=website.owner_id,
+                website_name=website.name or website.url,
+                chat_id=db_chat.id
+            )
         
         # ذخیره پیام کاربر
         user_message = models.Message(

@@ -22,6 +22,7 @@ import UserConversations from './components/User/UserConversations';
 import UserReports from './components/User/UserReports';
 import UserHistory from './components/User/UserHistory';
 import UserSettings from './components/User/UserSettings';
+import NotificationCenter from './components/Notifications/NotificationCenter';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // ایجاد تم با پشتیبانی از RTL
@@ -107,6 +108,7 @@ function AppContent() {
           <Route path="/reports" element={<UserReports />} />
           <Route path="/history" element={<UserHistory />} />
           <Route path="/settings" element={<UserSettings />} />
+          <Route path="/notifications" element={<NotificationCenter />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </UserLayout>

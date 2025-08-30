@@ -32,6 +32,32 @@ class TwoFactorResponse(BaseModel):
     message: str
     email: str = None
 
+# اسکیماهای اعلان
+class NotificationBase(BaseModel):
+    title: str
+    message: str
+    type: str  # info, success, warning, error
+    category: str  # conversation, website, system, security
+    extra_data: Optional[dict] = None
+
+class NotificationCreate(NotificationBase):
+    pass
+
+class Notification(NotificationBase):
+    id: int
+    user_id: int
+    is_read: bool
+    is_sent_email: bool
+    is_sent_push: bool
+    is_sent_sms: bool
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+class NotificationUpdate(BaseModel):
+    is_read: Optional[bool] = None
+
 # اسکیماهای سایت
 class WebsiteBase(BaseModel):
     url: HttpUrl

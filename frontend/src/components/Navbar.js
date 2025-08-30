@@ -8,6 +8,7 @@ import {
   Box
 } from '@mui/material';
 import { auth } from '../services/api';
+import NotificationBell from './Notifications/NotificationBell';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -21,11 +22,32 @@ const Navbar = () => {
   return (
     <AppBar position="static">
       <Toolbar>
-        <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-          چت‌بات هوشمند
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+          <Box sx={{
+            width: 40,
+            height: 40,
+            mr: 2,
+            borderRadius: '50%',
+            overflow: 'hidden',
+            border: '2px solid rgba(255,255,255,0.3)'
+          }}>
+            <img
+              src="/logo.png"
+              alt="لوگو"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+            />
+          </Box>
+          <Typography variant="h6" component="div">
+            چت‌بات هوشمند
+          </Typography>
+        </Box>
         {token && (
-          <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <NotificationBell />
             <Button color="inherit" onClick={handleLogout}>
               خروج
             </Button>

@@ -25,6 +25,9 @@ class User(Base):
     
     # ارتباط با تنظیمات
     settings = relationship("UserSettings", back_populates="user", uselist=False)
+    
+    # ارتباط با اعلان‌ها
+    notifications = relationship("Notification", back_populates="user")
 
 class Website(Base):
     __tablename__ = "websites"
@@ -138,4 +141,25 @@ class UserSettings(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # ارتباط با کاربر
-    user = relationship("User", back_populates="settings") 
+    user = relationship("User", back_populates="settings")
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    title = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    type = Column(String, nullable=False)  # info, success, warning, error
+    category = Column(String, nullable=False)  # conversation, website, system, security
+    is_read = Column(Boolean, default=False)
+    is_sent_email = Column(Boolean, default=False)
+    is_sent_push = Column(Boolean, default=False)
+    is_sent_sms = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # اطلاعات اضافی (JSON)
+    extra_data = Column(JSON, nullable=True)  # برای ذخیره اطلاعات اضافی مثل website_id, chat_id
+    
+    # ارتباط با کاربر
+    user = relationship("User", back_populates="notifications") 

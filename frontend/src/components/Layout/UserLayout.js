@@ -38,6 +38,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import NotificationBell from '../Notifications/NotificationBell';
 
 const drawerWidth = 260;
 
@@ -73,15 +74,33 @@ const UserLayout = ({ children }) => {
         { text: 'گفتگوهای من', icon: <Chat />, path: '/conversations' },
         { text: 'گزارشات', icon: <Assessment />, path: '/reports' },
         { text: 'تاریخچه', icon: <History />, path: '/history' },
+        { text: 'اعلان‌ها', icon: <Notifications />, path: '/notifications' },
         { text: 'تنظیمات', icon: <Settings />, path: '/settings' },
     ];
 
     const drawer = (
         <Box>
             <Box sx={{ p: 2, textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                <Avatar sx={{ width: 56, height: 56, mx: 'auto', mb: 1, bgcolor: 'secondary.main' }}>
-                    <Person />
-                </Avatar>
+                <Box sx={{ 
+                    width: 80, 
+                    height: 80, 
+                    mx: 'auto', 
+                    mb: 1,
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    border: '3px solid rgba(255,255,255,0.2)',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+                }}>
+                    <img 
+                        src="/logo.png" 
+                        alt="لوگو" 
+                        style={{ 
+                            width: '100%', 
+                            height: '100%', 
+                            objectFit: 'cover' 
+                        }} 
+                    />
+                </Box>
                 <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
                     پنل کاربری
                 </Typography>
@@ -170,11 +189,7 @@ const UserLayout = ({ children }) => {
                             {darkMode ? <LightMode /> : <DarkMode />}
                         </IconButton>
 
-                        <IconButton color="inherit">
-                            <Badge badgeContent={2} color="error">
-                                <Notifications />
-                            </Badge>
-                        </IconButton>
+                        <NotificationBell />
 
                         <IconButton
                             color="inherit"

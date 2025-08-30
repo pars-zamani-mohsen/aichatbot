@@ -14,6 +14,7 @@ from ..database.database import get_db
 from ..database import models
 from . import schemas
 from ..config import settings
+from ..services.notification_service import NotificationService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -266,6 +267,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 user_settings.login_locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
                 user_settings.login_attempts = 0
                 db.commit()
+                
+                # ارسال اعلان امنیتی
+                NotificationService.notify_security_event(
+                    db=db,
+                    user_id=user.id,
+                    event_type="account_locked",
+                    details="حساب کاربری به دلیل 5 تلاش ناموفق برای 30 دقیقه قفل شده است."
+                )
+                
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                     detail="به دلیل 5 تلاش ناموفق، حساب کاربری برای 30 دقیقه قفل شده است."
@@ -509,6 +519,14 @@ async def change_password(
         current_user.hashed_password = get_password_hash(new_password)
         db.commit()
         
+        # ارسال اعلان امنیتی
+        NotificationService.notify_security_event(
+            db=db,
+            user_id=current_user.id,
+            event_type="password_changed",
+            details="رمز عبور با موفقیت تغییر یافت."
+        )
+        
         return {
             "message": "رمز عبور با موفقیت تغییر کرد"
         }
@@ -583,6 +601,14 @@ async def verify_2fa(
         
         db.commit()
         
+        # ارسال اعلان امنیتی
+        NotificationService.notify_security_event(
+            db=db,
+            user_id=current_user.id,
+            event_type="2fa_enabled",
+            details="احراز هویت دو مرحله‌ای با موفقیت فعال شد."
+        )
+        
         return {
             "message": "احراز هویت دو مرحله‌ای با موفقیت فعال شد"
         }
@@ -612,6 +638,14 @@ async def disable_2fa(
         user_settings.two_factor_expires = None
         
         db.commit()
+        
+        # ارسال اعلان امنیتی
+        NotificationService.notify_security_event(
+            db=db,
+            user_id=current_user.id,
+            event_type="2fa_disabled",
+            details="احراز هویت دو مرحله‌ای غیرفعال شد."
+        )
         
         return {
             "message": "احراز هویت دو مرحله‌ای غیرفعال شد"

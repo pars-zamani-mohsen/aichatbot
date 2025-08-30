@@ -127,6 +127,30 @@ const Login = () => {
   return (
     <Container maxWidth="sm" sx={{ mt: 8 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
+        {/* Logo */}
+        <Box sx={{ textAlign: 'center', mb: 3 }}>
+          <Box sx={{ 
+            width: 100, 
+            height: 100, 
+            mx: 'auto',
+            borderRadius: '50%',
+            overflow: 'hidden',
+            border: '3px solid #e3f2fd',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+            mb: 2
+          }}>
+            <img 
+              src="/logo.png" 
+              alt="لوگو" 
+              style={{ 
+                width: '100%', 
+                height: '100%', 
+                objectFit: 'cover' 
+              }} 
+            />
+          </Box>
+        </Box>
+
         <Typography variant="h4" component="h1" align="center" gutterBottom>
           ورود به سیستم
         </Typography>

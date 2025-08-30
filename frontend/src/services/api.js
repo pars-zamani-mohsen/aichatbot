@@ -613,4 +613,78 @@ export const dashboard = {
   }
 };
 
+export const notifications = {
+  getNotifications: async (skip = 0, limit = 50, unreadOnly = false, category = null) => {
+    try {
+      const params = new URLSearchParams();
+      if (skip) params.append('skip', skip);
+      if (limit) params.append('limit', limit);
+      if (unreadOnly) params.append('unread_only', unreadOnly);
+      if (category) params.append('category', category);
+
+      const response = await api.get(`/api/notifications/?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting notifications:', error);
+      throw error;
+    }
+  },
+
+  getUnreadCount: async (category = null) => {
+    try {
+      const params = new URLSearchParams();
+      if (category) params.append('category', category);
+
+      const response = await api.get(`/api/notifications/unread-count?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting unread count:', error);
+      throw error;
+    }
+  },
+
+  markAsRead: async (notificationId) => {
+    try {
+      const response = await api.put(`/api/notifications/${notificationId}/read`);
+      return response.data;
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      throw error;
+    }
+  },
+
+  markAllAsRead: async (category = null) => {
+    try {
+      const params = new URLSearchParams();
+      if (category) params.append('category', category);
+
+      const response = await api.put(`/api/notifications/mark-all-read?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      throw error;
+    }
+  },
+
+  deleteNotification: async (notificationId) => {
+    try {
+      const response = await api.delete(`/api/notifications/${notificationId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      throw error;
+    }
+  },
+
+  createTestNotification: async () => {
+    try {
+      const response = await api.post('/api/notifications/test');
+      return response.data;
+    } catch (error) {
+      console.error('Error creating test notification:', error);
+      throw error;
+    }
+  }
+};
+
 export default api; 

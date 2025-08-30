@@ -79,9 +79,26 @@ const AdminLayout = ({ children }) => {
     const drawer = (
         <Box>
             <Box sx={{ p: 2, textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                <Avatar sx={{ width: 60, height: 60, mx: 'auto', mb: 1, bgcolor: 'primary.main' }}>
-                    <AdminPanelSettings />
-                </Avatar>
+                <Box sx={{ 
+                    width: 80, 
+                    height: 80, 
+                    mx: 'auto', 
+                    mb: 1,
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    border: '3px solid rgba(255,255,255,0.2)',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
+                }}>
+                    <img 
+                        src="/logo.png" 
+                        alt="لوگو" 
+                        style={{ 
+                            width: '100%', 
+                            height: '100%', 
+                            objectFit: 'cover' 
+                        }} 
+                    />
+                </Box>
                 <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
                     پنل مدیریت
                 </Typography>

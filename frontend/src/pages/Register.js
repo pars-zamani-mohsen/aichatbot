@@ -48,7 +48,7 @@ const Register = () => {
       navigate('/login');
     } catch (err) {
       console.error('Register error:', err);
-      
+
       // بررسی انواع مختلف خطا
       if (err.response?.status === 400) {
         if (err.response?.data?.detail?.includes('ایمیل قبلاً ثبت شده')) {
@@ -73,6 +73,30 @@ const Register = () => {
   return (
     <Container maxWidth="sm" sx={{ mt: 8 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
+        {/* Logo */}
+        <Box sx={{ textAlign: 'center', mb: 3 }}>
+          <Box sx={{
+            width: 100,
+            height: 100,
+            mx: 'auto',
+            borderRadius: '50%',
+            overflow: 'hidden',
+            border: '3px solid #e3f2fd',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+            mb: 2
+          }}>
+            <img
+              src="/logo.png"
+              alt="لوگو"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+            />
+          </Box>
+        </Box>
+
         <Typography variant="h4" component="h1" align="center" gutterBottom>
           ثبت نام
         </Typography>

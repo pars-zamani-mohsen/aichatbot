@@ -16,6 +16,7 @@ except ImportError:
     pd = None
 from ..database.models import User
 from .auth import get_current_user
+from ..services.notification_service import NotificationService
 
 def verify_website_ownership(website_id: int, user_id: int, db: Session) -> Website:
     """بررسی مالکیت وب‌سایت (جداسازی tenant)"""
@@ -70,11 +71,27 @@ async def process_website_background(website_id: int, db: Session):
             }
             db.commit()
             
+            # ارسال اعلان تکمیل کراولینگ
+            NotificationService.notify_website_update(
+                db=db,
+                user_id=website.owner_id,
+                website_name=website.name or website.url,
+                update_type="crawl_completed"
+            )
+            
         except Exception as e:
             logger.error(f"خطا در پردازش سایت {website.url}: {str(e)}")
             website.status = "error"
             website.error_message = str(e)
             db.commit()
+            
+            # ارسال اعلان خطای کراولینگ
+            NotificationService.notify_website_update(
+                db=db,
+                user_id=website.owner_id,
+                website_name=website.name or website.url,
+                update_type="crawl_failed"
+            )
             
     except Exception as e:
         logger.error(f"خطای کلی در پردازش سایت: {str(e)}")
