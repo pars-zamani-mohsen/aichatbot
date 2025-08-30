@@ -26,7 +26,9 @@ import {
     Alert,
     LinearProgress,
     Avatar,
-    Tooltip
+    Tooltip,
+    Pagination,
+    InputAdornment
 } from '@mui/material';
 import {
     Add,
@@ -37,8 +39,11 @@ import {
     Person,
     Email,
     CalendarToday,
-    AdminPanelSettings
+    AdminPanelSettings,
+    Search,
+    Refresh
 } from '@mui/icons-material';
+import { dashboard } from '../../services/api';
 
 const UserManagement = () => {
     const [users, setUsers] = useState([]);
@@ -51,42 +56,40 @@ const UserManagement = () => {
         is_active: true,
         is_verified: true
     });
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [roleFilter, setRoleFilter] = useState('all');
+    const [statusFilter, setStatusFilter] = useState('all');
 
-    // داده‌های نمونه
-    const sampleUsers = [
-        {
-            id: 1,
-            email: 'admin@example.com',
-            role: 'admin',
-            is_active: true,
-            is_verified: true,
-            created_at: '2024-01-15T10:30:00Z'
-        },
-        {
-            id: 2,
-            email: 'user1@example.com',
-            role: 'user',
-            is_active: true,
-            is_verified: true,
-            created_at: '2024-01-20T14:20:00Z'
-        },
-        {
-            id: 3,
-            email: 'user2@example.com',
-            role: 'user',
-            is_active: false,
-            is_verified: false,
-            created_at: '2024-01-25T09:15:00Z'
+    const fetchUsers = async () => {
+        try {
+            setLoading(true);
+            setError('');
+            
+            const response = await dashboard.getAdminUsers(
+                page, 
+                20, 
+                searchTerm || null, 
+                roleFilter !== 'all' ? roleFilter : null,
+                statusFilter !== 'all' ? statusFilter : null
+            );
+            
+            setUsers(response.users);
+            setTotalPages(response.total_pages);
+        } catch (err) {
+            console.error('Error fetching users:', err);
+            setError('خطا در دریافت لیست کاربران');
+        } finally {
+            setLoading(false);
         }
-    ];
+    };
 
     useEffect(() => {
-        // شبیه‌سازی دریافت داده‌ها
-        setTimeout(() => {
-            setUsers(sampleUsers);
-            setLoading(false);
-        }, 1000);
-    }, []);
+        fetchUsers();
+    }, [page, searchTerm, roleFilter, statusFilter]);
 
     const handleOpenDialog = (user = null) => {
         if (user) {
@@ -112,254 +115,315 @@ const UserManagement = () => {
     const handleCloseDialog = () => {
         setOpenDialog(false);
         setEditingUser(null);
+        setFormData({
+            email: '',
+            role: 'user',
+            is_active: true,
+            is_verified: true
+        });
+        setError('');
     };
 
-    const handleSubmit = () => {
-        if (editingUser) {
-            // ویرایش کاربر
-            setUsers(users.map(user =>
-                user.id === editingUser.id
-                    ? { ...user, ...formData }
-                    : user
-            ));
-        } else {
-            // افزودن کاربر جدید
-            const newUser = {
-                id: Date.now(),
-                ...formData,
-                created_at: new Date().toISOString()
-            };
-            setUsers([...users, newUser]);
+    const handleSubmit = async () => {
+        try {
+            setError('');
+            
+            if (editingUser) {
+                // به‌روزرسانی کاربر
+                await dashboard.updateAdminUser(editingUser.id, {
+                    role: formData.role,
+                    is_active: formData.is_active,
+                    is_verified: formData.is_verified
+                });
+                setSuccess('کاربر با موفقیت به‌روزرسانی شد');
+            }
+            
+            handleCloseDialog();
+            fetchUsers();
+        } catch (err) {
+            console.error('Error updating user:', err);
+            setError('خطا در به‌روزرسانی کاربر');
         }
-        handleCloseDialog();
     };
 
-    const handleDeleteUser = (userId) => {
-        setUsers(users.filter(user => user.id !== userId));
+    const handleDeleteUser = async (userId) => {
+        if (window.confirm('آیا از حذف این کاربر اطمینان دارید؟')) {
+            try {
+                await dashboard.deleteAdminUser(userId);
+                setSuccess('کاربر با موفقیت حذف شد');
+                fetchUsers();
+            } catch (err) {
+                console.error('Error deleting user:', err);
+                setError('خطا در حذف کاربر');
+            }
+        }
     };
 
-    const handleToggleStatus = (userId) => {
-        setUsers(users.map(user =>
-            user.id === userId
-                ? { ...user, is_active: !user.is_active }
-                : user
-        ));
+    const handleSearch = (event) => {
+        setSearchTerm(event.target.value);
+        setPage(1);
+    };
+
+    const handleRoleFilterChange = (event) => {
+        setRoleFilter(event.target.value);
+        setPage(1);
+    };
+
+    const handleStatusFilterChange = (event) => {
+        setStatusFilter(event.target.value);
+        setPage(1);
     };
 
     const formatDate = (dateString) => {
+        if (!dateString) return '-';
         return new Date(dateString).toLocaleDateString('fa-IR');
     };
 
-    if (loading) {
-        return (
-            <Box sx={{ p: 3 }}>
-                <LinearProgress />
-            </Box>
-        );
-    }
+    const getRoleColor = (role) => {
+        return role === 'admin' ? 'error' : 'default';
+    };
+
+    const getStatusColor = (isActive) => {
+        return isActive ? 'success' : 'error';
+    };
 
     return (
         <Box sx={{ p: 3 }}>
             {/* Header */}
-            <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
-                        مدیریت کاربران
-                    </Typography>
-                    <Typography variant="body1" color="text.secondary">
-                        مدیریت حساب‌های کاربری و دسترسی‌ها
-                    </Typography>
-                </Box>
-                <Button
-                    variant="contained"
-                    startIcon={<Add />}
-                    onClick={() => handleOpenDialog()}
-                >
-                    افزودن کاربر
-                </Button>
+            <Box sx={{ mb: 3 }}>
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    مدیریت کاربران
+                </Typography>
+                <Typography variant="body1" color="text.secondary">
+                    مدیریت و نظارت بر کاربران سیستم
+                </Typography>
             </Box>
 
-            {/* Stats */}
-            <Box sx={{ mb: 3 }}>
-                <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Chip
-                        label={`کل کاربران: ${users.length}`}
-                        color="primary"
-                        variant="outlined"
-                    />
-                    <Chip
-                        label={`کاربران فعال: ${users.filter(u => u.is_active).length}`}
-                        color="success"
-                        variant="outlined"
-                    />
-                    <Chip
-                        label={`مدیران: ${users.filter(u => u.role === 'admin').length}`}
-                        color="warning"
-                        variant="outlined"
-                    />
-                </Box>
-            </Box>
+            {/* Alerts */}
+            {error && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+                    {error}
+                </Alert>
+            )}
+            {success && (
+                <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+                    {success}
+                </Alert>
+            )}
+
+            {/* Filters and Actions */}
+            <Card sx={{ mb: 3 }}>
+                <CardContent>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <TextField
+                            placeholder="جستجو در کاربران..."
+                            value={searchTerm}
+                            onChange={handleSearch}
+                            size="small"
+                            sx={{ minWidth: 250 }}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Search />
+                                    </InputAdornment>
+                                ),
+                            }}
+                        />
+                        
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <InputLabel>نقش</InputLabel>
+                            <Select
+                                value={roleFilter}
+                                onChange={handleRoleFilterChange}
+                                label="نقش"
+                            >
+                                <MenuItem value="all">همه</MenuItem>
+                                <MenuItem value="admin">مدیر</MenuItem>
+                                <MenuItem value="user">کاربر</MenuItem>
+                            </Select>
+                        </FormControl>
+                        
+                        <FormControl size="small" sx={{ minWidth: 120 }}>
+                            <InputLabel>وضعیت</InputLabel>
+                            <Select
+                                value={statusFilter}
+                                onChange={handleStatusFilterChange}
+                                label="وضعیت"
+                            >
+                                <MenuItem value="all">همه</MenuItem>
+                                <MenuItem value="active">فعال</MenuItem>
+                                <MenuItem value="inactive">غیرفعال</MenuItem>
+                            </Select>
+                        </FormControl>
+                        
+                        <Button
+                            variant="outlined"
+                            startIcon={<Refresh />}
+                            onClick={fetchUsers}
+                            disabled={loading}
+                        >
+                            به‌روزرسانی
+                        </Button>
+                    </Box>
+                </CardContent>
+            </Card>
 
             {/* Users Table */}
             <Card>
                 <CardContent>
-                    <TableContainer component={Paper} sx={{ boxShadow: 'none' }}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>کاربر</TableCell>
-                                    <TableCell>ایمیل</TableCell>
-                                    <TableCell>نقش</TableCell>
-                                    <TableCell>وضعیت</TableCell>
-                                    <TableCell>تاریخ عضویت</TableCell>
-                                    <TableCell>عملیات</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {users.map((user) => (
-                                    <TableRow key={user.id}>
-                                        <TableCell>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Avatar sx={{ width: 32, height: 32 }}>
-                                                    {user.role === 'admin' ? <AdminPanelSettings /> : <Person />}
-                                                </Avatar>
-                                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                                                    {user.email.split('@')[0]}
-                                                </Typography>
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Email sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                                {user.email}
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={user.role === 'admin' ? 'مدیر' : 'کاربر'}
-                                                size="small"
-                                                color={user.role === 'admin' ? 'warning' : 'default'}
-                                                icon={user.role === 'admin' ? <AdminPanelSettings /> : <Person />}
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                                <Chip
-                                                    label={user.is_active ? 'فعال' : 'غیرفعال'}
-                                                    size="small"
-                                                    color={user.is_active ? 'success' : 'error'}
-                                                    icon={user.is_active ? <CheckCircle /> : <Block />}
-                                                />
-                                                {!user.is_verified && (
+                    {loading ? (
+                        <LinearProgress />
+                    ) : (
+                        <>
+                            <TableContainer>
+                                <Table>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>کاربر</TableCell>
+                                            <TableCell>ایمیل</TableCell>
+                                            <TableCell>نقش</TableCell>
+                                            <TableCell>وضعیت</TableCell>
+                                            <TableCell>تاریخ ثبت‌نام</TableCell>
+                                            <TableCell>آخرین ورود</TableCell>
+                                            <TableCell>وب‌سایت‌ها</TableCell>
+                                            <TableCell>گفتگوها</TableCell>
+                                            <TableCell>عملیات</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {users.map((user) => (
+                                            <TableRow key={user.id}>
+                                                <TableCell>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                        <Avatar sx={{ mr: 2, bgcolor: user.role === 'admin' ? 'error.main' : 'primary.main' }}>
+                                                            {user.role === 'admin' ? <AdminPanelSettings /> : <Person />}
+                                                        </Avatar>
+                                                        <Box>
+                                                            <Typography variant="body2" fontWeight="bold">
+                                                                {user.email.split('@')[0]}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </TableCell>
+                                                <TableCell>{user.email}</TableCell>
+                                                <TableCell>
                                                     <Chip
-                                                        label="تأیید نشده"
+                                                        label={user.role === 'admin' ? 'مدیر' : 'کاربر'}
+                                                        color={getRoleColor(user.role)}
                                                         size="small"
-                                                        color="warning"
-                                                        variant="outlined"
                                                     />
-                                                )}
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <CalendarToday sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                                {formatDate(user.created_at)}
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                                <Tooltip title="ویرایش">
-                                                    <IconButton
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={user.is_active ? 'فعال' : 'غیرفعال'}
+                                                        color={getStatusColor(user.is_active)}
                                                         size="small"
-                                                        onClick={() => handleOpenDialog(user)}
-                                                    >
-                                                        <Edit />
-                                                    </IconButton>
-                                                </Tooltip>
-                                                <Tooltip title={user.is_active ? 'غیرفعال کردن' : 'فعال کردن'}>
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={() => handleToggleStatus(user.id)}
-                                                        color={user.is_active ? 'warning' : 'success'}
-                                                    >
-                                                        {user.is_active ? <Block /> : <CheckCircle />}
-                                                    </IconButton>
-                                                </Tooltip>
-                                                <Tooltip title="حذف">
-                                                    <IconButton
-                                                        size="small"
-                                                        color="error"
-                                                        onClick={() => handleDeleteUser(user.id)}
-                                                    >
-                                                        <Delete />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </Box>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                                                    />
+                                                </TableCell>
+                                                <TableCell>{formatDate(user.created_at)}</TableCell>
+                                                <TableCell>{formatDate(user.last_login)}</TableCell>
+                                                <TableCell>
+                                                    <Chip label={user.websites_count} size="small" />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip label={user.conversations_count} size="small" />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                                        <Tooltip title="ویرایش">
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => handleOpenDialog(user)}
+                                                            >
+                                                                <Edit />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                        <Tooltip title="حذف">
+                                                            <IconButton
+                                                                size="small"
+                                                                color="error"
+                                                                onClick={() => handleDeleteUser(user.id)}
+                                                            >
+                                                                <Delete />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    </Box>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                            
+                            {/* Pagination */}
+                            {totalPages > 1 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                                    <Pagination
+                                        count={totalPages}
+                                        page={page}
+                                        onChange={(event, value) => setPage(value)}
+                                        color="primary"
+                                    />
+                                </Box>
+                            )}
+                        </>
+                    )}
                 </CardContent>
             </Card>
 
-            {/* Add/Edit User Dialog */}
+            {/* Edit Dialog */}
             <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
                 <DialogTitle>
                     {editingUser ? 'ویرایش کاربر' : 'افزودن کاربر جدید'}
                 </DialogTitle>
                 <DialogContent>
-                    <Box sx={{ pt: 2 }}>
+                    <Box sx={{ pt: 1 }}>
                         <TextField
                             fullWidth
                             label="ایمیل"
-                            type="email"
                             value={formData.email}
-                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            disabled={!!editingUser}
                             sx={{ mb: 2 }}
                         />
                         <FormControl fullWidth sx={{ mb: 2 }}>
                             <InputLabel>نقش</InputLabel>
                             <Select
                                 value={formData.role}
-                                label="نقش"
                                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                                label="نقش"
                             >
                                 <MenuItem value="user">کاربر</MenuItem>
                                 <MenuItem value="admin">مدیر</MenuItem>
                             </Select>
                         </FormControl>
-                        <Box sx={{ display: 'flex', gap: 2 }}>
-                            <FormControl fullWidth>
-                                <InputLabel>وضعیت فعال</InputLabel>
-                                <Select
-                                    value={formData.is_active}
-                                    label="وضعیت فعال"
-                                    onChange={(e) => setFormData({ ...formData, is_active: e.target.value })}
-                                >
-                                    <MenuItem value={true}>فعال</MenuItem>
-                                    <MenuItem value={false}>غیرفعال</MenuItem>
-                                </Select>
-                            </FormControl>
-                            <FormControl fullWidth>
-                                <InputLabel>وضعیت تأیید</InputLabel>
-                                <Select
-                                    value={formData.is_verified}
-                                    label="وضعیت تأیید"
-                                    onChange={(e) => setFormData({ ...formData, is_verified: e.target.value })}
-                                >
-                                    <MenuItem value={true}>تأیید شده</MenuItem>
-                                    <MenuItem value={false}>تأیید نشده</MenuItem>
-                                </Select>
-                            </FormControl>
-                        </Box>
+                        <FormControl fullWidth sx={{ mb: 2 }}>
+                            <InputLabel>وضعیت</InputLabel>
+                            <Select
+                                value={formData.is_active}
+                                onChange={(e) => setFormData({ ...formData, is_active: e.target.value })}
+                                label="وضعیت"
+                            >
+                                <MenuItem value={true}>فعال</MenuItem>
+                                <MenuItem value={false}>غیرفعال</MenuItem>
+                            </Select>
+                        </FormControl>
+                        <FormControl fullWidth>
+                            <InputLabel>تأیید شده</InputLabel>
+                            <Select
+                                value={formData.is_verified}
+                                onChange={(e) => setFormData({ ...formData, is_verified: e.target.value })}
+                                label="تأیید شده"
+                            >
+                                <MenuItem value={true}>بله</MenuItem>
+                                <MenuItem value={false}>خیر</MenuItem>
+                            </Select>
+                        </FormControl>
                     </Box>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={handleCloseDialog}>انصراف</Button>
                     <Button onClick={handleSubmit} variant="contained">
-                        {editingUser ? 'ویرایش' : 'افزودن'}
+                        {editingUser ? 'به‌روزرسانی' : 'افزودن'}
                     </Button>
                 </DialogActions>
             </Dialog>

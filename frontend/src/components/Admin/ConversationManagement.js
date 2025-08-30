@@ -18,354 +18,385 @@ import {
     DialogTitle,
     DialogContent,
     DialogActions,
-    TextField,
+    Alert,
+    LinearProgress,
+    Avatar,
+    Tooltip,
+    Pagination,
+    InputAdornment,
     FormControl,
     InputLabel,
     Select,
     MenuItem,
-    LinearProgress,
-    Avatar,
-    Tooltip,
-    Accordion,
-    AccordionSummary,
-    AccordionDetails
+    TextField
 } from '@mui/material';
 import {
-    Visibility,
     Delete,
+    Visibility,
     Chat,
     Language,
     Person,
     CalendarToday,
-    ExpandMore,
     Search,
-    FilterList
+    Refresh,
+    Message
 } from '@mui/icons-material';
+import { dashboard } from '../../services/api';
 
 const ConversationManagement = () => {
     const [conversations, setConversations] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [openDialog, setOpenDialog] = useState(false);
     const [selectedConversation, setSelectedConversation] = useState(null);
-    const [filter, setFilter] = useState('all');
+    const [openDialog, setOpenDialog] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [websiteFilter, setWebsiteFilter] = useState('all');
+    const [userFilter, setUserFilter] = useState('all');
 
-    // داده‌های نمونه
-    const sampleConversations = [
-        {
-            id: 1,
-            website: 'example.com',
-            user_email: 'user1@example.com',
-            session_id: 'sess_123',
-            message_count: 5,
-            status: 'active',
-            created_at: '2024-01-15T10:30:00Z',
-            last_message: 'سلام، سوالی در مورد محصولات شما دارم',
-            messages: [
-                { role: 'user', content: 'سلام، سوالی در مورد محصولات شما دارم', time: '10:30' },
-                { role: 'assistant', content: 'سلام! خوشحالم که به شما کمک کنم. چه سوالی دارید؟', time: '10:31' },
-                { role: 'user', content: 'آیا محصولات شما گارانتی دارند؟', time: '10:32' },
-                { role: 'assistant', content: 'بله، تمام محصولات ما 2 سال گارانتی دارند.', time: '10:33' },
-                { role: 'user', content: 'ممنون از اطلاعات شما', time: '10:34' }
-            ]
-        },
-        {
-            id: 2,
-            website: 'test.com',
-            user_email: 'user2@example.com',
-            session_id: 'sess_456',
-            message_count: 3,
-            status: 'completed',
-            created_at: '2024-01-14T15:20:00Z',
-            last_message: 'قیمت محصولات چقدر است؟',
-            messages: [
-                { role: 'user', content: 'قیمت محصولات چقدر است؟', time: '15:20' },
-                { role: 'assistant', content: 'قیمت‌ها در صفحه محصولات ذکر شده است.', time: '15:21' },
-                { role: 'user', content: 'متوجه شدم، ممنون', time: '15:22' }
-            ]
-        },
-        {
-            id: 3,
-            website: 'demo.com',
-            user_email: 'user3@example.com',
-            session_id: 'sess_789',
-            message_count: 8,
-            status: 'active',
-            created_at: '2024-01-13T09:15:00Z',
-            last_message: 'آیا امکان ارسال رایگان دارید؟',
-            messages: [
-                { role: 'user', content: 'آیا امکان ارسال رایگان دارید؟', time: '09:15' },
-                { role: 'assistant', content: 'بله، برای خریدهای بالای 500 هزار تومان ارسال رایگان است.', time: '09:16' }
-            ]
+    const fetchConversations = async () => {
+        try {
+            setLoading(true);
+            setError('');
+            
+            const response = await dashboard.getAdminConversations(
+                page, 
+                20, 
+                searchTerm || null, 
+                websiteFilter !== 'all' ? parseInt(websiteFilter) : null,
+                userFilter !== 'all' ? parseInt(userFilter) : null
+            );
+            
+            setConversations(response.conversations);
+            setTotalPages(response.total_pages);
+        } catch (err) {
+            console.error('Error fetching conversations:', err);
+            setError('خطا در دریافت لیست گفتگوها');
+        } finally {
+            setLoading(false);
         }
-    ];
+    };
 
     useEffect(() => {
-        // شبیه‌سازی دریافت داده‌ها
-        setTimeout(() => {
-            setConversations(sampleConversations);
-            setLoading(false);
-        }, 1000);
-    }, []);
+        fetchConversations();
+    }, [page, searchTerm, websiteFilter, userFilter]);
 
-    const handleViewConversation = (conversation) => {
-        setSelectedConversation(conversation);
-        setOpenDialog(true);
+    const handleViewConversation = async (conversationId) => {
+        try {
+            const response = await dashboard.getAdminConversationMessages(conversationId);
+            setSelectedConversation(response);
+            setOpenDialog(true);
+        } catch (err) {
+            console.error('Error fetching conversation messages:', err);
+            setError('خطا در دریافت پیام‌های گفتگو');
+        }
     };
 
-    const handleCloseDialog = () => {
-        setOpenDialog(false);
-        setSelectedConversation(null);
+    const handleDeleteConversation = async (conversationId) => {
+        if (window.confirm('آیا از حذف این گفتگو اطمینان دارید؟')) {
+            try {
+                await dashboard.deleteAdminConversation(conversationId);
+                setSuccess('گفتگو با موفقیت حذف شد');
+                fetchConversations();
+            } catch (err) {
+                console.error('Error deleting conversation:', err);
+                setError('خطا در حذف گفتگو');
+            }
+        }
     };
 
-    const handleDeleteConversation = (conversationId) => {
-        setConversations(conversations.filter(conv => conv.id !== conversationId));
+    const handleSearch = (event) => {
+        setSearchTerm(event.target.value);
+        setPage(1);
+    };
+
+    const handleWebsiteFilterChange = (event) => {
+        setWebsiteFilter(event.target.value);
+        setPage(1);
+    };
+
+    const handleUserFilterChange = (event) => {
+        setUserFilter(event.target.value);
+        setPage(1);
     };
 
     const formatDate = (dateString) => {
+        if (!dateString) return '-';
         return new Date(dateString).toLocaleDateString('fa-IR');
     };
 
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'active': return 'success';
-            case 'completed': return 'info';
-            case 'pending': return 'warning';
-            default: return 'default';
-        }
+    const formatTime = (dateString) => {
+        if (!dateString) return '-';
+        return new Date(dateString).toLocaleTimeString('fa-IR');
     };
 
-    const getStatusText = (status) => {
-        switch (status) {
-            case 'active': return 'فعال';
-            case 'completed': return 'تکمیل شده';
-            case 'pending': return 'در انتظار';
-            default: return 'نامشخص';
-        }
+    const getStatusColor = (messageCount) => {
+        return messageCount > 0 ? 'success' : 'warning';
     };
-
-    const filteredConversations = conversations.filter(conv => {
-        if (filter === 'all') return true;
-        return conv.status === filter;
-    });
-
-    if (loading) {
-        return (
-            <Box sx={{ p: 3 }}>
-                <LinearProgress />
-            </Box>
-        );
-    }
 
     return (
         <Box sx={{ p: 3 }}>
             {/* Header */}
-            <Box sx={{ mb: 4 }}>
+            <Box sx={{ mb: 3 }}>
                 <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
                     مدیریت گفتگوها
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                    مشاهده و مدیریت تمام گفتگوهای سیستم
+                    نظارت و مدیریت بر گفتگوهای کاربران
                 </Typography>
             </Box>
 
-            {/* Stats */}
-            <Box sx={{ mb: 3 }}>
-                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                    <Chip
-                        label={`کل گفتگوها: ${conversations.length}`}
-                        color="primary"
-                        variant="outlined"
-                    />
-                    <Chip
-                        label={`گفتگوهای فعال: ${conversations.filter(c => c.status === 'active').length}`}
-                        color="success"
-                        variant="outlined"
-                    />
-                    <Chip
-                        label={`تکمیل شده: ${conversations.filter(c => c.status === 'completed').length}`}
-                        color="info"
-                        variant="outlined"
-                    />
-                </Box>
+            {/* Alerts */}
+            {error && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+                    {error}
+                </Alert>
+            )}
+            {success && (
+                <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
+                    {success}
+                </Alert>
+            )}
 
-                {/* Filter */}
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                    <FilterList sx={{ color: 'text.secondary' }} />
-                    <FormControl size="small" sx={{ minWidth: 120 }}>
-                        <InputLabel>فیلتر</InputLabel>
-                        <Select
-                            value={filter}
-                            label="فیلتر"
-                            onChange={(e) => setFilter(e.target.value)}
+            {/* Filters and Actions */}
+            <Card sx={{ mb: 3 }}>
+                <CardContent>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <TextField
+                            placeholder="جستجو در گفتگوها..."
+                            value={searchTerm}
+                            onChange={handleSearch}
+                            size="small"
+                            sx={{ minWidth: 250 }}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <Search />
+                                    </InputAdornment>
+                                ),
+                            }}
+                        />
+                        
+                        <FormControl size="small" sx={{ minWidth: 150 }}>
+                            <InputLabel>وب‌سایت</InputLabel>
+                            <Select
+                                value={websiteFilter}
+                                onChange={handleWebsiteFilterChange}
+                                label="وب‌سایت"
+                            >
+                                <MenuItem value="all">همه وب‌سایت‌ها</MenuItem>
+                                {/* اینجا می‌توان لیست وب‌سایت‌ها را اضافه کرد */}
+                            </Select>
+                        </FormControl>
+                        
+                        <FormControl size="small" sx={{ minWidth: 150 }}>
+                            <InputLabel>کاربر</InputLabel>
+                            <Select
+                                value={userFilter}
+                                onChange={handleUserFilterChange}
+                                label="کاربر"
+                            >
+                                <MenuItem value="all">همه کاربران</MenuItem>
+                                {/* اینجا می‌توان لیست کاربران را اضافه کرد */}
+                            </Select>
+                        </FormControl>
+                        
+                        <Button
+                            variant="outlined"
+                            startIcon={<Refresh />}
+                            onClick={fetchConversations}
+                            disabled={loading}
                         >
-                            <MenuItem value="all">همه</MenuItem>
-                            <MenuItem value="active">فعال</MenuItem>
-                            <MenuItem value="completed">تکمیل شده</MenuItem>
-                            <MenuItem value="pending">در انتظار</MenuItem>
-                        </Select>
-                    </FormControl>
-                </Box>
-            </Box>
+                            به‌روزرسانی
+                        </Button>
+                    </Box>
+                </CardContent>
+            </Card>
 
             {/* Conversations Table */}
             <Card>
                 <CardContent>
-                    <TableContainer component={Paper} sx={{ boxShadow: 'none' }}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>وب‌سایت</TableCell>
-                                    <TableCell>کاربر</TableCell>
-                                    <TableCell>آخرین پیام</TableCell>
-                                    <TableCell>تعداد پیام</TableCell>
-                                    <TableCell>وضعیت</TableCell>
-                                    <TableCell>تاریخ</TableCell>
-                                    <TableCell>عملیات</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {filteredConversations.map((conversation) => (
-                                    <TableRow key={conversation.id}>
-                                        <TableCell>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Language sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                                {conversation.website}
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Avatar sx={{ width: 24, height: 24 }}>
-                                                    <Person />
-                                                </Avatar>
-                                                <Typography variant="body2">
-                                                    {conversation.user_email}
-                                                </Typography>
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="body2" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                {conversation.last_message}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={conversation.message_count}
-                                                size="small"
-                                                color="primary"
-                                                variant="outlined"
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Chip
-                                                label={getStatusText(conversation.status)}
-                                                size="small"
-                                                color={getStatusColor(conversation.status)}
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <CalendarToday sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                                {formatDate(conversation.created_at)}
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Box sx={{ display: 'flex', gap: 1 }}>
-                                                <Tooltip title="مشاهده گفتگو">
-                                                    <IconButton
+                    {loading ? (
+                        <LinearProgress />
+                    ) : (
+                        <>
+                            <TableContainer>
+                                <Table>
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>شناسه</TableCell>
+                                            <TableCell>وب‌سایت</TableCell>
+                                            <TableCell>کاربر</TableCell>
+                                            <TableCell>وضعیت</TableCell>
+                                            <TableCell>تعداد پیام</TableCell>
+                                            <TableCell>تاریخ شروع</TableCell>
+                                            <TableCell>آخرین فعالیت</TableCell>
+                                            <TableCell>عملیات</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {conversations.map((conversation) => (
+                                            <TableRow key={conversation.id}>
+                                                <TableCell>
+                                                    <Typography variant="body2" fontWeight="bold">
+                                                        #{conversation.id}
+                                                    </Typography>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                        <Avatar sx={{ mr: 2, bgcolor: 'primary.main' }}>
+                                                            <Language />
+                                                        </Avatar>
+                                                        <Box>
+                                                            <Typography variant="body2" fontWeight="bold">
+                                                                {conversation.website_name}
+                                                            </Typography>
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                ID: {conversation.website_id}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                                        <Avatar sx={{ mr: 2, bgcolor: 'secondary.main' }}>
+                                                            <Person />
+                                                        </Avatar>
+                                                        <Box>
+                                                            <Typography variant="body2" fontWeight="bold">
+                                                                {conversation.owner_email}
+                                                            </Typography>
+                                                            <Typography variant="caption" color="text.secondary">
+                                                                ID: {conversation.owner_id}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={conversation.messages_count > 0 ? 'فعال' : 'در انتظار'}
+                                                        color={getStatusColor(conversation.messages_count)}
                                                         size="small"
-                                                        onClick={() => handleViewConversation(conversation)}
-                                                    >
-                                                        <Visibility />
-                                                    </IconButton>
-                                                </Tooltip>
-                                                <Tooltip title="حذف">
-                                                    <IconButton
-                                                        size="small"
-                                                        color="error"
-                                                        onClick={() => handleDeleteConversation(conversation.id)}
-                                                    >
-                                                        <Delete />
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </Box>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip 
+                                                        label={conversation.messages_count} 
+                                                        size="small" 
+                                                        icon={<Message />}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Box>
+                                                        <Typography variant="body2">
+                                                            {formatDate(conversation.created_at)}
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {formatTime(conversation.created_at)}
+                                                        </Typography>
+                                                    </Box>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Box>
+                                                        <Typography variant="body2">
+                                                            {formatDate(conversation.updated_at)}
+                                                        </Typography>
+                                                        <Typography variant="caption" color="text.secondary">
+                                                            {formatTime(conversation.updated_at)}
+                                                        </Typography>
+                                                    </Box>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                                        <Tooltip title="مشاهده گفتگو">
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => handleViewConversation(conversation.id)}
+                                                            >
+                                                                <Visibility />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                        <Tooltip title="حذف گفتگو">
+                                                            <IconButton
+                                                                size="small"
+                                                                color="error"
+                                                                onClick={() => handleDeleteConversation(conversation.id)}
+                                                            >
+                                                                <Delete />
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    </Box>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                            
+                            {/* Pagination */}
+                            {totalPages > 1 && (
+                                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                                    <Pagination
+                                        count={totalPages}
+                                        page={page}
+                                        onChange={(event, value) => setPage(value)}
+                                        color="primary"
+                                    />
+                                </Box>
+                            )}
+                        </>
+                    )}
                 </CardContent>
             </Card>
 
-            {/* Conversation Detail Dialog */}
-            <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+            {/* Conversation Details Dialog */}
+            <Dialog 
+                open={openDialog} 
+                onClose={() => setOpenDialog(false)} 
+                maxWidth="md" 
+                fullWidth
+            >
                 <DialogTitle>
                     جزئیات گفتگو
                     {selectedConversation && (
                         <Typography variant="body2" color="text.secondary">
-                            {selectedConversation.website} - {selectedConversation.user_email}
+                            وب‌سایت: {selectedConversation.conversation.website_name} | 
+                            کاربر: {selectedConversation.conversation.owner_email}
                         </Typography>
                     )}
                 </DialogTitle>
                 <DialogContent>
                     {selectedConversation && (
-                        <Box sx={{ pt: 2 }}>
-                            {/* Conversation Info */}
-                            <Box sx={{ mb: 3, p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-                                <Typography variant="h6" sx={{ mb: 1 }}>
-                                    اطلاعات گفتگو
-                                </Typography>
-                                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                                    <Box>
-                                        <Typography variant="body2" color="text.secondary">وب‌سایت:</Typography>
-                                        <Typography variant="body1">{selectedConversation.website}</Typography>
-                                    </Box>
-                                    <Box>
-                                        <Typography variant="body2" color="text.secondary">کاربر:</Typography>
-                                        <Typography variant="body1">{selectedConversation.user_email}</Typography>
-                                    </Box>
-                                    <Box>
-                                        <Typography variant="body2" color="text.secondary">Session ID:</Typography>
-                                        <Typography variant="body1">{selectedConversation.session_id}</Typography>
-                                    </Box>
-                                    <Box>
-                                        <Typography variant="body2" color="text.secondary">وضعیت:</Typography>
-                                        <Chip
-                                            label={getStatusText(selectedConversation.status)}
-                                            size="small"
-                                            color={getStatusColor(selectedConversation.status)}
-                                        />
-                                    </Box>
-                                </Box>
-                            </Box>
-
-                            {/* Messages */}
+                        <Box sx={{ mt: 2 }}>
                             <Typography variant="h6" sx={{ mb: 2 }}>
                                 پیام‌ها ({selectedConversation.messages.length})
                             </Typography>
                             <Box sx={{ maxHeight: 400, overflow: 'auto' }}>
                                 {selectedConversation.messages.map((message, index) => (
                                     <Box
-                                        key={index}
+                                        key={message.id}
                                         sx={{
                                             mb: 2,
                                             p: 2,
-                                            bgcolor: message.role === 'user' ? 'primary.50' : 'grey.50',
                                             borderRadius: 2,
-                                            border: `1px solid ${message.role === 'user' ? 'primary.200' : 'grey.200'}`
+                                            bgcolor: message.role === 'user' ? 'grey.100' : 'primary.50',
+                                            border: '1px solid',
+                                            borderColor: message.role === 'user' ? 'grey.300' : 'primary.200'
                                         }}
                                     >
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                                             <Chip
-                                                label={message.role === 'user' ? 'کاربر' : 'چت‌بات'}
-                                                size="small"
+                                                label={message.role === 'user' ? 'کاربر' : 'ربات'}
                                                 color={message.role === 'user' ? 'primary' : 'secondary'}
+                                                size="small"
                                             />
                                             <Typography variant="caption" color="text.secondary">
-                                                {message.time}
+                                                {formatDate(message.created_at)} - {formatTime(message.created_at)}
                                             </Typography>
                                         </Box>
-                                        <Typography variant="body1">
+                                        <Typography variant="body2">
                                             {message.content}
                                         </Typography>
                                     </Box>
@@ -375,7 +406,9 @@ const ConversationManagement = () => {
                     )}
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseDialog}>بستن</Button>
+                    <Button onClick={() => setOpenDialog(false)}>
+                        بستن
+                    </Button>
                 </DialogActions>
             </Dialog>
         </Box>

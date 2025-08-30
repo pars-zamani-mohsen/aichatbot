@@ -5,13 +5,14 @@ import {
     CardContent,
     Typography,
     Grid,
+    Chip,
+    LinearProgress,
+    Alert,
     Button,
     FormControl,
     InputLabel,
     Select,
     MenuItem,
-    Chip,
-    LinearProgress,
     Table,
     TableBody,
     TableCell,
@@ -21,55 +22,89 @@ import {
     Paper
 } from '@mui/material';
 import {
-    Download,
-    Assessment,
     TrendingUp,
     TrendingDown,
     Language,
     Chat,
     People,
-    Speed
+    Assessment,
+    Download,
+    Refresh
 } from '@mui/icons-material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
+import { dashboard } from '../../services/api';
 
 const Reports = () => {
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     const [timeRange, setTimeRange] = useState('7d');
+    const [stats, setStats] = useState({
+        users: { total: 0, active: 0, trend: 0 },
+        websites: { total: 0, active: 0, trend: 0 },
+        conversations: { total: 0, trend: 0 },
+        messages: { total: 0, trend: 0 }
+    });
+    const [weeklyData, setWeeklyData] = useState([]);
+    const [topWebsites, setTopWebsites] = useState([]);
+    const [topUsers, setTopUsers] = useState([]);
 
-    // داده‌های نمونه برای نمودارها
-    const weeklyData = [
-        { day: 'شنبه', conversations: 120, users: 45, websites: 8 },
-        { day: 'یکشنبه', conversations: 180, users: 62, websites: 12 },
-        { day: 'دوشنبه', conversations: 150, users: 58, websites: 10 },
-        { day: 'سه‌شنبه', conversations: 220, users: 78, websites: 15 },
-        { day: 'چهارشنبه', conversations: 190, users: 65, websites: 11 },
-        { day: 'پنج‌شنبه', conversations: 280, users: 92, websites: 18 },
-        { day: 'جمعه', conversations: 240, users: 85, websites: 14 },
-    ];
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            setError('');
 
-    const websiteStats = [
-        { name: 'example.com', conversations: 450, users: 120, pages: 25 },
-        { name: 'test.com', conversations: 320, users: 85, pages: 18 },
-        { name: 'demo.com', conversations: 280, users: 72, pages: 15 },
-        { name: 'site.com', conversations: 190, users: 45, pages: 12 },
-    ];
+            // دریافت آمار کلی
+            const adminStats = await dashboard.getAdminStats();
+            setStats(adminStats);
 
-    const pieData = [
-        { name: 'فعال', value: 75, color: '#10b981' },
-        { name: 'غیرفعال', value: 15, color: '#f59e0b' },
-        { name: 'در انتظار', value: 10, color: '#ef4444' },
-    ];
+            // دریافت آمار هفتگی
+            const weeklyStats = await dashboard.getAdminWeeklyStats();
+            setWeeklyData(weeklyStats);
+
+            // دریافت وب‌سایت‌های برتر
+            const websitesResponse = await dashboard.getAdminWebsites(1, 10);
+            setTopWebsites(websitesResponse.websites);
+
+            // دریافت کاربران برتر
+            const usersResponse = await dashboard.getAdminUsers(1, 10);
+            setTopUsers(usersResponse.users);
+
+        } catch (err) {
+            console.error('Error fetching reports data:', err);
+            setError('خطا در دریافت داده‌های گزارش');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        // شبیه‌سازی دریافت داده‌ها
-        setTimeout(() => {
-            setLoading(false);
-        }, 1000);
-    }, []);
+        fetchData();
+    }, [timeRange]);
 
     const handleExport = (type) => {
-        // شبیه‌سازی export
+        // اینجا می‌توان منطق export را اضافه کرد
+        console.log(`Exporting ${type} data...`);
+    };
 
+    const formatNumber = (num) => {
+        return new Intl.NumberFormat('fa-IR').format(num);
+    };
+
+    const getTrendIcon = (trend) => {
+        if (!trend) return null;
+        if (trend > 0) {
+            return <TrendingUp sx={{ color: 'success.main', fontSize: 16 }} />;
+        } else if (trend < 0) {
+            return <TrendingDown sx={{ color: 'error.main', fontSize: 16 }} />;
+        }
+        return null;
+    };
+
+    const getTrendColor = (trend) => {
+        if (!trend) return 'text.secondary';
+        if (trend > 0) return 'success.main';
+        if (trend < 0) return 'error.main';
+        return 'text.secondary';
     };
 
     if (loading) {
@@ -86,10 +121,10 @@ const Reports = () => {
             <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Box>
                     <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
-                        گزارشات و آمار
+                        گزارشات سیستم
                     </Typography>
                     <Typography variant="body1" color="text.secondary">
-                        تحلیل عملکرد سیستم و کاربران
+                        آمار و تحلیل عملکرد سیستم
                     </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2 }}>
@@ -97,49 +132,116 @@ const Reports = () => {
                         <InputLabel>بازه زمانی</InputLabel>
                         <Select
                             value={timeRange}
-                            label="بازه زمانی"
                             onChange={(e) => setTimeRange(e.target.value)}
+                            label="بازه زمانی"
                         >
                             <MenuItem value="7d">7 روز گذشته</MenuItem>
                             <MenuItem value="30d">30 روز گذشته</MenuItem>
                             <MenuItem value="90d">90 روز گذشته</MenuItem>
-                            <MenuItem value="1y">1 سال گذشته</MenuItem>
                         </Select>
                     </FormControl>
                     <Button
                         variant="outlined"
-                        startIcon={<Download />}
-                        onClick={() => handleExport('all')}
+                        startIcon={<Refresh />}
+                        onClick={fetchData}
+                        disabled={loading}
                     >
-                        دانلود گزارش
+                        به‌روزرسانی
                     </Button>
                 </Box>
             </Box>
+
+            {/* Error Alert */}
+            {error && (
+                <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+                    {error}
+                </Alert>
+            )}
 
             {/* Summary Cards */}
             <Grid container spacing={3} sx={{ mb: 4 }}>
                 <Grid item xs={12} sm={6} md={3}>
                     <Card sx={{
-                        background: 'linear-gradient(135deg, #667eea15 0%, #667eea05 100%)',
-                        border: '1px solid #667eea20'
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        color: 'white'
                     }}>
                         <CardContent>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <Box>
-                                    <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#667eea', mb: 1 }}>
-                                        1,580
+                                    <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                                        {formatNumber(stats.users?.total || 0)}
                                     </Typography>
-                                    <Typography variant="body2" color="text.secondary">
+                                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                                        کل کاربران
+                                    </Typography>
+                                    {stats.users?.trend !== 0 && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                                            {getTrendIcon(stats.users?.trend)}
+                                            <Typography variant="caption" sx={{ ml: 0.5, color: getTrendColor(stats.users?.trend) }}>
+                                                {Math.abs(stats.users?.trend || 0)}% از هفته گذشته
+                                            </Typography>
+                                        </Box>
+                                    )}
+                                </Box>
+                                <People sx={{ fontSize: 40, opacity: 0.8 }} />
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        color: 'white'
+                    }}>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <Box>
+                                    <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                                        {formatNumber(stats.websites?.total || 0)}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                                        کل وب‌سایت‌ها
+                                    </Typography>
+                                    {stats.websites?.trend !== 0 && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                                            {getTrendIcon(stats.websites?.trend)}
+                                            <Typography variant="caption" sx={{ ml: 0.5, color: getTrendColor(stats.websites?.trend) }}>
+                                                {Math.abs(stats.websites?.trend || 0)}% از هفته گذشته
+                                            </Typography>
+                                        </Box>
+                                    )}
+                                </Box>
+                                <Language sx={{ fontSize: 40, opacity: 0.8 }} />
+                            </Box>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid item xs={12} sm={6} md={3}>
+                    <Card sx={{
+                        background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                        color: 'white'
+                    }}>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <Box>
+                                    <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                                        {formatNumber(stats.conversations?.total || 0)}
+                                    </Typography>
+                                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
                                         کل گفتگوها
                                     </Typography>
+                                    {stats.conversations?.trend !== 0 && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                                            {getTrendIcon(stats.conversations?.trend)}
+                                            <Typography variant="caption" sx={{ ml: 0.5, color: getTrendColor(stats.conversations?.trend) }}>
+                                                {Math.abs(stats.conversations?.trend || 0)}% از هفته گذشته
+                                            </Typography>
+                                        </Box>
+                                    )}
                                 </Box>
-                                <Chat sx={{ fontSize: 48, color: '#667eea' }} />
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-                                <TrendingUp sx={{ color: 'success.main', fontSize: 16, mr: 0.5 }} />
-                                <Typography variant="caption" color="success.main">
-                                    +12% از هفته گذشته
-                                </Typography>
+                                <Chat sx={{ fontSize: 40, opacity: 0.8 }} />
                             </Box>
                         </CardContent>
                     </Card>
@@ -147,80 +249,28 @@ const Reports = () => {
 
                 <Grid item xs={12} sm={6} md={3}>
                     <Card sx={{
-                        background: 'linear-gradient(135deg, #10b98115 0%, #10b98105 100%)',
-                        border: '1px solid #10b98120'
+                        background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                        color: 'white'
                     }}>
                         <CardContent>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <Box>
-                                    <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#10b981', mb: 1 }}>
-                                        485
+                                    <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
+                                        {formatNumber(stats.messages?.total || 0)}
                                     </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        کاربران فعال
+                                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                                        کل پیام‌ها
                                     </Typography>
+                                    {stats.messages?.trend !== 0 && (
+                                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                                            {getTrendIcon(stats.messages?.trend)}
+                                            <Typography variant="caption" sx={{ ml: 0.5, color: getTrendColor(stats.messages?.trend) }}>
+                                                {Math.abs(stats.messages?.trend || 0)}% از هفته گذشته
+                                            </Typography>
+                                        </Box>
+                                    )}
                                 </Box>
-                                <People sx={{ fontSize: 48, color: '#10b981' }} />
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-                                <TrendingUp sx={{ color: 'success.main', fontSize: 16, mr: 0.5 }} />
-                                <Typography variant="caption" color="success.main">
-                                    +8% از هفته گذشته
-                                </Typography>
-                            </Box>
-                        </CardContent>
-                    </Card>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{
-                        background: 'linear-gradient(135deg, #f59e0b15 0%, #f59e0b05 100%)',
-                        border: '1px solid #f59e0b20'
-                    }}>
-                        <CardContent>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Box>
-                                    <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#f59e0b', mb: 1 }}>
-                                        24
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        وب‌سایت‌های فعال
-                                    </Typography>
-                                </Box>
-                                <Language sx={{ fontSize: 48, color: '#f59e0b' }} />
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-                                <TrendingUp sx={{ color: 'success.main', fontSize: 16, mr: 0.5 }} />
-                                <Typography variant="caption" color="success.main">
-                                    +3 از هفته گذشته
-                                </Typography>
-                            </Box>
-                        </CardContent>
-                    </Card>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={3}>
-                    <Card sx={{
-                        background: 'linear-gradient(135deg, #ef444415 0%, #ef444405 100%)',
-                        border: '1px solid #ef444420'
-                    }}>
-                        <CardContent>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Box>
-                                    <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#ef4444', mb: 1 }}>
-                                        95%
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        رضایت کاربران
-                                    </Typography>
-                                </Box>
-                                <Assessment sx={{ fontSize: 48, color: '#ef4444' }} />
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-                                <TrendingUp sx={{ color: 'success.main', fontSize: 16, mr: 0.5 }} />
-                                <Typography variant="caption" color="success.main">
-                                    +2% از هفته گذشته
-                                </Typography>
+                                <Assessment sx={{ fontSize: 40, opacity: 0.8 }} />
                             </Box>
                         </CardContent>
                     </Card>
@@ -237,11 +287,13 @@ const Reports = () => {
                                 <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
                                     فعالیت هفتگی
                                 </Typography>
-                                <Box sx={{ display: 'flex', gap: 1 }}>
-                                    <Chip label="گفتگوها" size="small" color="primary" />
-                                    <Chip label="کاربران" size="small" color="secondary" />
-                                    <Chip label="وب‌سایت‌ها" size="small" color="warning" />
-                                </Box>
+                                <Button
+                                    size="small"
+                                    startIcon={<Download />}
+                                    onClick={() => handleExport('weekly')}
+                                >
+                                    دانلود
+                                </Button>
                             </Box>
                             <ResponsiveContainer width="100%" height={300}>
                                 <LineChart data={weeklyData}>
@@ -249,16 +301,16 @@ const Reports = () => {
                                     <XAxis dataKey="day" />
                                     <YAxis />
                                     <Tooltip />
-                                    <Line type="monotone" dataKey="conversations" stroke="#667eea" strokeWidth={2} />
-                                    <Line type="monotone" dataKey="users" stroke="#10b981" strokeWidth={2} />
-                                    <Line type="monotone" dataKey="websites" stroke="#f59e0b" strokeWidth={2} />
+                                    <Line type="monotone" dataKey="conversations" stroke="#667eea" strokeWidth={2} name="گفتگوها" />
+                                    <Line type="monotone" dataKey="users" stroke="#10b981" strokeWidth={2} name="کاربران فعال" />
+                                    <Line type="monotone" dataKey="websites" stroke="#f59e0b" strokeWidth={2} name="وب‌سایت‌های جدید" />
                                 </LineChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
                 </Grid>
 
-                {/* Website Status Pie Chart */}
+                {/* Status Distribution */}
                 <Grid item xs={12} lg={4}>
                     <Card>
                         <CardContent>
@@ -268,7 +320,10 @@ const Reports = () => {
                             <ResponsiveContainer width="100%" height={200}>
                                 <PieChart>
                                     <Pie
-                                        data={pieData}
+                                        data={[
+                                            { name: 'فعال', value: stats.websites?.active || 0, color: '#10b981' },
+                                            { name: 'غیرفعال', value: (stats.websites?.total || 0) - (stats.websites?.active || 0), color: '#ef4444' }
+                                        ]}
                                         cx="50%"
                                         cy="50%"
                                         innerRadius={40}
@@ -276,7 +331,10 @@ const Reports = () => {
                                         paddingAngle={5}
                                         dataKey="value"
                                     >
-                                        {pieData.map((entry, index) => (
+                                        {[
+                                            { name: 'فعال', value: stats.websites?.active || 0, color: '#10b981' },
+                                            { name: 'غیرفعال', value: (stats.websites?.total || 0) - (stats.websites?.active || 0), color: '#ef4444' }
+                                        ].map((entry, index) => (
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Pie>
@@ -284,78 +342,139 @@ const Reports = () => {
                                 </PieChart>
                             </ResponsiveContainer>
                             <Box sx={{ mt: 2 }}>
-                                {pieData.map((item, index) => (
-                                    <Box key={index} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                        <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: item.color, mr: 1 }} />
-                                        <Typography variant="body2">{item.name}: {item.value}%</Typography>
-                                    </Box>
-                                ))}
+                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                                    <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#10b981', mr: 1 }} />
+                                    <Typography variant="body2">فعال: {stats.websites?.active || 0}</Typography>
+                                </Box>
+                                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                    <Box sx={{ width: 12, height: 12, borderRadius: '50%', bgcolor: '#ef4444', mr: 1 }} />
+                                    <Typography variant="body2">غیرفعال: {(stats.websites?.total || 0) - (stats.websites?.active || 0)}</Typography>
+                                </Box>
                             </Box>
                         </CardContent>
                     </Card>
                 </Grid>
             </Grid>
 
-            {/* Website Performance Table */}
-            <Card>
-                <CardContent>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                            عملکرد وب‌سایت‌ها
-                        </Typography>
-                        <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<Download />}
-                            onClick={() => handleExport('websites')}
-                        >
-                            دانلود
-                        </Button>
-                    </Box>
-                    <TableContainer component={Paper} sx={{ boxShadow: 'none' }}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>وب‌سایت</TableCell>
-                                    <TableCell align="center">گفتگوها</TableCell>
-                                    <TableCell align="center">کاربران</TableCell>
-                                    <TableCell align="center">صفحات</TableCell>
-                                    <TableCell align="center">عملکرد</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {websiteStats.map((website) => (
-                                    <TableRow key={website.name}>
-                                        <TableCell>
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Language sx={{ fontSize: 16, color: 'text.secondary' }} />
-                                                {website.name}
-                                            </Box>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Chip label={website.conversations} size="small" color="primary" />
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Chip label={website.users} size="small" color="secondary" />
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Chip label={website.pages} size="small" color="warning" />
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                                <Speed sx={{ fontSize: 16, color: 'success.main' }} />
-                                                <Typography variant="body2" color="success.main">
-                                                    عالی
-                                                </Typography>
-                                            </Box>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </CardContent>
-            </Card>
+            {/* Tables */}
+            <Grid container spacing={3}>
+                {/* Top Websites */}
+                <Grid item xs={12} lg={6}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                    وب‌سایت‌های برتر
+                                </Typography>
+                                <Button
+                                    size="small"
+                                    startIcon={<Download />}
+                                    onClick={() => handleExport('websites')}
+                                >
+                                    دانلود
+                                </Button>
+                            </Box>
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>وب‌سایت</TableCell>
+                                            <TableCell>مالک</TableCell>
+                                            <TableCell>وضعیت</TableCell>
+                                            <TableCell>گفتگوها</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {topWebsites.map((website) => (
+                                            <TableRow key={website.id}>
+                                                <TableCell>
+                                                    <Typography variant="body2" fontWeight="bold">
+                                                        {website.name}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        {website.domain}
+                                                    </Typography>
+                                                </TableCell>
+                                                <TableCell>{website.owner_email}</TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={website.status === 'ready' ? 'فعال' : website.status}
+                                                        color={website.status === 'ready' ? 'success' : 'warning'}
+                                                        size="small"
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip label={website.conversations_count} size="small" />
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* Top Users */}
+                <Grid item xs={12} lg={6}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                    کاربران برتر
+                                </Typography>
+                                <Button
+                                    size="small"
+                                    startIcon={<Download />}
+                                    onClick={() => handleExport('users')}
+                                >
+                                    دانلود
+                                </Button>
+                            </Box>
+                            <TableContainer>
+                                <Table size="small">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableCell>کاربر</TableCell>
+                                            <TableCell>نقش</TableCell>
+                                            <TableCell>وضعیت</TableCell>
+                                            <TableCell>وب‌سایت‌ها</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {topUsers.map((user) => (
+                                            <TableRow key={user.id}>
+                                                <TableCell>
+                                                    <Typography variant="body2" fontWeight="bold">
+                                                        {user.email}
+                                                    </Typography>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={user.role === 'admin' ? 'مدیر' : 'کاربر'}
+                                                        color={user.role === 'admin' ? 'error' : 'default'}
+                                                        size="small"
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip
+                                                        label={user.is_active ? 'فعال' : 'غیرفعال'}
+                                                        color={user.is_active ? 'success' : 'error'}
+                                                        size="small"
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Chip label={user.websites_count} size="small" />
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                        </CardContent>
+                    </Card>
+                </Grid>
+            </Grid>
         </Box>
     );
 };

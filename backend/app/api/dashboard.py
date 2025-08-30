@@ -798,3 +798,430 @@ async def get_admin_weekly_stats(
     except Exception as e:
         logger.error(f"خطا در دریافت آمار هفتگی ادمین: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== مدیریت کاربران ====================
+
+@router.get("/admin/users")
+async def get_admin_users(
+    page: int = 1,
+    limit: int = 20,
+    search: str = None,
+    role: str = None,
+    status: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت لیست کاربران برای ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        offset = (page - 1) * limit
+        
+        # ایجاد query base
+        query = db.query(User)
+        
+        # فیلتر بر اساس جستجو
+        if search:
+            query = query.filter(User.email.contains(search))
+        
+        # فیلتر بر اساس نقش
+        if role and role != 'all':
+            query = query.filter(User.role == role)
+        
+        # فیلتر بر اساس وضعیت
+        if status and status != 'all':
+            if status == 'active':
+                query = query.filter(User.is_active == True)
+            elif status == 'inactive':
+                query = query.filter(User.is_active == False)
+        
+        # شمارش کل
+        total = query.count()
+        
+        # دریافت کاربران
+        users = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+        
+        return {
+            "users": [
+                {
+                    "id": user.id,
+                    "email": user.email,
+                    "role": user.role,
+                    "is_active": user.is_active,
+                    "is_verified": user.is_verified,
+                    "created_at": user.created_at.isoformat(),
+                    "last_login": user.last_login.isoformat() if user.last_login else None,
+                    "websites_count": db.query(Website).filter(Website.owner_id == user.id).count(),
+                    "conversations_count": db.query(Chat).join(Website).filter(Website.owner_id == user.id).count()
+                }
+                for user in users
+            ],
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت لیست کاربران: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/admin/users/{user_id}")
+async def update_admin_user(
+    user_id: int,
+    user_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """به‌روزرسانی کاربر توسط ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # پیدا کردن کاربر
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="کاربر یافت نشد")
+        
+        # به‌روزرسانی فیلدها
+        if 'role' in user_data:
+            user.role = user_data['role']
+        if 'is_active' in user_data:
+            user.is_active = user_data['is_active']
+        if 'is_verified' in user_data:
+            user.is_verified = user_data['is_verified']
+        
+        db.commit()
+        
+        return {
+            "id": user.id,
+            "email": user.email,
+            "role": user.role,
+            "is_active": user.is_active,
+            "is_verified": user.is_verified,
+            "updated_at": user.updated_at.isoformat() if user.updated_at else None
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در به‌روزرسانی کاربر: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/admin/users/{user_id}")
+async def delete_admin_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """حذف کاربر توسط ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # بررسی اینکه کاربر خودش را حذف نکند
+        if user_id == current_user.id:
+            raise HTTPException(status_code=400, detail="نمی‌توانید حساب خودتان را حذف کنید")
+        
+        # پیدا کردن کاربر
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="کاربر یافت نشد")
+        
+        # حذف وب‌سایت‌های کاربر
+        db.query(Website).filter(Website.owner_id == user_id).delete()
+        
+        # حذف کاربر
+        db.delete(user)
+        db.commit()
+        
+        return {"message": "کاربر با موفقیت حذف شد"}
+        
+    except Exception as e:
+        logger.error(f"خطا در حذف کاربر: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== مدیریت وب‌سایت‌ها ====================
+
+@router.get("/admin/websites")
+async def get_admin_websites(
+    page: int = 1,
+    limit: int = 20,
+    search: str = None,
+    status: str = None,
+    owner_id: int = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت لیست وب‌سایت‌ها برای ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        offset = (page - 1) * limit
+        
+        # ایجاد query base
+        query = db.query(Website)
+        
+        # فیلتر بر اساس جستجو
+        if search:
+            query = query.filter(
+                or_(
+                    Website.name.contains(search),
+                    Website.domain.contains(search),
+                    Website.url.contains(search)
+                )
+            )
+        
+        # فیلتر بر اساس وضعیت
+        if status and status != 'all':
+            query = query.filter(Website.status == status)
+        
+        # فیلتر بر اساس مالک
+        if owner_id:
+            query = query.filter(Website.owner_id == owner_id)
+        
+        # شمارش کل
+        total = query.count()
+        
+        # دریافت وب‌سایت‌ها
+        websites = query.order_by(Website.created_at.desc()).offset(offset).limit(limit).all()
+        
+        return {
+            "websites": [
+                {
+                    "id": website.id,
+                    "name": website.name or website.domain,
+                    "domain": website.domain,
+                    "url": website.url,
+                    "status": website.status,
+                    "owner_email": website.owner.email,
+                    "owner_id": website.owner_id,
+                    "created_at": website.created_at.isoformat(),
+                    "updated_at": website.updated_at.isoformat() if website.updated_at else None,
+                    "conversations_count": db.query(Chat).filter(Chat.website_id == website.id).count(),
+                    "messages_count": db.query(Message).join(Chat).filter(Chat.website_id == website.id).count(),
+                    "crawl_info": website.crawl_info
+                }
+                for website in websites
+            ],
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت لیست وب‌سایت‌ها: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/admin/websites/{website_id}")
+async def update_admin_website(
+    website_id: int,
+    website_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """به‌روزرسانی وب‌سایت توسط ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # پیدا کردن وب‌سایت
+        website = db.query(Website).filter(Website.id == website_id).first()
+        if not website:
+            raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد")
+        
+        # به‌روزرسانی فیلدها
+        if 'status' in website_data:
+            website.status = website_data['status']
+        if 'name' in website_data:
+            website.name = website_data['name']
+        if 'crawl_settings' in website_data:
+            website.crawl_settings = website_data['crawl_settings']
+        if 'rag_settings' in website_data:
+            website.rag_settings = website_data['rag_settings']
+        
+        db.commit()
+        
+        return {
+            "id": website.id,
+            "name": website.name,
+            "domain": website.domain,
+            "status": website.status,
+            "updated_at": website.updated_at.isoformat() if website.updated_at else None
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در به‌روزرسانی وب‌سایت: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/admin/websites/{website_id}")
+async def delete_admin_website(
+    website_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """حذف وب‌سایت توسط ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # پیدا کردن وب‌سایت
+        website = db.query(Website).filter(Website.id == website_id).first()
+        if not website:
+            raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد")
+        
+        # حذف چت‌های مربوطه
+        db.query(Chat).filter(Chat.website_id == website_id).delete()
+        
+        # حذف وب‌سایت
+        db.delete(website)
+        db.commit()
+        
+        return {"message": "وب‌سایت با موفقیت حذف شد"}
+        
+    except Exception as e:
+        logger.error(f"خطا در حذف وب‌سایت: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== مدیریت گفتگوها ====================
+
+@router.get("/admin/conversations")
+async def get_admin_conversations(
+    page: int = 1,
+    limit: int = 20,
+    search: str = None,
+    website_id: int = None,
+    user_id: int = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت لیست گفتگوها برای ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        offset = (page - 1) * limit
+        
+        # ایجاد query base
+        query = db.query(Chat)
+        
+        # فیلتر بر اساس وب‌سایت
+        if website_id:
+            query = query.filter(Chat.website_id == website_id)
+        
+        # فیلتر بر اساس کاربر
+        if user_id:
+            query = query.join(Website).filter(Website.owner_id == user_id)
+        
+        # شمارش کل
+        total = query.count()
+        
+        # دریافت گفتگوها
+        conversations = query.order_by(Chat.created_at.desc()).offset(offset).limit(limit).all()
+        
+        return {
+            "conversations": [
+                {
+                    "id": chat.id,
+                    "session_id": chat.session_id,
+                    "website_name": chat.website.name or chat.website.domain,
+                    "website_id": chat.website_id,
+                    "owner_email": chat.website.owner.email,
+                    "owner_id": chat.website.owner_id,
+                    "created_at": chat.created_at.isoformat(),
+                    "updated_at": chat.updated_at.isoformat() if chat.updated_at else None,
+                    "messages_count": db.query(Message).filter(Message.chat_id == chat.id).count(),
+                    "last_message": db.query(Message).filter(Message.chat_id == chat.id).order_by(Message.created_at.desc()).first()
+                }
+                for chat in conversations
+            ],
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total + limit - 1) // limit
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت لیست گفتگوها: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/admin/conversations/{conversation_id}/messages")
+async def get_admin_conversation_messages(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت پیام‌های یک گفتگو برای ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # پیدا کردن گفتگو
+        chat = db.query(Chat).filter(Chat.id == conversation_id).first()
+        if not chat:
+            raise HTTPException(status_code=404, detail="گفتگو یافت نشد")
+        
+        # دریافت پیام‌ها
+        messages = db.query(Message).filter(Message.chat_id == conversation_id).order_by(Message.created_at.asc()).all()
+        
+        return {
+            "conversation": {
+                "id": chat.id,
+                "session_id": chat.session_id,
+                "website_name": chat.website.name or chat.website.domain,
+                "owner_email": chat.website.owner.email,
+                "created_at": chat.created_at.isoformat()
+            },
+            "messages": [
+                {
+                    "id": msg.id,
+                    "role": msg.role,
+                    "content": msg.content,
+                    "created_at": msg.created_at.isoformat()
+                }
+                for msg in messages
+            ]
+        }
+        
+    except Exception as e:
+        logger.error(f"خطا در دریافت پیام‌های گفتگو: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/admin/conversations/{conversation_id}")
+async def delete_admin_conversation(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """حذف گفتگو توسط ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # پیدا کردن گفتگو
+        chat = db.query(Chat).filter(Chat.id == conversation_id).first()
+        if not chat:
+            raise HTTPException(status_code=404, detail="گفتگو یافت نشد")
+        
+        # حذف پیام‌های گفتگو
+        db.query(Message).filter(Message.chat_id == conversation_id).delete()
+        
+        # حذف گفتگو
+        db.delete(chat)
+        db.commit()
+        
+        return {"message": "گفتگو با موفقیت حذف شد"}
+        
+    except Exception as e:
+        logger.error(f"خطا در حذف گفتگو: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -556,6 +556,132 @@ export const dashboard = {
     }
   },
 
+  // ==================== مدیریت کاربران ====================
+  getAdminUsers: async (page = 1, limit = 20, search = null, role = null, status = null) => {
+    try {
+      const params = { page, limit };
+      if (search) params.search = search;
+      if (role) params.role = role;
+      if (status) params.status = status;
+
+      const response = await api.get('/api/dashboard/admin/users', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting admin users:', error);
+      return {
+        users: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+        total_pages: 0
+      };
+    }
+  },
+
+  updateAdminUser: async (userId, userData) => {
+    try {
+      const response = await api.put(`/api/dashboard/admin/users/${userId}`, userData);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating admin user:', error);
+      throw error;
+    }
+  },
+
+  deleteAdminUser: async (userId) => {
+    try {
+      const response = await api.delete(`/api/dashboard/admin/users/${userId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting admin user:', error);
+      throw error;
+    }
+  },
+
+  // ==================== مدیریت وب‌سایت‌ها ====================
+  getAdminWebsites: async (page = 1, limit = 20, search = null, status = null, ownerId = null) => {
+    try {
+      const params = { page, limit };
+      if (search) params.search = search;
+      if (status) params.status = status;
+      if (ownerId) params.owner_id = ownerId;
+
+      const response = await api.get('/api/dashboard/admin/websites', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting admin websites:', error);
+      return {
+        websites: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+        total_pages: 0
+      };
+    }
+  },
+
+  updateAdminWebsite: async (websiteId, websiteData) => {
+    try {
+      const response = await api.put(`/api/dashboard/admin/websites/${websiteId}`, websiteData);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating admin website:', error);
+      throw error;
+    }
+  },
+
+  deleteAdminWebsite: async (websiteId) => {
+    try {
+      const response = await api.delete(`/api/dashboard/admin/websites/${websiteId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting admin website:', error);
+      throw error;
+    }
+  },
+
+  // ==================== مدیریت گفتگوها ====================
+  getAdminConversations: async (page = 1, limit = 20, search = null, websiteId = null, userId = null) => {
+    try {
+      const params = { page, limit };
+      if (search) params.search = search;
+      if (websiteId) params.website_id = websiteId;
+      if (userId) params.user_id = userId;
+
+      const response = await api.get('/api/dashboard/admin/conversations', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Error getting admin conversations:', error);
+      return {
+        conversations: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+        total_pages: 0
+      };
+    }
+  },
+
+  getAdminConversationMessages: async (conversationId) => {
+    try {
+      const response = await api.get(`/api/dashboard/admin/conversations/${conversationId}/messages`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting admin conversation messages:', error);
+      throw error;
+    }
+  },
+
+  deleteAdminConversation: async (conversationId) => {
+    try {
+      const response = await api.delete(`/api/dashboard/admin/conversations/${conversationId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting admin conversation:', error);
+      throw error;
+    }
+  },
+
   // گزارشات کاربر
   getUserReports: async (timeRange = '7d') => {
     try {
