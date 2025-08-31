@@ -30,17 +30,20 @@ async def maintenance_middleware(request: Request, call_next):
     try:
         # دریافت تنظیمات از دیتابیس
         db = next(get_db())
-        maintenance_mode = SystemSettingsService.get_setting(db, 'maintenanceMode', False)
-        
-        if maintenance_mode:
-            # اگر در حالت نگهداری هستیم
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "detail": "سیستم در حال نگهداری است. لطفاً بعداً تلاش کنید.",
-                    "maintenance": True
-                }
-            )
+        try:
+            maintenance_mode = SystemSettingsService.get_setting(db, 'maintenanceMode', False)
+            
+            if maintenance_mode:
+                # اگر در حالت نگهداری هستیم
+                return JSONResponse(
+                    status_code=503,
+                    content={
+                        "detail": "سیستم در حال نگهداری است. لطفاً بعداً تلاش کنید.",
+                        "maintenance": True
+                    }
+                )
+        finally:
+            db.close()
         
     except Exception as e:
         logger.error(f"Error checking maintenance mode: {str(e)}")
