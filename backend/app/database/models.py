@@ -150,16 +150,33 @@ class Notification(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     title = Column(String, nullable=False)
     message = Column(Text, nullable=False)
-    type = Column(String, nullable=False)  # info, success, warning, error
-    category = Column(String, nullable=False)  # conversation, website, system, security
+    type = Column(String, default="info")  # info, success, warning, error
+    category = Column(String, default="general")  # conversation, website, security, system
     is_read = Column(Boolean, default=False)
     is_sent_email = Column(Boolean, default=False)
     is_sent_push = Column(Boolean, default=False)
     is_sent_sms = Column(Boolean, default=False)
+    extra_data = Column(JSON, nullable=True)  # اطلاعات اضافی
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
-    # اطلاعات اضافی (JSON)
-    extra_data = Column(JSON, nullable=True)  # برای ذخیره اطلاعات اضافی مثل website_id, chat_id
-    
     # ارتباط با کاربر
-    user = relationship("User", back_populates="notifications") 
+    user = relationship("User", back_populates="notifications")
+
+    def __repr__(self):
+        return f"<Notification(id={self.id}, user_id={self.user_id}, type={self.type})>"
+
+class SystemSettings(Base):
+    __tablename__ = "system_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String, unique=True, index=True, nullable=False)
+    value = Column(Text, nullable=True)
+    value_type = Column(String, default="string")  # string, integer, float, boolean, json
+    description = Column(Text, nullable=True)
+    category = Column(String, default="general")  # general, email, security, rag, crawler, storage, notifications
+    is_public = Column(Boolean, default=False)  # آیا این تنظیم برای کاربران عادی قابل مشاهده است
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    def __repr__(self):
+        return f"<SystemSettings(key={self.key}, value={self.value})>" 

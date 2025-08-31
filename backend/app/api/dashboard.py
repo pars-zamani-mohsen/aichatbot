@@ -11,6 +11,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from ..database.database import get_db
+from ..database import models
 from ..database.models import User, Website, Chat, Message
 from .auth import get_current_user
 import logging
@@ -1279,54 +1280,30 @@ async def get_admin_system_settings(
         if current_user.role != "admin":
             raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
         
-        # در حال حاضر تنظیمات را از فایل یا متغیرهای محیطی می‌خوانیم
-        # در آینده می‌توانیم جدول جداگانه‌ای برای تنظیمات سیستم ایجاد کنیم
-        system_settings = {
-            # تنظیمات عمومی
-            "siteName": "RAG Chatbot System",
-            "siteDescription": "سیستم چت‌بات هوشمند با قابلیت RAG",
-            "maintenanceMode": False,
-            "debugMode": False,
-
-            # تنظیمات ایمیل
-            "smtpServer": "smtp.gmail.com",
-            "smtpPort": 587,
-            "smtpUsername": "noreply@example.com",
-            "smtpPassword": "",
-            "emailFrom": "noreply@example.com",
-
-            # تنظیمات امنیت
-            "sessionTimeout": 30,
-            "maxLoginAttempts": 5,
-            "passwordMinLength": 8,
-            "requireEmailVerification": True,
-            "enableTwoFactor": False,
-
-            # تنظیمات RAG
-            "defaultK": 5,
-            "maxResponseLength": 500,
-            "defaultTemperature": 0.7,
-            "defaultLanguage": "fa",
-
-            # تنظیمات کراولر
-            "maxPagesPerSite": 100,
-            "crawlDelay": 1,
-            "respectRobotsTxt": True,
-            "userAgent": "RAG-Chatbot-Crawler/1.0",
-
-            # تنظیمات ذخیره‌سازی
-            "maxFileSize": 10,
-            "allowedFileTypes": ["jpg", "png", "pdf", "txt"],
-            "backupEnabled": True,
-            "backupFrequency": "daily",
-
-            # تنظیمات اعلان‌ها
-            "emailNotifications": True,
-            "slackNotifications": False,
-            "slackWebhook": "",
-            "notifyOnError": True,
-            "notifyOnNewUser": True
-        }
+        # دریافت تنظیمات از دیتابیس
+        settings_query = db.query(models.SystemSettings).all()
+        
+        # تبدیل به فرمت مورد نیاز frontend
+        system_settings = {}
+        for setting in settings_query:
+            key = setting.key
+            value = setting.value
+            
+            # تبدیل نوع داده بر اساس value_type
+            if setting.value_type == 'integer':
+                value = int(value) if value else 0
+            elif setting.value_type == 'float':
+                value = float(value) if value else 0.0
+            elif setting.value_type == 'boolean':
+                value = value.lower() == 'true' if value else False
+            elif setting.value_type == 'json':
+                try:
+                    import json
+                    value = json.loads(value) if value else []
+                except:
+                    value = []
+            
+            system_settings[key] = value
         
         return system_settings
         
@@ -1346,9 +1323,48 @@ async def update_admin_system_settings(
         if current_user.role != "admin":
             raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
         
-        # در حال حاضر تنظیمات را در فایل یا متغیرهای محیطی ذخیره می‌کنیم
-        # در آینده می‌توانیم جدول جداگانه‌ای برای تنظیمات سیستم ایجاد کنیم
-        logger.info(f"System settings updated by admin {current_user.email}: {settings}")
+        # به‌روزرسانی تنظیمات در دیتابیس
+        for key, value in settings.items():
+            # تبدیل مقدار به string برای ذخیره در دیتابیس
+            if isinstance(value, bool):
+                value_str = str(value).lower()
+                value_type = 'boolean'
+            elif isinstance(value, int):
+                value_str = str(value)
+                value_type = 'integer'
+            elif isinstance(value, float):
+                value_str = str(value)
+                value_type = 'float'
+            elif isinstance(value, (list, dict)):
+                import json
+                value_str = json.dumps(value)
+                value_type = 'json'
+            else:
+                value_str = str(value) if value is not None else ''
+                value_type = 'string'
+            
+            # بررسی وجود تنظیم
+            existing_setting = db.query(models.SystemSettings).filter(models.SystemSettings.key == key).first()
+            
+            if existing_setting:
+                # به‌روزرسانی تنظیم موجود
+                existing_setting.value = value_str
+                existing_setting.value_type = value_type
+                existing_setting.updated_at = datetime.now(timezone.utc)
+            else:
+                # ایجاد تنظیم جدید
+                new_setting = models.SystemSettings(
+                    key=key,
+                    value=value_str,
+                    value_type=value_type,
+                    description=f"تنظیم {key}",
+                    category="general",
+                    is_public=False
+                )
+                db.add(new_setting)
+        
+        db.commit()
+        logger.info(f"System settings updated by admin {current_user.email}")
         
         return {"message": "تنظیمات سیستم با موفقیت به‌روزرسانی شد"}
         

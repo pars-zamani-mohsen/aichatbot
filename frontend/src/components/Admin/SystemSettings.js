@@ -28,15 +28,14 @@ import {
     Storage,
     Speed,
     Notifications,
-    CloudUpload,
-    Backup,
-    Restore
+    CloudUpload
 } from '@mui/icons-material';
 import { dashboard } from '../../services/api';
 
 const SystemSettings = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [message, setMessage] = useState({ type: '', text: '' });
     const [settings, setSettings] = useState({
         // تنظیمات عمومی
         siteName: 'RAG Chatbot System',
@@ -73,8 +72,6 @@ const SystemSettings = () => {
         // تنظیمات ذخیره‌سازی
         maxFileSize: 10,
         allowedFileTypes: ['jpg', 'png', 'pdf', 'txt'],
-        backupEnabled: true,
-        backupFrequency: 'daily',
 
         // تنظیمات اعلان‌ها
         emailNotifications: true,
@@ -92,6 +89,7 @@ const SystemSettings = () => {
                 setSettings(data);
             } catch (error) {
                 console.error('Error fetching system settings:', error);
+                setMessage({ type: 'error', text: 'خطا در دریافت تنظیمات سیستم' });
             } finally {
                 setLoading(false);
             }
@@ -110,10 +108,12 @@ const SystemSettings = () => {
     const handleSave = async () => {
         try {
             setSaving(true);
+            setMessage({ type: '', text: '' });
             await dashboard.updateAdminSystemSettings(settings);
-            // نمایش پیام موفقیت
+            setMessage({ type: 'success', text: 'تنظیمات سیستم با موفقیت ذخیره شد' });
         } catch (error) {
             console.error('Error saving system settings:', error);
+            setMessage({ type: 'error', text: 'خطا در ذخیره تنظیمات سیستم' });
         } finally {
             setSaving(false);
         }
@@ -122,10 +122,13 @@ const SystemSettings = () => {
     const handleReset = async () => {
         try {
             setLoading(true);
+            setMessage({ type: '', text: '' });
             const data = await dashboard.getAdminSystemSettings();
             setSettings(data);
+            setMessage({ type: 'success', text: 'تنظیمات به حالت اولیه بازگردانده شد' });
         } catch (error) {
             console.error('Error resetting system settings:', error);
+            setMessage({ type: 'error', text: 'خطا در بازگردانی تنظیمات' });
         } finally {
             setLoading(false);
         }
@@ -169,6 +172,12 @@ const SystemSettings = () => {
                     </Button>
                 </Box>
             </Box>
+
+            {message.text && (
+                <Alert severity={message.type} sx={{ mb: 3 }}>
+                    {message.text}
+                </Alert>
+            )}
 
             <Grid container spacing={3}>
                 {/* تنظیمات عمومی */}
@@ -514,67 +523,7 @@ const SystemSettings = () => {
                     </Card>
                 </Grid>
 
-                {/* تنظیمات پشتیبان‌گیری */}
-                <Grid item xs={12}>
-                    <Card>
-                        <CardContent>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                                <Backup sx={{ mr: 1, color: 'secondary.main' }} />
-                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                                    تنظیمات پشتیبان‌گیری
-                                </Typography>
-                            </Box>
 
-                            <Grid container spacing={2}>
-                                <Grid item xs={12} md={6}>
-                                    <FormControlLabel
-                                        control={
-                                            <Switch
-                                                checked={settings.backupEnabled}
-                                                onChange={(e) => handleSettingChange('backupEnabled', e.target.checked)}
-                                            />
-                                        }
-                                        label="فعال‌سازی پشتیبان‌گیری خودکار"
-                                        sx={{ mb: 2 }}
-                                    />
-
-                                    <FormControl fullWidth>
-                                        <InputLabel>فرکانس پشتیبان‌گیری</InputLabel>
-                                        <Select
-                                            value={settings.backupFrequency}
-                                            label="فرکانس پشتیبان‌گیری"
-                                            onChange={(e) => handleSettingChange('backupFrequency', e.target.value)}
-                                        >
-                                            <MenuItem value="hourly">ساعتی</MenuItem>
-                                            <MenuItem value="daily">روزانه</MenuItem>
-                                            <MenuItem value="weekly">هفتگی</MenuItem>
-                                            <MenuItem value="monthly">ماهانه</MenuItem>
-                                        </Select>
-                                    </FormControl>
-                                </Grid>
-
-                                <Grid item xs={12} md={6}>
-                                    <Box sx={{ display: 'flex', gap: 2 }}>
-                                        <Button
-                                            variant="outlined"
-                                            startIcon={<Backup />}
-                                            fullWidth
-                                        >
-                                            ایجاد پشتیبان دستی
-                                        </Button>
-                                        <Button
-                                            variant="outlined"
-                                            startIcon={<Restore />}
-                                            fullWidth
-                                        >
-                                            بازیابی
-                                        </Button>
-                                    </Box>
-                                </Grid>
-                            </Grid>
-                        </CardContent>
-                    </Card>
-                </Grid>
             </Grid>
         </Box>
     );
