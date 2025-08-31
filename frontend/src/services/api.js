@@ -907,4 +907,64 @@ export const notifications = {
   }
 };
 
+// ==================== آرشیو ایمیل‌ها ====================
+export const emailArchive = {
+  getAdminEmailArchive: async (params = {}) => {
+    try {
+      const queryParams = new URLSearchParams();
+      Object.keys(params).forEach(key => {
+        if (params[key] !== undefined && params[key] !== null) {
+          queryParams.append(key, params[key]);
+        }
+      });
+
+      const response = await api.get(`/api/admin/email-archive?${queryParams.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting email archive:', error);
+      throw error;
+    }
+  },
+
+  getAdminEmailDetail: async (emailId) => {
+    try {
+      const response = await api.get(`/api/admin/email-archive/${emailId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting email detail:', error);
+      throw error;
+    }
+  },
+
+  deleteAdminEmail: async (emailId) => {
+    try {
+      const response = await api.delete(`/api/admin/email-archive/${emailId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting email:', error);
+      throw error;
+    }
+  },
+
+  getAdminEmailStats: async () => {
+    try {
+      const response = await api.get('/api/admin/email-archive/stats');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting email stats:', error);
+      throw error;
+    }
+  },
+
+  retryFailedEmails: async (maxRetries = 3) => {
+    try {
+      const response = await api.post(`/api/admin/email-archive/retry-failed?max_retries=${maxRetries}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error retrying failed emails:', error);
+      throw error;
+    }
+  }
+};
+
 export default api; 

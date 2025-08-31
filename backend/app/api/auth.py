@@ -64,11 +64,6 @@ def send_verification_email(email: str, token: str, db: Session = None):
             smtp_password = settings.SMTP_PASSWORD
             email_from = settings.SMTP_USERNAME
         
-        # بررسی تنظیمات ایمیل
-        if not smtp_server or not smtp_username or not smtp_password:
-            logger.warning("SMTP settings not configured, skipping email")
-            return False
-        
         msg = MIMEMultipart()
         msg['From'] = email_from
         msg['To'] = email
@@ -87,6 +82,32 @@ def send_verification_email(email: str, token: str, db: Session = None):
         
         msg.attach(MIMEText(body, 'plain'))
         
+        # آرشیو ایمیل قبل از ارسال (همیشه)
+        if db:
+            from ..services.email_archive_service import EmailArchiveService
+            user = db.query(models.User).filter(models.User.email == email).first()
+            user_id = user.id if user else None
+            
+            EmailArchiveService.archive_email(
+                db=db,
+                email_type="verification",
+                recipient_email=email,
+                subject="تأیید حساب کاربری",
+                body=body,
+                from_email=email_from,
+                to_email=email,
+                smtp_server=smtp_server,
+                smtp_port=smtp_port,
+                smtp_username=smtp_username,
+                user_id=user_id,
+                extra_data={"token": token}
+            )
+        
+        # بررسی تنظیمات ایمیل برای ارسال
+        if not smtp_server or not smtp_username or not smtp_password:
+            logger.warning("SMTP settings not configured, skipping email send but archived")
+            return False
+        
         server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
         server.login(smtp_username, smtp_password)
@@ -98,11 +119,27 @@ def send_verification_email(email: str, token: str, db: Session = None):
         logger.error(f"خطا در ارسال ایمیل: {str(e)}")
         return False
 
-def send_reset_password_email(email: str, token: str):
+def send_reset_password_email(email: str, token: str, db: Session = None):
     """ارسال ایمیل بازیابی رمز عبور"""
     try:
+        # دریافت تنظیمات ایمیل از دیتابیس
+        if db:
+            email_settings = SystemSettingsService.get_email_settings(db)
+            smtp_server = email_settings.get('smtp_server', 'smtp.gmail.com')
+            smtp_port = email_settings.get('smtp_port', 587)
+            smtp_username = email_settings.get('smtp_username', '')
+            smtp_password = email_settings.get('smtp_password', '')
+            email_from = email_settings.get('email_from', '')
+        else:
+            # استفاده از تنظیمات پیش‌فرض
+            smtp_server = settings.SMTP_SERVER
+            smtp_port = settings.SMTP_PORT
+            smtp_username = settings.SMTP_USERNAME
+            smtp_password = settings.SMTP_PASSWORD
+            email_from = settings.SMTP_USERNAME
+        
         msg = MIMEMultipart()
-        msg['From'] = settings.SMTP_USERNAME
+        msg['From'] = email_from
         msg['To'] = email
         msg['Subject'] = "بازیابی رمز عبور"
         
@@ -119,31 +156,68 @@ def send_reset_password_email(email: str, token: str):
         
         msg.attach(MIMEText(body, 'plain'))
         
-        server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT)
+        # آرشیو ایمیل قبل از ارسال (همیشه)
+        if db:
+            from ..services.email_archive_service import EmailArchiveService
+            user = db.query(models.User).filter(models.User.email == email).first()
+            user_id = user.id if user else None
+            
+            EmailArchiveService.archive_email(
+                db=db,
+                email_type="reset_password",
+                recipient_email=email,
+                subject="بازیابی رمز عبور",
+                body=body,
+                from_email=email_from,
+                to_email=email,
+                smtp_server=smtp_server,
+                smtp_port=smtp_port,
+                smtp_username=smtp_username,
+                user_id=user_id,
+                extra_data={"token": token}
+            )
+        
+        # بررسی تنظیمات ایمیل برای ارسال
+        if not smtp_server or not smtp_username or not smtp_password:
+            logger.warning("SMTP settings not configured, skipping email send but archived")
+            return False
+        
+        server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
-        server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+        server.login(smtp_username, smtp_password)
         server.send_message(msg)
         server.quit()
         
         return True
     except Exception as e:
-        print(f"خطا در ارسال ایمیل: {str(e)}")
+        logger.error(f"خطا در ارسال ایمیل: {str(e)}")
         return False
 
 def generate_2fa_code() -> str:
     """تولید کد 6 رقمی برای 2FA"""
     return str(random.randint(100000, 999999))
 
-def send_2fa_code_email(email: str, code: str):
+def send_2fa_code_email(email: str, code: str, db: Session = None):
     """ارسال کد 2FA به ایمیل"""
     try:
-        # اگر تنظیمات SMTP موجود نیست، فقط لاگ کنیم (برای تست)
-        if not settings.SMTP_SERVER or not settings.SMTP_USERNAME or not settings.SMTP_PASSWORD:
-            logger.info(f"کد 2FA برای {email}: {code}")
-            return True
-            
+        # دریافت تنظیمات ایمیل از دیتابیس
+        if db:
+            email_settings = SystemSettingsService.get_email_settings(db)
+            smtp_server = email_settings.get('smtp_server', 'smtp.gmail.com')
+            smtp_port = email_settings.get('smtp_port', 587)
+            smtp_username = email_settings.get('smtp_username', '')
+            smtp_password = email_settings.get('smtp_password', '')
+            email_from = email_settings.get('email_from', '')
+        else:
+            # استفاده از تنظیمات پیش‌فرض
+            smtp_server = settings.SMTP_SERVER
+            smtp_port = settings.SMTP_PORT
+            smtp_username = settings.SMTP_USERNAME
+            smtp_password = settings.SMTP_PASSWORD
+            email_from = settings.SMTP_USERNAME
+        
         msg = MIMEMultipart()
-        msg['From'] = settings.SMTP_USERNAME
+        msg['From'] = email_from
         msg['To'] = email
         msg['Subject'] = "کد احراز هویت دو مرحله‌ای"
         
@@ -159,9 +233,35 @@ def send_2fa_code_email(email: str, code: str):
         
         msg.attach(MIMEText(body, 'plain'))
         
-        server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT)
+        # آرشیو ایمیل قبل از ارسال (همیشه)
+        if db:
+            from ..services.email_archive_service import EmailArchiveService
+            user = db.query(models.User).filter(models.User.email == email).first()
+            user_id = user.id if user else None
+            
+            EmailArchiveService.archive_email(
+                db=db,
+                email_type="2fa",
+                recipient_email=email,
+                subject="کد احراز هویت دو مرحله‌ای",
+                body=body,
+                from_email=email_from,
+                to_email=email,
+                smtp_server=smtp_server,
+                smtp_port=smtp_port,
+                smtp_username=smtp_username,
+                user_id=user_id,
+                extra_data={"code": code}
+            )
+        
+        # بررسی تنظیمات ایمیل برای ارسال
+        if not smtp_server or not smtp_username or not smtp_password:
+            logger.info(f"کد 2FA برای {email}: {code} (archived but not sent)")
+            return True
+        
+        server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
-        server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+        server.login(smtp_username, smtp_password)
         server.send_message(msg)
         server.quit()
         
@@ -356,7 +456,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             db.commit()
             
             # ارسال کد به ایمیل
-            if send_2fa_code_email(user.email, code):
+            if send_2fa_code_email(user.email, code, db):
                 raise HTTPException(
                     status_code=status.HTTP_202_ACCEPTED,
                     detail="کد احراز هویت دو مرحله‌ای به ایمیل شما ارسال شد",
@@ -598,7 +698,7 @@ async def enable_2fa(
         db.commit()
         
         # ارسال کد به ایمیل
-        if send_2fa_code_email(current_user.email, code):
+        if send_2fa_code_email(current_user.email, code, db):
             return {
                 "message": "کد احراز هویت به ایمیل شما ارسال شد",
                 "email": current_user.email
@@ -854,7 +954,7 @@ async def forgot_password(email: schemas.EmailRequest, db: Session = Depends(get
     
     # ارسال ایمیل بازیابی
     if hasattr(settings, 'SMTP_SERVER') and settings.SMTP_SERVER:
-        send_reset_password_email(email.email, reset_token)
+        send_reset_password_email(email.email, reset_token, db)
     else:
         # در محیط local، توکن را در console نمایش دهیم
         logger.info(f"کد بازیابی کلمه عبور برای {email.email}: {reset_token}")

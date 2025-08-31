@@ -179,4 +179,42 @@ class SystemSettings(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     def __repr__(self):
-        return f"<SystemSettings(key={self.key}, value={self.value})>" 
+        return f"<SystemSettings(key={self.key}, value={self.value})>"
+
+class EmailArchive(Base):
+    __tablename__ = "email_archive"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email_type = Column(String, nullable=False)  # verification, reset_password, 2fa, notification, custom
+    recipient_email = Column(String, nullable=False)
+    subject = Column(String, nullable=False)
+    body = Column(Text, nullable=False)
+    html_body = Column(Text, nullable=True)  # برای ایمیل‌های HTML
+    from_email = Column(String, nullable=False)
+    to_email = Column(String, nullable=False)
+    cc_emails = Column(JSON, nullable=True)  # لیست CC
+    bcc_emails = Column(JSON, nullable=True)  # لیست BCC
+    attachments = Column(JSON, nullable=True)  # اطلاعات فایل‌های پیوست
+    
+    # تنظیمات SMTP
+    smtp_server = Column(String, nullable=True)
+    smtp_port = Column(Integer, nullable=True)
+    smtp_username = Column(String, nullable=True)
+    
+    # وضعیت ارسال
+    is_sent = Column(Boolean, default=False)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    error_message = Column(Text, nullable=True)
+    retry_count = Column(Integer, default=0)
+    max_retries = Column(Integer, default=3)
+    
+    # اطلاعات اضافی
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # کاربر مرتبط
+    website_id = Column(Integer, ForeignKey("websites.id"), nullable=True)  # وب‌سایت مرتبط
+    extra_data = Column(JSON, nullable=True)  # اطلاعات اضافی
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    def __repr__(self):
+        return f"<EmailArchive(id={self.id}, type={self.email_type}, recipient={self.recipient_email}, sent={self.is_sent})>" 

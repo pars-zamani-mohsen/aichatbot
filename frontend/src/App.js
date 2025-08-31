@@ -27,6 +27,7 @@ import UserHistory from './components/User/UserHistory';
 import UserSettings from './components/User/UserSettings';
 import NotificationCenter from './components/Notifications/NotificationCenter';
 import NotificationManagement from './components/Admin/NotificationManagement';
+import EmailArchive from './components/Admin/EmailArchive';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 
@@ -97,6 +98,7 @@ function AppContent() {
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/reports" element={<Reports />} />
             <Route path="/admin/notifications" element={<NotificationManagement />} />
+            <Route path="/admin/email-archive" element={<EmailArchive />} />
             <Route path="/admin/settings" element={<SystemSettings />} />
             <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
           </Routes>

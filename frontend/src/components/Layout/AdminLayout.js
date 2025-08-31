@@ -29,6 +29,7 @@ import {
     People,
     Assessment,
     Notifications,
+    Email,
     AccountCircle,
     AdminPanelSettings,
     Logout,
@@ -93,6 +94,7 @@ const AdminLayout = ({ children }) => {
         { text: 'مدیریت کاربران', icon: <People />, path: '/admin/users' },
         { text: 'گزارشات', icon: <Assessment />, path: '/admin/reports' },
         { text: 'مدیریت اعلان‌ها', icon: <Notifications />, path: '/admin/notifications' },
+        { text: 'آرشیو ایمیل‌ها', icon: <Email />, path: '/admin/email-archive' },
         { text: 'تنظیمات سیستم', icon: <Settings />, path: '/admin/settings' },
     ];
 
