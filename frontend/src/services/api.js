@@ -744,6 +744,16 @@ export const dashboard = {
     }
   },
 
+  getSystemSettings: async () => {
+    try {
+      const response = await api.get('/api/dashboard/system-settings');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting system settings:', error);
+      throw error;
+    }
+  },
+
   updateAdminSystemSettings: async (settings) => {
     try {
       const response = await api.put('/api/dashboard/admin/system-settings', settings);

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { notifications as notificationService } from '../services/api';
+import { notifications as notificationService, auth } from '../services/api';
 
 const NotificationContext = createContext();
 
@@ -18,6 +18,13 @@ export const NotificationProvider = ({ children }) => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [notificationSettings, setNotificationSettings] = useState({
+        emailNotifications: true,
+        pushNotifications: true,
+        smsNotifications: false,
+        notifyOnNewConversation: true,
+        notifyOnWebsiteUpdate: true
+    });
 
     // پاک کردن state وقتی کاربر تغییر می‌کند
     useEffect(() => {
@@ -133,14 +140,34 @@ export const NotificationProvider = ({ children }) => {
         }
     };
 
+    // دریافت تنظیمات اعلان‌های کاربر
+    const fetchNotificationSettings = async () => {
+        if (!user) return;
+
+        try {
+            const userSettings = await auth.getUserSettings();
+            if (userSettings.notifications) {
+                setNotificationSettings({
+                    emailNotifications: userSettings.notifications.emailNotifications ?? true,
+                    pushNotifications: userSettings.notifications.pushNotifications ?? true,
+                    smsNotifications: userSettings.notifications.smsNotifications ?? false,
+                    notifyOnNewConversation: userSettings.notifications.notifyOnNewConversation ?? true,
+                    notifyOnWebsiteUpdate: userSettings.notifications.notifyOnWebsiteUpdate ?? true
+                });
+            }
+        } catch (err) {
+            console.error('Error fetching notification settings:', err);
+        }
+    };
+
     // به‌روزرسانی خودکار فقط یک بار وقتی کاربر login می‌کند
     useEffect(() => {
         if (!user?.id) return;
 
-
         // فقط یک بار درخواست ارسال کن
         fetchNotifications();
         fetchUnreadCount();
+        fetchNotificationSettings();
     }, [user?.id]); // فقط وقتی user.id تغییر می‌کند
 
     const value = {
@@ -148,8 +175,10 @@ export const NotificationProvider = ({ children }) => {
         unreadCount,
         loading,
         error,
+        notificationSettings,
         fetchNotifications,
         fetchUnreadCount,
+        fetchNotificationSettings,
         markAsRead,
         markAllAsRead,
         deleteNotification,

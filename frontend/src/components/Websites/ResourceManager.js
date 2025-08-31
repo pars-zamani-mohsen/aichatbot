@@ -150,7 +150,8 @@ const ResourceManager = ({ website }) => {
                             <SettingsIcon />
                         </IconButton>
                     </Tooltip>
-                    <Button
+                    {/* دکمه کراول مجدد مخفی شده است */}
+                    {/* <Button
                         variant="contained"
                         startIcon={reCrawlLoading ? <CircularProgress size={20} /> : <RefreshIcon />}
                         onClick={handleReCrawl}
@@ -158,7 +159,7 @@ const ResourceManager = ({ website }) => {
                         sx={{ mr: 1 }}
                     >
                         کراول مجدد
-                    </Button>
+                    </Button> */}
                 </Box>
             </Box>
 

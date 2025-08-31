@@ -56,7 +56,7 @@ const UserLayout = ({ children }) => {
         // دریافت تنظیمات عمومی
         const fetchSiteSettings = async () => {
             try {
-                const settings = await dashboard.getAdminSystemSettings();
+                const settings = await dashboard.getSystemSettings();
                 if (settings.siteName) {
                     setSiteName(settings.siteName);
                     document.title = settings.siteName;

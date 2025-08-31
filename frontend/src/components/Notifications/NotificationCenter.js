@@ -21,7 +21,10 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-  Select
+  Select,
+  Card,
+  CardContent,
+  Grid
 } from '@mui/material';
 import {
   Notifications as NotificationsIcon,
@@ -40,7 +43,7 @@ import {
 import { useNotifications } from '../../contexts/NotificationContext';
 
 const NotificationCenter = () => {
-  const { notifications, unreadCount, loading, error, fetchNotifications, markAsRead, markAllAsRead, deleteNotification, clearError } = useNotifications();
+  const { notifications, unreadCount, loading, error, notificationSettings, fetchNotifications, markAsRead, markAllAsRead, deleteNotification, clearError } = useNotifications();
   const [anchorEl, setAnchorEl] = useState(null);
   const [filterCategory, setFilterCategory] = useState('all');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
@@ -246,6 +249,77 @@ const NotificationCenter = () => {
           {error}
         </Alert>
       )}
+
+      {/* تنظیمات اعلان‌ها */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            تنظیمات اعلان‌ها
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={4}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  label="ایمیل"
+                  color={notificationSettings.emailNotifications ? "success" : "default"}
+                  size="small"
+                />
+                <Typography variant="body2" color="text.secondary">
+                  {notificationSettings.emailNotifications ? "فعال" : "غیرفعال"}
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  label="Push"
+                  color={notificationSettings.pushNotifications ? "success" : "default"}
+                  size="small"
+                />
+                <Typography variant="body2" color="text.secondary">
+                  {notificationSettings.pushNotifications ? "فعال" : "غیرفعال"}
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  label="SMS"
+                  color={notificationSettings.smsNotifications ? "success" : "default"}
+                  size="small"
+                />
+                <Typography variant="body2" color="text.secondary">
+                  {notificationSettings.smsNotifications ? "فعال" : "غیرفعال"}
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  label="گفتگوهای جدید"
+                  color={notificationSettings.notifyOnNewConversation ? "success" : "default"}
+                  size="small"
+                />
+                <Typography variant="body2" color="text.secondary">
+                  {notificationSettings.notifyOnNewConversation ? "فعال" : "غیرفعال"}
+                </Typography>
+              </Box>
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Chip
+                  label="به‌روزرسانی وب‌سایت"
+                  color={notificationSettings.notifyOnWebsiteUpdate ? "success" : "default"}
+                  size="small"
+                />
+                <Typography variant="body2" color="text.secondary">
+                  {notificationSettings.notifyOnWebsiteUpdate ? "فعال" : "غیرفعال"}
+                </Typography>
+              </Box>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
       {/* لیست اعلان‌ها */}
       {loading ? (

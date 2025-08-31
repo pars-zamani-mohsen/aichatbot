@@ -1291,6 +1291,27 @@ async def get_admin_system_settings(
         logger.error(f"Error getting system settings: {str(e)}")
         raise HTTPException(status_code=500, detail="خطا در دریافت تنظیمات سیستم")
 
+@router.get("/system-settings")
+async def get_system_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت تنظیمات عمومی سیستم برای همه کاربران"""
+    try:
+        # دریافت تنظیمات عمومی که همه کاربران می‌توانند ببینند
+        public_settings = {
+            "siteName": SystemSettingsService.get_setting(db, "siteName", "RAG Chatbot System"),
+            "siteDescription": SystemSettingsService.get_setting(db, "siteDescription", "سیستم چت‌بات هوشمند"),
+            "maintenanceMode": SystemSettingsService.get_setting(db, "maintenanceMode", False),
+            "debugMode": SystemSettingsService.get_setting(db, "debugMode", False)
+        }
+        
+        return public_settings
+        
+    except Exception as e:
+        logger.error(f"Error getting public system settings: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطا در دریافت تنظیمات سیستم")
+
 @router.put("/admin/system-settings")
 async def update_admin_system_settings(
     settings: Dict[str, Any],
