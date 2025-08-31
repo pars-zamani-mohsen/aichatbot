@@ -268,11 +268,13 @@ const AdminLayout = ({ children }) => {
                 }}
             >
                 <MenuItem onClick={() => {
+                    console.log('Settings menu item clicked');
                     handleProfileMenuClose();
+                    console.log('Navigating to /admin/settings');
                     navigate('/admin/settings');
                 }}>
                     <Settings sx={{ mr: 1 }} />
-                    تنظیمات
+                    تنظیمات سیستم
                 </MenuItem>
                 <Divider />
                 <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
