@@ -1,5 +1,4 @@
 from typing import Dict, List, Optional, Tuple
-from sentence_transformers import CrossEncoder
 from chromadb.api import Collection
 from rank_bm25 import BM25Okapi
 from langdetect import detect
@@ -8,6 +7,15 @@ import logging
 import time
 import re
 from app.config import settings
+
+# تلاش برای import CrossEncoder به صورت اختیاری
+try:
+    from sentence_transformers import CrossEncoder
+    CROSS_ENCODER_AVAILABLE = True
+except ImportError:
+    CROSS_ENCODER_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("CrossEncoder not available. Reranking will be disabled.")
 
 # تنظیم لاگر
 logging.basicConfig(
@@ -32,7 +40,17 @@ class HybridSearcher:
         self.max_tokens = max_tokens or int(settings.MAX_TOKENS)
         self.tokens_per_min = tokens_per_min or int(settings.TOKENS_PER_MIN)
         self.embedding_model = embedding_model or settings.EMBEDDING_MODEL_NAME
-        self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+        
+        # تلاش برای بارگذاری CrossEncoder
+        self.reranker = None
+        if CROSS_ENCODER_AVAILABLE:
+            try:
+                self.reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+                logger.info("CrossEncoder loaded successfully")
+            except Exception as e:
+                logger.warning(f"Failed to load CrossEncoder: {str(e)}. Reranking will be disabled.")
+                self.reranker = None
+        
         self.debug_mode = settings.DEBUG_MODE
 
         # تنظیمات کش
@@ -391,6 +409,11 @@ class HybridSearcher:
     def _rerank_results(self, doc_pairs: List[Tuple[str, str]]) -> np.ndarray:
         """بازمرتب‌سازی نتایج با CrossEncoder"""
         try:
+            # اگر CrossEncoder در دسترس نیست، امتیازات یکسان برمی‌گردانیم
+            if not self.reranker:
+                logger.info("CrossEncoder not available, skipping reranking")
+                return np.ones(len(doc_pairs))
+            
             if not doc_pairs:
                 return np.array([])
 

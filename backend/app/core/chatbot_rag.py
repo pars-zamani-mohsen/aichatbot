@@ -53,11 +53,19 @@ class RAGChatbot:
                     for var, value in original_env.items():
                         os.environ[var] = value
             
-            # ایجاد کلاینت بدون proxy
+            # ایجاد کلاینت بدون proxy با تنظیمات timeout
             with no_proxy():
+                # ایجاد httpx client سفارشی
+                http_client = httpx.Client(
+                    timeout=httpx.Timeout(60.0, connect=30.0),
+                    limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+                    verify=True  # اطمینان از SSL verification
+                )
+                
                 self.client = openai.OpenAI(
                     api_key=openai_api_key or settings.OPENAI_API_KEY,
-                    base_url=settings.OPENAI_API_BASE_URL if hasattr(settings, 'OPENAI_API_BASE_URL') and settings.OPENAI_API_BASE_URL else None
+                    base_url=settings.OPENAI_API_BASE_URL if hasattr(settings, 'OPENAI_API_BASE_URL') and settings.OPENAI_API_BASE_URL else None,
+                    http_client=http_client
                 )
                 
         except Exception as e:
@@ -172,12 +180,13 @@ class RAGChatbot:
                 query_type=query_type
             )
             
-            # ارسال به مدل زبانی
+            # ارسال به مدل زبانی با timeout بیشتر
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=self.max_tokens,
-                temperature=self.temperature
+                temperature=self.temperature,
+                timeout=120  # افزایش timeout به 2 دقیقه
             ).choices[0].message.content
             
             # استخراج منابع
