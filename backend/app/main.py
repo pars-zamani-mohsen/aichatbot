@@ -6,6 +6,8 @@ from .database import models
 from .api import websites, chats, auth, widget, dashboard, notifications
 from .config import settings
 from .middleware import error_handler, logging_middleware
+from .middleware.maintenance_middleware import maintenance_middleware
+from .middleware.debug_middleware import debug_middleware
 from .core.logging_config import setup_logging
 import logging
 
@@ -30,6 +32,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+app.middleware("http")(maintenance_middleware)
+app.middleware("http")(debug_middleware)
 app.middleware("http")(error_handler)
 app.middleware("http")(logging_middleware)
 

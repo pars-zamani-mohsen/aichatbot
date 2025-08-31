@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     Drawer,
@@ -38,6 +38,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import NotificationBell from '../Notifications/NotificationBell';
+import { dashboard } from '../../services/api';
 
 const drawerWidth = 280;
 
@@ -45,10 +46,28 @@ const AdminLayout = ({ children }) => {
     const [mobileOpen, setMobileOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
     const [darkMode, setDarkMode] = useState(false);
+    const [siteName, setSiteName] = useState('RAG Chatbot System');
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const navigate = useNavigate();
     const { logout } = useAuth();
+
+    useEffect(() => {
+        // دریافت تنظیمات عمومی
+        const fetchSiteSettings = async () => {
+            try {
+                const settings = await dashboard.getAdminSystemSettings();
+                if (settings.siteName) {
+                    setSiteName(settings.siteName);
+                    document.title = settings.siteName;
+                }
+            } catch (error) {
+                console.error('Error fetching site settings:', error);
+            }
+        };
+
+        fetchSiteSettings();
+    }, []);
 
     const handleDrawerToggle = () => {
         setMobileOpen(!mobileOpen);
@@ -165,7 +184,11 @@ const AdminLayout = ({ children }) => {
                         <MenuIcon />
                     </IconButton>
 
-                    <Box sx={{ flexGrow: 1 }} />
+                    <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'white' }}>
+                            {siteName}
+                        </Typography>
+                    </Box>
 
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <IconButton color="inherit" onClick={() => setDarkMode(!darkMode)}>

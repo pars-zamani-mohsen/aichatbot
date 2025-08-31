@@ -45,11 +45,32 @@ def migrate_password_hash(user: models.User, plain_password: str) -> bool:
     except Exception:
         return False
 
-def send_verification_email(email: str, token: str):
+def send_verification_email(email: str, token: str, db: Session = None):
     """ارسال ایمیل تأیید"""
     try:
+        # دریافت تنظیمات ایمیل از دیتابیس
+        if db:
+            email_settings = SystemSettingsService.get_email_settings(db)
+            smtp_server = email_settings.get('smtp_server', 'smtp.gmail.com')
+            smtp_port = email_settings.get('smtp_port', 587)
+            smtp_username = email_settings.get('smtp_username', '')
+            smtp_password = email_settings.get('smtp_password', '')
+            email_from = email_settings.get('email_from', '')
+        else:
+            # استفاده از تنظیمات پیش‌فرض
+            smtp_server = settings.SMTP_SERVER
+            smtp_port = settings.SMTP_PORT
+            smtp_username = settings.SMTP_USERNAME
+            smtp_password = settings.SMTP_PASSWORD
+            email_from = settings.SMTP_USERNAME
+        
+        # بررسی تنظیمات ایمیل
+        if not smtp_server or not smtp_username or not smtp_password:
+            logger.warning("SMTP settings not configured, skipping email")
+            return False
+        
         msg = MIMEMultipart()
-        msg['From'] = settings.SMTP_USERNAME
+        msg['From'] = email_from
         msg['To'] = email
         msg['Subject'] = "تأیید حساب کاربری"
         
@@ -66,15 +87,15 @@ def send_verification_email(email: str, token: str):
         
         msg.attach(MIMEText(body, 'plain'))
         
-        server = smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT)
+        server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
-        server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+        server.login(smtp_username, smtp_password)
         server.send_message(msg)
         server.quit()
         
         return True
     except Exception as e:
-        print(f"خطا در ارسال ایمیل: {str(e)}")
+        logger.error(f"خطا در ارسال ایمیل: {str(e)}")
         return False
 
 def send_reset_password_email(email: str, token: str):
@@ -221,9 +242,9 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
     
-    # ارسال ایمیل تأیید اگر نیاز باشد
-    if require_email_verification and hasattr(settings, 'SMTP_SERVER') and settings.SMTP_SERVER:
-        send_verification_email(user.email, verification_token)
+            # ارسال ایمیل تأیید اگر نیاز باشد
+        if require_email_verification:
+            send_verification_email(user.email, verification_token, db)
     
     return db_user
 
