@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from ..database.database import get_db
 from ..database import models
 from ..database.models import User, Website, Chat, Message
+from ..services.system_settings_service import SystemSettingsService
 from .auth import get_current_user
 import logging
 
@@ -1280,30 +1281,8 @@ async def get_admin_system_settings(
         if current_user.role != "admin":
             raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
         
-        # دریافت تنظیمات از دیتابیس
-        settings_query = db.query(models.SystemSettings).all()
-        
-        # تبدیل به فرمت مورد نیاز frontend
-        system_settings = {}
-        for setting in settings_query:
-            key = setting.key
-            value = setting.value
-            
-            # تبدیل نوع داده بر اساس value_type
-            if setting.value_type == 'integer':
-                value = int(value) if value else 0
-            elif setting.value_type == 'float':
-                value = float(value) if value else 0.0
-            elif setting.value_type == 'boolean':
-                value = value.lower() == 'true' if value else False
-            elif setting.value_type == 'json':
-                try:
-                    import json
-                    value = json.loads(value) if value else []
-                except:
-                    value = []
-            
-            system_settings[key] = value
+        # دریافت تنظیمات از service
+        system_settings = SystemSettingsService.get_all_settings(db)
         
         return system_settings
         
@@ -1323,50 +1302,15 @@ async def update_admin_system_settings(
         if current_user.role != "admin":
             raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
         
-        # به‌روزرسانی تنظیمات در دیتابیس
+        # به‌روزرسانی تنظیمات با استفاده از service
+        success_count = 0
         for key, value in settings.items():
-            # تبدیل مقدار به string برای ذخیره در دیتابیس
-            if isinstance(value, bool):
-                value_str = str(value).lower()
-                value_type = 'boolean'
-            elif isinstance(value, int):
-                value_str = str(value)
-                value_type = 'integer'
-            elif isinstance(value, float):
-                value_str = str(value)
-                value_type = 'float'
-            elif isinstance(value, (list, dict)):
-                import json
-                value_str = json.dumps(value)
-                value_type = 'json'
-            else:
-                value_str = str(value) if value is not None else ''
-                value_type = 'string'
-            
-            # بررسی وجود تنظیم
-            existing_setting = db.query(models.SystemSettings).filter(models.SystemSettings.key == key).first()
-            
-            if existing_setting:
-                # به‌روزرسانی تنظیم موجود
-                existing_setting.value = value_str
-                existing_setting.value_type = value_type
-                existing_setting.updated_at = datetime.now(timezone.utc)
-            else:
-                # ایجاد تنظیم جدید
-                new_setting = models.SystemSettings(
-                    key=key,
-                    value=value_str,
-                    value_type=value_type,
-                    description=f"تنظیم {key}",
-                    category="general",
-                    is_public=False
-                )
-                db.add(new_setting)
+            if SystemSettingsService.set_setting(db, key, value):
+                success_count += 1
         
-        db.commit()
-        logger.info(f"System settings updated by admin {current_user.email}")
+        logger.info(f"System settings updated by admin {current_user.email}: {success_count} settings updated")
         
-        return {"message": "تنظیمات سیستم با موفقیت به‌روزرسانی شد"}
+        return {"message": f"تنظیمات سیستم با موفقیت به‌روزرسانی شد ({success_count} تنظیم)"}
         
     except Exception as e:
         logger.error(f"Error updating system settings: {str(e)}")

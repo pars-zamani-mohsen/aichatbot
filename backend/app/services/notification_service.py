@@ -8,6 +8,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from ..database import models
 from ..api import schemas
+from .system_settings_service import SystemSettingsService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -67,10 +68,13 @@ class NotificationService:
         notification: models.Notification,
         user_settings: models.UserSettings
     ):
-        """ارسال اعلان بر اساس تنظیمات کاربر"""
+        """ارسال اعلان بر اساس تنظیمات کاربر و سیستم"""
         try:
+            # دریافت تنظیمات اعلان‌های سیستم
+            notification_settings = SystemSettingsService.get_notification_settings(db)
+            
             # ارسال ایمیل
-            if user_settings.email_notifications:
+            if user_settings.email_notifications and notification_settings.get('email_notifications', True):
                 NotificationService._send_email_notification(notification)
                 notification.is_sent_email = True
             
@@ -83,6 +87,10 @@ class NotificationService:
             if user_settings.sms_notifications:
                 NotificationService._send_sms_notification(notification)
                 notification.is_sent_sms = True
+            
+            # ارسال Slack notification
+            if notification_settings.get('slack_notifications', False):
+                NotificationService._send_slack_notification(notification, notification_settings.get('slack_webhook', ''))
             
             db.commit()
             
@@ -106,6 +114,31 @@ class NotificationService:
         """ارسال SMS"""
         # TODO: پیاده‌سازی SMS
         logger.info(f"SMS notification would be sent: {notification.title}")
+    
+    @staticmethod
+    def _send_slack_notification(notification: models.Notification, webhook_url: str):
+        """ارسال Slack notification"""
+        if not webhook_url:
+            logger.warning("Slack webhook URL not configured")
+            return
+            
+        try:
+            import requests
+            import json
+            
+            payload = {
+                "text": f"🔔 *{notification.title}*\n{notification.message}",
+                "channel": "#general"
+            }
+            
+            response = requests.post(webhook_url, json=payload)
+            if response.status_code == 200:
+                logger.info(f"Slack notification sent: {notification.title}")
+            else:
+                logger.error(f"Failed to send Slack notification: {response.status_code}")
+                
+        except Exception as e:
+            logger.error(f"Error sending Slack notification: {str(e)}")
     
     @staticmethod
     def get_user_notifications(

@@ -15,6 +15,7 @@ from ..database import models
 from . import schemas
 from ..config import settings
 from ..services.notification_service import NotificationService
+from ..services.system_settings_service import SystemSettingsService
 import logging
 
 logger = logging.getLogger(__name__)
@@ -186,11 +187,23 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 
 @router.post("/register", response_model=schemas.User)
 def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    # دریافت تنظیمات امنیت
+    security_settings = SystemSettingsService.get_security_settings(db)
+    password_min_length = security_settings.get('password_min_length', 8)
+    require_email_verification = security_settings.get('require_email_verification', True)
+    
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if db_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="ایمیل قبلاً ثبت شده است"
+        )
+    
+    # بررسی طول رمز عبور
+    if len(user.password) < password_min_length:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"رمز عبور باید حداقل {password_min_length} کاراکتر باشد"
         )
     
     # ایجاد توکن تأیید
@@ -201,15 +214,15 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
         email=user.email, 
         hashed_password=hashed_password,
         verification_token=verification_token,
-        is_active=False,  # نیاز به تأیید
-        is_verified=False
+        is_active=not require_email_verification,  # اگر تأیید ایمیل نیاز نیست، کاربر فعال است
+        is_verified=not require_email_verification
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     
-    # ارسال ایمیل تأیید
-    if hasattr(settings, 'SMTP_SERVER') and settings.SMTP_SERVER:
+    # ارسال ایمیل تأیید اگر نیاز باشد
+    if require_email_verification and hasattr(settings, 'SMTP_SERVER') and settings.SMTP_SERVER:
         send_verification_email(user.email, verification_token)
     
     return db_user
@@ -262,8 +275,12 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             user_settings.login_attempts += 1
             user_settings.last_login_attempt = datetime.now(timezone.utc)
             
-            # اگر 5 بار تلاش ناموفق، قفل کردن برای 30 دقیقه
-            if user_settings.login_attempts >= 5:
+            # دریافت تنظیمات امنیت
+            security_settings = SystemSettingsService.get_security_settings(db)
+            max_login_attempts = security_settings.get('max_login_attempts', 5)
+            
+            # اگر به حداکثر تلاش رسید، قفل کردن برای 30 دقیقه
+            if user_settings.login_attempts >= max_login_attempts:
                 user_settings.login_locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
                 user_settings.login_attempts = 0
                 db.commit()

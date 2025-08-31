@@ -14,6 +14,7 @@ from ..config import settings
 from jose import JWTError, jwt
 from ..core.chatbot_factory import ChatbotFactory
 from ..services.notification_service import NotificationService
+from ..services.system_settings_service import SystemSettingsService
 import logging
 from datetime import datetime
 
@@ -114,10 +115,21 @@ async def create_chat(
         collection_name = get_collection_name_from_website_id(db, chat.website_id)
         logger.info(f"استفاده از کالکشن: {collection_name}")
         
-        # ایجاد چت‌بات با collection_name صحیح
+        # دریافت تنظیمات RAG
+        rag_settings = SystemSettingsService.get_rag_settings(db)
+        default_k = rag_settings.get('default_k', 5)
+        max_response_length = rag_settings.get('max_response_length', 500)
+        default_temperature = rag_settings.get('default_temperature', 0.7)
+        default_language = rag_settings.get('default_language', 'fa')
+        
+        # ایجاد چت‌بات با collection_name صحیح و تنظیمات RAG
         chatbot = ChatbotFactory.create_chatbot(
             chatbot_type=chatbot_type,
-            collection_name=collection_name
+            collection_name=collection_name,
+            k=default_k,
+            max_length=max_response_length,
+            temperature=default_temperature,
+            language=default_language
         )
         logger.info("چت‌بات با موفقیت ایجاد شد")
         

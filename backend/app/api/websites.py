@@ -17,6 +17,7 @@ except ImportError:
 from ..database.models import User
 from .auth import get_current_user
 from ..services.notification_service import NotificationService
+from ..services.system_settings_service import SystemSettingsService
 
 def verify_website_ownership(website_id: int, user_id: int, db: Session) -> Website:
     """بررسی مالکیت وب‌سایت (جداسازی tenant)"""
@@ -48,9 +49,23 @@ async def process_website_background(website_id: int, db: Session):
         db.commit()
         
         try:
-            # اجرای فاز 1: کراول با تنظیمات اختصاصی
+            # دریافت تنظیمات کراولر سیستم
+            crawler_settings = SystemSettingsService.get_crawler_settings(db)
+            
+            # ترکیب تنظیمات سیستم با تنظیمات اختصاصی وب‌سایت
             crawl_settings = website.crawl_settings or {}
-            crawler = WebCrawlerPipeline(website.url, crawl_settings)
+            system_crawl_settings = {
+                'max_pages': crawler_settings.get('max_pages_per_site', 100),
+                'crawl_delay': crawler_settings.get('crawl_delay', 1),
+                'respect_robots_txt': crawler_settings.get('respect_robots_txt', True),
+                'user_agent': crawler_settings.get('user_agent', 'RAG-Chatbot-Crawler/1.0')
+            }
+            
+            # تنظیمات اختصاصی اولویت دارند
+            final_crawl_settings = {**system_crawl_settings, **crawl_settings}
+            
+            # اجرای فاز 1: کراول با تنظیمات ترکیبی
+            crawler = WebCrawlerPipeline(website.url, final_crawl_settings)
             if not await crawler.run_async():
                 raise Exception("خطا در کراول کردن سایت")
                 

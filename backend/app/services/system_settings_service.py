@@ -1,0 +1,208 @@
+from sqlalchemy.orm import Session
+from ..database import models
+from typing import Dict, Any, Optional
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+class SystemSettingsService:
+    """سرویس مدیریت تنظیمات سیستم"""
+    
+    _cache = {}
+    _cache_loaded = False
+    
+    @classmethod
+    def get_setting(cls, db: Session, key: str, default: Any = None) -> Any:
+        """دریافت یک تنظیم خاص"""
+        try:
+            # ابتدا از کش بررسی کن
+            if cls._cache_loaded and key in cls._cache:
+                return cls._cache[key]
+            
+            # از دیتابیس بخوان
+            setting = db.query(models.SystemSettings).filter(models.SystemSettings.key == key).first()
+            
+            if not setting:
+                return default
+            
+            # تبدیل نوع داده
+            value = cls._convert_value(setting.value, setting.value_type)
+            
+            # در کش ذخیره کن
+            cls._cache[key] = value
+            
+            return value
+            
+        except Exception as e:
+            logger.error(f"Error getting setting {key}: {str(e)}")
+            return default
+    
+    @classmethod
+    def get_all_settings(cls, db: Session) -> Dict[str, Any]:
+        """دریافت تمام تنظیمات"""
+        try:
+            settings = db.query(models.SystemSettings).all()
+            result = {}
+            
+            for setting in settings:
+                result[setting.key] = cls._convert_value(setting.value, setting.value_type)
+            
+            # کش را به‌روزرسانی کن
+            cls._cache = result
+            cls._cache_loaded = True
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error getting all settings: {str(e)}")
+            return {}
+    
+    @classmethod
+    def set_setting(cls, db: Session, key: str, value: Any, value_type: str = None, description: str = None, category: str = "general") -> bool:
+        """تنظیم یک مقدار خاص"""
+        try:
+            # تعیین نوع داده اگر مشخص نشده
+            if value_type is None:
+                value_type = cls._detect_value_type(value)
+            
+            # تبدیل به string برای ذخیره
+            value_str = cls._convert_to_string(value)
+            
+            # بررسی وجود تنظیم
+            existing = db.query(models.SystemSettings).filter(models.SystemSettings.key == key).first()
+            
+            if existing:
+                # به‌روزرسانی
+                existing.value = value_str
+                existing.value_type = value_type
+                if description:
+                    existing.description = description
+                if category:
+                    existing.category = category
+            else:
+                # ایجاد جدید
+                new_setting = models.SystemSettings(
+                    key=key,
+                    value=value_str,
+                    value_type=value_type,
+                    description=description or f"تنظیم {key}",
+                    category=category
+                )
+                db.add(new_setting)
+            
+            db.commit()
+            
+            # کش را به‌روزرسانی کن
+            cls._cache[key] = value
+            cls._cache_loaded = True
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error setting {key}: {str(e)}")
+            return False
+    
+    @classmethod
+    def clear_cache(cls):
+        """پاک کردن کش"""
+        cls._cache = {}
+        cls._cache_loaded = False
+    
+    @classmethod
+    def _convert_value(cls, value: str, value_type: str) -> Any:
+        """تبدیل مقدار string به نوع داده مناسب"""
+        if not value:
+            return None
+            
+        try:
+            if value_type == 'integer':
+                return int(value)
+            elif value_type == 'float':
+                return float(value)
+            elif value_type == 'boolean':
+                return value.lower() == 'true'
+            elif value_type == 'json':
+                return json.loads(value)
+            else:
+                return value
+        except Exception as e:
+            logger.error(f"Error converting value {value} to type {value_type}: {str(e)}")
+            return value
+    
+    @classmethod
+    def _convert_to_string(cls, value: Any) -> str:
+        """تبدیل مقدار به string برای ذخیره"""
+        if value is None:
+            return ''
+        elif isinstance(value, (list, dict)):
+            return json.dumps(value, ensure_ascii=False)
+        else:
+            return str(value)
+    
+    @classmethod
+    def _detect_value_type(cls, value: Any) -> str:
+        """تشخیص نوع داده"""
+        if isinstance(value, bool):
+            return 'boolean'
+        elif isinstance(value, int):
+            return 'integer'
+        elif isinstance(value, float):
+            return 'float'
+        elif isinstance(value, (list, dict)):
+            return 'json'
+        else:
+            return 'string'
+    
+    @classmethod
+    def get_email_settings(cls, db: Session) -> Dict[str, Any]:
+        """دریافت تنظیمات ایمیل"""
+        return {
+            'smtp_server': cls.get_setting(db, 'smtpServer', 'smtp.gmail.com'),
+            'smtp_port': cls.get_setting(db, 'smtpPort', 587),
+            'smtp_username': cls.get_setting(db, 'smtpUsername', ''),
+            'smtp_password': cls.get_setting(db, 'smtpPassword', ''),
+            'email_from': cls.get_setting(db, 'emailFrom', ''),
+        }
+    
+    @classmethod
+    def get_security_settings(cls, db: Session) -> Dict[str, Any]:
+        """دریافت تنظیمات امنیت"""
+        return {
+            'session_timeout': cls.get_setting(db, 'sessionTimeout', 30),
+            'max_login_attempts': cls.get_setting(db, 'maxLoginAttempts', 5),
+            'password_min_length': cls.get_setting(db, 'passwordMinLength', 8),
+            'require_email_verification': cls.get_setting(db, 'requireEmailVerification', True),
+            'enable_two_factor': cls.get_setting(db, 'enableTwoFactor', False),
+        }
+    
+    @classmethod
+    def get_rag_settings(cls, db: Session) -> Dict[str, Any]:
+        """دریافت تنظیمات RAG"""
+        return {
+            'default_k': cls.get_setting(db, 'defaultK', 5),
+            'max_response_length': cls.get_setting(db, 'maxResponseLength', 500),
+            'default_temperature': cls.get_setting(db, 'defaultTemperature', 0.7),
+            'default_language': cls.get_setting(db, 'defaultLanguage', 'fa'),
+        }
+    
+    @classmethod
+    def get_crawler_settings(cls, db: Session) -> Dict[str, Any]:
+        """دریافت تنظیمات کراولر"""
+        return {
+            'max_pages_per_site': cls.get_setting(db, 'maxPagesPerSite', 100),
+            'crawl_delay': cls.get_setting(db, 'crawlDelay', 1),
+            'respect_robots_txt': cls.get_setting(db, 'respectRobotsTxt', True),
+            'user_agent': cls.get_setting(db, 'userAgent', 'RAG-Chatbot-Crawler/1.0'),
+        }
+    
+    @classmethod
+    def get_notification_settings(cls, db: Session) -> Dict[str, Any]:
+        """دریافت تنظیمات اعلان‌ها"""
+        return {
+            'email_notifications': cls.get_setting(db, 'emailNotifications', True),
+            'slack_notifications': cls.get_setting(db, 'slackNotifications', False),
+            'slack_webhook': cls.get_setting(db, 'slackWebhook', ''),
+            'notify_on_error': cls.get_setting(db, 'notifyOnError', True),
+            'notify_on_new_user': cls.get_setting(db, 'notifyOnNewUser', True),
+        }
