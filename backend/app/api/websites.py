@@ -3,7 +3,7 @@ from typing import List
 from sqlalchemy.orm import Session
 from ..services.pipeline import WebCrawlerPipeline, EmbeddingPipeline
 from ..services.domain_verification import DomainVerificationService
-from ..database.models import Website
+from ..database.models import Website, Chat
 from ..database.database import get_db
 from . import schemas
 import logging
@@ -139,6 +139,30 @@ async def crawl_website(
         
     except Exception as e:
         logger.error(f"خطا در شروع کراول وب‌سایت: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/{website_id}/delete")
+async def delete_website(
+    website_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """حذف وب‌سایت توسط مالک آن"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # حذف چت‌های مربوطه
+        db.query(Chat).filter(Chat.website_id == website_id).delete()
+        
+        # حذف وب‌سایت
+        db.delete(website)
+        db.commit()
+        
+        return {"message": "وب‌سایت با موفقیت حذف شد"}
+        
+    except Exception as e:
+        logger.error(f"خطا در حذف وب‌سایت: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{website_id}", response_model=schemas.Website)

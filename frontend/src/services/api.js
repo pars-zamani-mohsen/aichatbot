@@ -200,7 +200,7 @@ export const auth = {
       const userInfo = localStorage.getItem('userInfo');
       const user = userInfo ? JSON.parse(userInfo) : null;
       const email = user?.email || '';
-      
+
       const response = await api.post('/api/verify-2fa', { code, email });
       return response.data;
     } catch (error) {
@@ -339,7 +339,8 @@ export const websites = {
       if (isNaN(numericId)) {
         throw new Error('شناسه وب‌سایت نامعتبر است');
       }
-      const response = await api.delete(`/api/${numericId}`);
+      // حذف وب‌سایت توسط مالک آن
+      const response = await api.delete(`/api/${numericId}/delete`);
       return response.data;
     } catch (error) {
       console.error('Error in delete:', error);
