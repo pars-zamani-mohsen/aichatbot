@@ -196,7 +196,12 @@ export const auth = {
 
   verify2FA: async (code) => {
     try {
-      const response = await api.post('/api/verify-2fa', { code });
+      // دریافت ایمیل کاربر از localStorage
+      const userInfo = localStorage.getItem('userInfo');
+      const user = userInfo ? JSON.parse(userInfo) : null;
+      const email = user?.email || '';
+      
+      const response = await api.post('/api/verify-2fa', { code, email });
       return response.data;
     } catch (error) {
       console.error('Error verifying 2FA:', error);

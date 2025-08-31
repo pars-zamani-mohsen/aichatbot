@@ -256,7 +256,7 @@ def send_2fa_code_email(email: str, code: str, db: Session = None):
         
         # بررسی تنظیمات ایمیل برای ارسال
         if not smtp_server or not smtp_username or not smtp_password:
-            logger.info(f"کد 2FA برای {email}: {code} (archived but not sent)")
+            logger.warning("SMTP settings not configured, skipping email send but archived")
             return True
         
         server = smtplib.SMTP(smtp_server, smtp_port)
@@ -718,15 +718,23 @@ async def verify_2fa(
 ):
     """تأیید کد 2FA و فعال‌سازی"""
     try:
+        
         # دریافت تنظیمات کاربر
         user_settings = db.query(models.UserSettings).filter(models.UserSettings.user_id == current_user.id).first()
         
-        if not user_settings or not user_settings.two_factor_code:
-            raise HTTPException(status_code=400, detail="کد احراز هویت یافت نشد")
+        if not user_settings:
+            # ایجاد تنظیمات کاربر اگر وجود ندارد
+            user_settings = models.UserSettings(user_id=current_user.id)
+            db.add(user_settings)
+            db.commit()
+            db.refresh(user_settings)
+        
+        if not user_settings.two_factor_code:
+            raise HTTPException(status_code=400, detail="کد احراز هویت یافت نشد. لطفاً دوباره درخواست کد دهید.")
         
         # بررسی انقضای کد
         if user_settings.two_factor_expires and user_settings.two_factor_expires < datetime.now(timezone.utc):
-            raise HTTPException(status_code=400, detail="کد احراز هویت منقضی شده است")
+            raise HTTPException(status_code=400, detail="کد احراز هویت منقضی شده است. لطفاً کد جدید درخواست دهید.")
         
         # بررسی صحت کد
         if user_settings.two_factor_code != code_data.code:
@@ -740,12 +748,15 @@ async def verify_2fa(
         db.commit()
         
         # ارسال اعلان امنیتی
-        NotificationService.notify_security_event(
-            db=db,
-            user_id=current_user.id,
-            event_type="2fa_enabled",
-            details="احراز هویت دو مرحله‌ای با موفقیت فعال شد."
-        )
+        try:
+            NotificationService.notify_security_event(
+                db=db,
+                user_id=current_user.id,
+                event_type="2fa_enabled",
+                details="احراز هویت دو مرحله‌ای با موفقیت فعال شد."
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send security notification: {str(e)}")
         
         return {
             "message": "احراز هویت دو مرحله‌ای با موفقیت فعال شد"
@@ -755,7 +766,7 @@ async def verify_2fa(
         raise
     except Exception as e:
         logger.error(f"خطا در تأیید 2FA: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="خطا در تأیید کد احراز هویت")
 
 @router.post("/disable-2fa")
 async def disable_2fa(
