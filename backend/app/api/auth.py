@@ -242,9 +242,9 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_user)
     
-            # ارسال ایمیل تأیید اگر نیاز باشد
-        if require_email_verification:
-            send_verification_email(user.email, verification_token, db)
+    # ارسال ایمیل تأیید اگر نیاز باشد
+    if require_email_verification:
+        send_verification_email(user.email, verification_token, db)
     
     return db_user
 

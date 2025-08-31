@@ -19,6 +19,10 @@ async def maintenance_middleware(request: Request, call_next):
         "/openapi.json"
     ]
     
+    # درخواست‌های OPTIONS همیشه مجاز هستند (برای CORS)
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    
     # بررسی مسیرهای مجاز
     if any(request.url.path.startswith(path) for path in maintenance_allowed_paths):
         return await call_next(request)
