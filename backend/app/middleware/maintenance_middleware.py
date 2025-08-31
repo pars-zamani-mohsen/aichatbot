@@ -15,6 +15,17 @@ async def maintenance_middleware(request: Request, call_next):
         "/admin/settings",  # ادمین باید بتواند تنظیمات را تغییر دهد
         "/api/dashboard/admin/system-settings",
         "/api/dashboard/admin/system-settings/",
+        "/api/dashboard/admin/",  # تمام API های ادمین
+        "/api/dashboard/admin/stats",
+        "/api/dashboard/admin/websites",
+        "/api/dashboard/admin/users",
+        "/api/dashboard/admin/conversations",
+        "/api/dashboard/admin/notifications",
+        "/api/dashboard/admin/reports",
+        "/api/notifications/admin/",  # API اعلان‌های ادمین
+        "/api/notifications/admin",   # بدون اسلش
+        "/api/token",  # API لاگین (برای ادمین)
+        "/api/register",  # API ثبت‌نام (ممکن است ادمین نیاز داشته باشد)
         "/docs",  # مستندات API
         "/openapi.json"
     ]
