@@ -718,6 +718,26 @@ export const dashboard = {
     }
   },
 
+  getAdminSystemSettings: async () => {
+    try {
+      const response = await api.get('/api/dashboard/admin/system-settings');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting admin system settings:', error);
+      throw error;
+    }
+  },
+
+  updateAdminSystemSettings: async (settings) => {
+    try {
+      const response = await api.put('/api/dashboard/admin/system-settings', settings);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating admin system settings:', error);
+      throw error;
+    }
+  },
+
   // گزارشات کاربر
   getUserReports: async (timeRange = '7d') => {
     try {
@@ -844,6 +864,44 @@ export const notifications = {
       return response.data;
     } catch (error) {
       console.error('Error creating test notification:', error);
+      throw error;
+    }
+  },
+
+  // Admin notification management
+  getAdminNotifications: async (params = {}) => {
+    try {
+      const queryParams = new URLSearchParams();
+      Object.keys(params).forEach(key => {
+        if (params[key] !== undefined && params[key] !== null) {
+          queryParams.append(key, params[key]);
+        }
+      });
+
+      const response = await api.get(`/api/notifications/admin/?${queryParams.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting admin notifications:', error);
+      throw error;
+    }
+  },
+
+  deleteAdminNotification: async (notificationId) => {
+    try {
+      const response = await api.delete(`/api/notifications/admin/${notificationId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting admin notification:', error);
+      throw error;
+    }
+  },
+
+  sendAdminNotification: async (notificationData) => {
+    try {
+      const response = await api.post('/api/notifications/admin/send', notificationData);
+      return response.data;
+    } catch (error) {
+      console.error('Error sending admin notification:', error);
       throw error;
     }
   }

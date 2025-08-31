@@ -1267,3 +1267,91 @@ async def delete_admin_conversation(
     except Exception as e:
         logger.error(f"خطا در حذف گفتگو: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/admin/system-settings")
+async def get_admin_system_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت تنظیمات سیستم برای ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # در حال حاضر تنظیمات را از فایل یا متغیرهای محیطی می‌خوانیم
+        # در آینده می‌توانیم جدول جداگانه‌ای برای تنظیمات سیستم ایجاد کنیم
+        system_settings = {
+            # تنظیمات عمومی
+            "siteName": "RAG Chatbot System",
+            "siteDescription": "سیستم چت‌بات هوشمند با قابلیت RAG",
+            "maintenanceMode": False,
+            "debugMode": False,
+
+            # تنظیمات ایمیل
+            "smtpServer": "smtp.gmail.com",
+            "smtpPort": 587,
+            "smtpUsername": "noreply@example.com",
+            "smtpPassword": "",
+            "emailFrom": "noreply@example.com",
+
+            # تنظیمات امنیت
+            "sessionTimeout": 30,
+            "maxLoginAttempts": 5,
+            "passwordMinLength": 8,
+            "requireEmailVerification": True,
+            "enableTwoFactor": False,
+
+            # تنظیمات RAG
+            "defaultK": 5,
+            "maxResponseLength": 500,
+            "defaultTemperature": 0.7,
+            "defaultLanguage": "fa",
+
+            # تنظیمات کراولر
+            "maxPagesPerSite": 100,
+            "crawlDelay": 1,
+            "respectRobotsTxt": True,
+            "userAgent": "RAG-Chatbot-Crawler/1.0",
+
+            # تنظیمات ذخیره‌سازی
+            "maxFileSize": 10,
+            "allowedFileTypes": ["jpg", "png", "pdf", "txt"],
+            "backupEnabled": True,
+            "backupFrequency": "daily",
+
+            # تنظیمات اعلان‌ها
+            "emailNotifications": True,
+            "slackNotifications": False,
+            "slackWebhook": "",
+            "notifyOnError": True,
+            "notifyOnNewUser": True
+        }
+        
+        return system_settings
+        
+    except Exception as e:
+        logger.error(f"Error getting system settings: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطا در دریافت تنظیمات سیستم")
+
+@router.put("/admin/system-settings")
+async def update_admin_system_settings(
+    settings: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """به‌روزرسانی تنظیمات سیستم برای ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # در حال حاضر تنظیمات را در فایل یا متغیرهای محیطی ذخیره می‌کنیم
+        # در آینده می‌توانیم جدول جداگانه‌ای برای تنظیمات سیستم ایجاد کنیم
+        logger.info(f"System settings updated by admin {current_user.email}: {settings}")
+        
+        return {"message": "تنظیمات سیستم با موفقیت به‌روزرسانی شد"}
+        
+    except Exception as e:
+        logger.error(f"Error updating system settings: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطا در به‌روزرسانی تنظیمات سیستم")

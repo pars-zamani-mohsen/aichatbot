@@ -21,43 +21,17 @@ import {
   Security as SecurityIcon,
   Settings as SettingsIcon
 } from '@mui/icons-material';
-import { notifications as notificationService } from '../../services/api';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 const NotificationBell = () => {
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [recentNotifications, setRecentNotifications] = useState([]);
+  const { unreadCount, notifications: recentNotifications, loading, fetchNotifications, markAsRead, currentUserId } = useNotifications();
   const [anchorEl, setAnchorEl] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  // دریافت تعداد اعلان‌های نخوانده
-  const fetchUnreadCount = async () => {
-    try {
-      const data = await notificationService.getUnreadCount();
-      setUnreadCount(data.unread_count);
-    } catch (err) {
-      console.error('Error fetching unread count:', err);
-    }
-  };
-
-  // دریافت اعلان‌های اخیر
-  const fetchRecentNotifications = async () => {
-    try {
-      setLoading(true);
-      const data = await notificationService.getNotifications(0, 5, true);
-      setRecentNotifications(data);
-    } catch (err) {
-      console.error('Error fetching recent notifications:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // علامت‌گذاری به عنوان خوانده شده
   const handleMarkAsRead = async (notificationId) => {
     try {
-      await notificationService.markAsRead(notificationId);
-      await fetchUnreadCount();
-      await fetchRecentNotifications();
+      console.log(`User ${currentUserId} trying to mark notification ${notificationId} as read`);
+      await markAsRead(notificationId);
     } catch (err) {
       console.error('Error marking notification as read:', err);
     }
@@ -115,21 +89,14 @@ const NotificationBell = () => {
     return text.substring(0, maxLength) + '...';
   };
 
-  useEffect(() => {
-    fetchUnreadCount();
-    fetchRecentNotifications();
-
-    // به‌روزرسانی هر 30 ثانیه
-    const interval = setInterval(() => {
-      fetchUnreadCount();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, []);
+  // حذف useEffect اضافی - context خودش اعلان‌ها را مدیریت می‌کند
 
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);
-    fetchRecentNotifications();
+    // فقط وقتی منو باز می‌شود، اعلان‌های اخیر را دریافت کن
+    if (recentNotifications.length === 0) {
+      fetchNotifications(0, 5, true);
+    }
   };
 
   const handleClose = () => {
@@ -182,43 +149,45 @@ const NotificationBell = () => {
           </Box>
         ) : (
           <>
-            {recentNotifications.map((notification) => (
-              <MenuItem
-                key={notification.id}
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  p: 2,
-                  minHeight: 'auto'
-                }}
-                onClick={() => handleMarkAsRead(notification.id)}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', mb: 1 }}>
-                  {getNotificationIcon(notification.type)}
-                  <Typography
-                    variant="subtitle2"
-                    sx={{ ml: 1, flexGrow: 1, fontWeight: notification.is_read ? 'normal' : 'bold' }}
-                  >
-                    {notification.title}
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    {getCategoryIcon(notification.category)}
-                    <Typography variant="caption" color="text.secondary">
-                      {formatDate(notification.created_at)}
-                    </Typography>
-                  </Box>
-                </Box>
+            {recentNotifications
 
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ width: '100%' }}
+              .map((notification) => (
+                <MenuItem
+                  key={notification.id}
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    p: 2,
+                    minHeight: 'auto'
+                  }}
+                  onClick={() => handleMarkAsRead(notification.id)}
                 >
-                  {truncateText(notification.message)}
-                </Typography>
-              </MenuItem>
-            ))}
+                  <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', mb: 1 }}>
+                    {getNotificationIcon(notification.type)}
+                    <Typography
+                      variant="subtitle2"
+                      sx={{ ml: 1, flexGrow: 1, fontWeight: notification.is_read ? 'normal' : 'bold' }}
+                    >
+                      {notification.title}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      {getCategoryIcon(notification.category)}
+                      <Typography variant="caption" color="text.secondary">
+                        {formatDate(notification.created_at)}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ width: '100%' }}
+                  >
+                    {truncateText(notification.message)}
+                  </Typography>
+                </MenuItem>
+              ))}
 
             <Divider />
 

@@ -26,7 +26,9 @@ import UserReports from './components/User/UserReports';
 import UserHistory from './components/User/UserHistory';
 import UserSettings from './components/User/UserSettings';
 import NotificationCenter from './components/Notifications/NotificationCenter';
+import NotificationManagement from './components/Admin/NotificationManagement';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 
 // ایجاد تم با پشتیبانی از RTL
 const theme = createTheme({
@@ -94,6 +96,7 @@ function AppContent() {
             <Route path="/admin/conversations" element={<ConversationManagement />} />
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/reports" element={<Reports />} />
+            <Route path="/admin/notifications" element={<NotificationManagement />} />
             <Route path="/admin/settings" element={<SystemSettings />} />
             <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
           </Routes>
@@ -158,7 +161,9 @@ function App() {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <AuthProvider>
-          <AppContent />
+          <NotificationProvider>
+            <AppContent />
+          </NotificationProvider>
         </AuthProvider>
       </ThemeProvider>
     </CacheProvider>

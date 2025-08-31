@@ -32,6 +32,7 @@ import {
     Backup,
     Restore
 } from '@mui/icons-material';
+import { dashboard } from '../../services/api';
 
 const SystemSettings = () => {
     const [loading, setLoading] = useState(true);
@@ -84,10 +85,19 @@ const SystemSettings = () => {
     });
 
     useEffect(() => {
-        // شبیه‌سازی دریافت تنظیمات
-        setTimeout(() => {
-            setLoading(false);
-        }, 1000);
+        const fetchSettings = async () => {
+            try {
+                setLoading(true);
+                const data = await dashboard.getAdminSystemSettings();
+                setSettings(data);
+            } catch (error) {
+                console.error('Error fetching system settings:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchSettings();
     }, []);
 
     const handleSettingChange = (key, value) => {
@@ -98,49 +108,27 @@ const SystemSettings = () => {
     };
 
     const handleSave = async () => {
-        setSaving(true);
-        // شبیه‌سازی ذخیره تنظیمات
-        setTimeout(() => {
-            setSaving(false);
+        try {
+            setSaving(true);
+            await dashboard.updateAdminSystemSettings(settings);
             // نمایش پیام موفقیت
-        }, 2000);
+        } catch (error) {
+            console.error('Error saving system settings:', error);
+        } finally {
+            setSaving(false);
+        }
     };
 
-    const handleReset = () => {
-        // بازگردانی تنظیمات پیش‌فرض
-        setSettings({
-            siteName: 'RAG Chatbot System',
-            siteDescription: 'سیستم چت‌بات هوشمند با قابلیت RAG',
-            maintenanceMode: false,
-            debugMode: false,
-            smtpServer: 'smtp.gmail.com',
-            smtpPort: 587,
-            smtpUsername: 'noreply@example.com',
-            smtpPassword: '',
-            emailFrom: 'noreply@example.com',
-            sessionTimeout: 30,
-            maxLoginAttempts: 5,
-            passwordMinLength: 8,
-            requireEmailVerification: true,
-            enableTwoFactor: false,
-            defaultK: 5,
-            maxResponseLength: 500,
-            defaultTemperature: 0.7,
-            defaultLanguage: 'fa',
-            maxPagesPerSite: 100,
-            crawlDelay: 1,
-            respectRobotsTxt: true,
-            userAgent: 'RAG-Chatbot-Crawler/1.0',
-            maxFileSize: 10,
-            allowedFileTypes: ['jpg', 'png', 'pdf', 'txt'],
-            backupEnabled: true,
-            backupFrequency: 'daily',
-            emailNotifications: true,
-            slackNotifications: false,
-            slackWebhook: '',
-            notifyOnError: true,
-            notifyOnNewUser: true
-        });
+    const handleReset = async () => {
+        try {
+            setLoading(true);
+            const data = await dashboard.getAdminSystemSettings();
+            setSettings(data);
+        } catch (error) {
+            console.error('Error resetting system settings:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (loading) {

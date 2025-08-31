@@ -37,24 +37,18 @@ import {
   Security as SecurityIcon,
   Settings as SettingsIcon
 } from '@mui/icons-material';
-import { notifications as notificationService } from '../../services/api';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 const NotificationCenter = () => {
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const { notifications, unreadCount, loading, error, fetchNotifications, markAsRead, markAllAsRead, deleteNotification, clearError } = useNotifications();
   const [anchorEl, setAnchorEl] = useState(null);
   const [filterCategory, setFilterCategory] = useState('all');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   // const [testDialogOpen, setTestDialogOpen] = useState(false);
 
   // دریافت اعلان‌ها
-  const fetchNotifications = async () => {
+  const handleFetchNotifications = async () => {
     try {
-      setLoading(true);
-      setError(null);
-
       const params = {
         skip: 0,
         limit: 50,
@@ -65,42 +59,22 @@ const NotificationCenter = () => {
         params.category = filterCategory;
       }
 
-      const data = await notificationService.getNotifications(
+      await fetchNotifications(
         params.skip,
         params.limit,
         params.unreadOnly,
         params.category
       );
-
-      setNotifications(data);
     } catch (err) {
-      setError('خطا در دریافت اعلان‌ها');
       console.error('Error fetching notifications:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // دریافت تعداد اعلان‌های نخوانده
-  const fetchUnreadCount = async () => {
-    try {
-      const data = await notificationService.getUnreadCount(
-        filterCategory !== 'all' ? filterCategory : null
-      );
-      setUnreadCount(data.unread_count);
-    } catch (err) {
-      console.error('Error fetching unread count:', err);
     }
   };
 
   // علامت‌گذاری به عنوان خوانده شده
   const handleMarkAsRead = async (notificationId) => {
     try {
-      await notificationService.markAsRead(notificationId);
-      await fetchNotifications();
-      await fetchUnreadCount();
+      await markAsRead(notificationId);
     } catch (err) {
-      setError('خطا در علامت‌گذاری اعلان');
       console.error('Error marking notification as read:', err);
     }
   };
@@ -108,13 +82,10 @@ const NotificationCenter = () => {
   // علامت‌گذاری همه به عنوان خوانده شده
   const handleMarkAllAsRead = async () => {
     try {
-      await notificationService.markAllAsRead(
+      await markAllAsRead(
         filterCategory !== 'all' ? filterCategory : null
       );
-      await fetchNotifications();
-      await fetchUnreadCount();
     } catch (err) {
-      setError('خطا در علامت‌گذاری همه اعلان‌ها');
       console.error('Error marking all notifications as read:', err);
     }
   };
@@ -122,11 +93,8 @@ const NotificationCenter = () => {
   // حذف اعلان
   const handleDeleteNotification = async (notificationId) => {
     try {
-      await notificationService.deleteNotification(notificationId);
-      await fetchNotifications();
-      await fetchUnreadCount();
+      await deleteNotification(notificationId);
     } catch (err) {
-      setError('خطا در حذف اعلان');
       console.error('Error deleting notification:', err);
     }
   };
@@ -191,8 +159,10 @@ const NotificationCenter = () => {
   };
 
   useEffect(() => {
-    fetchNotifications();
-    fetchUnreadCount();
+    // فقط وقتی فیلترها تغییر می‌کنند، درخواست ارسال کن
+    if (filterCategory !== 'all' || showUnreadOnly) {
+      handleFetchNotifications();
+    }
   }, [filterCategory, showUnreadOnly]);
 
   return (

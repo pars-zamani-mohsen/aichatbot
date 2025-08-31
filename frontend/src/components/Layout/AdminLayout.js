@@ -38,6 +38,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import NotificationBell from '../Notifications/NotificationBell';
 
 const drawerWidth = 280;
 
@@ -73,30 +74,31 @@ const AdminLayout = ({ children }) => {
         { text: 'گفتگوها', icon: <Chat />, path: '/admin/conversations' },
         { text: 'مدیریت کاربران', icon: <People />, path: '/admin/users' },
         { text: 'گزارشات', icon: <Assessment />, path: '/admin/reports' },
+        { text: 'مدیریت اعلان‌ها', icon: <Notifications />, path: '/admin/notifications' },
         { text: 'تنظیمات سیستم', icon: <Settings />, path: '/admin/settings' },
     ];
 
     const drawer = (
         <Box>
             <Box sx={{ p: 2, textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                <Box sx={{ 
-                    width: 80, 
-                    height: 80, 
-                    mx: 'auto', 
+                <Box sx={{
+                    width: 80,
+                    height: 80,
+                    mx: 'auto',
                     mb: 1,
                     borderRadius: '50%',
                     overflow: 'hidden',
                     border: '3px solid rgba(255,255,255,0.2)',
                     boxShadow: '0 4px 20px rgba(0,0,0,0.1)'
                 }}>
-                    <img 
-                        src="/logo.png" 
-                        alt="لوگو" 
-                        style={{ 
-                            width: '100%', 
-                            height: '100%', 
-                            objectFit: 'cover' 
-                        }} 
+                    <img
+                        src="/logo.png"
+                        alt="لوگو"
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                        }}
                     />
                 </Box>
                 <Typography variant="h6" sx={{ color: 'white', fontWeight: 'bold' }}>
@@ -187,11 +189,7 @@ const AdminLayout = ({ children }) => {
                             {darkMode ? <LightMode /> : <DarkMode />}
                         </IconButton>
 
-                        <IconButton color="inherit">
-                            <Badge badgeContent={4} color="error">
-                                <Notifications />
-                            </Badge>
-                        </IconButton>
+                        <NotificationBell />
 
                         <IconButton
                             color="inherit"
