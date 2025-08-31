@@ -919,9 +919,27 @@ async def refresh_access_token(refresh_token: str, db: Session = Depends(get_db)
             detail="توکن نامعتبر است"
         )
 
-@router.post("/verify-email")
+@router.get("/verify-email")
 async def verify_email(token: str, db: Session = Depends(get_db)):
-    """تأیید ایمیل کاربر"""
+    """تأیید ایمیل کاربر (GET endpoint برای لینک ایمیل)"""
+    user = db.query(models.User).filter(models.User.verification_token == token).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="توکن تأیید نامعتبر است"
+        )
+    
+    user.is_verified = True
+    user.is_active = True
+    user.verification_token = None
+    db.commit()
+    
+    # ریدایرکت به صفحه لاگین با پیام موفقیت
+    return {"message": "ایمیل با موفقیت تأیید شد", "redirect": "/login"}
+
+@router.post("/verify-email")
+async def verify_email_post(token: str, db: Session = Depends(get_db)):
+    """تأیید ایمیل کاربر (POST endpoint برای API)"""
     user = db.query(models.User).filter(models.User.verification_token == token).first()
     if not user:
         raise HTTPException(

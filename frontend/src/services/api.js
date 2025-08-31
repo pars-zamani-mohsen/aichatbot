@@ -173,6 +173,16 @@ export const auth = {
     }
   },
 
+  verifyEmail: async (token) => {
+    try {
+      const response = await api.get(`/api/verify-email?token=${token}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error verifying email:', error);
+      throw error;
+    }
+  },
+
   // احراز هویت دو مرحله‌ای
   enable2FA: async () => {
     try {

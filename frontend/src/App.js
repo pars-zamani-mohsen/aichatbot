@@ -28,6 +28,7 @@ import UserSettings from './components/User/UserSettings';
 import NotificationCenter from './components/Notifications/NotificationCenter';
 import NotificationManagement from './components/Admin/NotificationManagement';
 import EmailArchive from './components/Admin/EmailArchive';
+import VerifyEmail from './pages/VerifyEmail';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 
@@ -144,6 +145,7 @@ function AppContent() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route
           path="/*"
           element={

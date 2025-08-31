@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link as RouterLink, useLocation } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -20,17 +20,28 @@ import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     password: ''
   });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [show2FADialog, setShow2FADialog] = useState(false);
   const [twoFACode, setTwoFACode] = useState('');
   const [twoFALoading, setTwoFALoading] = useState(false);
   const [userEmail, setUserEmail] = useState('');
+
+  // نمایش پیام موفقیت از state
+  useEffect(() => {
+    if (location.state?.message) {
+      setSuccess(location.state.message);
+      // پاک کردن state برای جلوگیری از نمایش مجدد
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.state, navigate, location.pathname]);
 
   const handleChange = (e) => {
     setFormData({
@@ -129,9 +140,9 @@ const Login = () => {
       <Paper elevation={3} sx={{ p: 4 }}>
         {/* Logo */}
         <Box sx={{ textAlign: 'center', mb: 3 }}>
-          <Box sx={{ 
-            width: 100, 
-            height: 100, 
+          <Box sx={{
+            width: 100,
+            height: 100,
             mx: 'auto',
             borderRadius: '50%',
             overflow: 'hidden',
@@ -139,14 +150,14 @@ const Login = () => {
             boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
             mb: 2
           }}>
-            <img 
-              src="/logo.png" 
-              alt="لوگو" 
-              style={{ 
-                width: '100%', 
-                height: '100%', 
-                objectFit: 'cover' 
-              }} 
+            <img
+              src="/logo.png"
+              alt="لوگو"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
             />
           </Box>
         </Box>
@@ -158,6 +169,12 @@ const Login = () => {
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
+          </Alert>
+        )}
+
+        {success && (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            {success}
           </Alert>
         )}
 
@@ -197,13 +214,13 @@ const Login = () => {
           >
             {loading ? 'در حال ورود...' : 'ورود'}
           </Button>
-          
+
           <Box sx={{ textAlign: 'center', mb: 2 }}>
             <Link component={RouterLink} to="/forgot-password" variant="body2" sx={{ color: 'text.secondary' }}>
               {'فراموشی کلمه عبور؟'}
             </Link>
           </Box>
-          
+
           <Box sx={{ textAlign: 'center' }}>
             <Link component={RouterLink} to="/register" variant="body2">
               {'حساب کاربری ندارید؟ ثبت نام کنید'}
