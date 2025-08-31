@@ -55,10 +55,10 @@ async def process_website_background(website_id: int, db: Session):
             # ترکیب تنظیمات سیستم با تنظیمات اختصاصی وب‌سایت
             crawl_settings = website.crawl_settings or {}
             system_crawl_settings = {
-                'max_pages': crawler_settings.get('max_pages_per_site', 100),
-                'crawl_delay': crawler_settings.get('crawl_delay', 1),
-                'respect_robots_txt': crawler_settings.get('respect_robots_txt', True),
-                'user_agent': crawler_settings.get('user_agent', 'RAG-Chatbot-Crawler/1.0')
+                'max_pages': crawler_settings.get('maxPagesPerSite', 100),
+                'crawl_delay': crawler_settings.get('crawlDelay', 1),
+                'respect_robots_txt': crawler_settings.get('respectRobotsTxt', True),
+                'user_agent': crawler_settings.get('userAgent', 'RAG-Chatbot-Crawler/1.0')
             }
             
             # تنظیمات اختصاصی اولویت دارند

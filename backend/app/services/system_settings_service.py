@@ -169,31 +169,31 @@ class SystemSettingsService:
     def get_security_settings(cls, db: Session) -> Dict[str, Any]:
         """دریافت تنظیمات امنیت"""
         return {
-            'session_timeout': cls.get_setting(db, 'sessionTimeout', 30),
-            'max_login_attempts': cls.get_setting(db, 'maxLoginAttempts', 5),
-            'password_min_length': cls.get_setting(db, 'passwordMinLength', 8),
-            'require_email_verification': cls.get_setting(db, 'requireEmailVerification', True),
-            'enable_two_factor': cls.get_setting(db, 'enableTwoFactor', False),
+            'sessionTimeout': cls.get_setting(db, 'sessionTimeout', 30),
+            'maxLoginAttempts': cls.get_setting(db, 'maxLoginAttempts', 5),
+            'passwordMinLength': cls.get_setting(db, 'passwordMinLength', 8),
+            'requireEmailVerification': cls.get_setting(db, 'requireEmailVerification', True),
+            'enableTwoFactor': cls.get_setting(db, 'enableTwoFactor', False),
         }
     
     @classmethod
     def get_rag_settings(cls, db: Session) -> Dict[str, Any]:
         """دریافت تنظیمات RAG"""
         return {
-            'default_k': cls.get_setting(db, 'defaultK', 5),
-            'max_response_length': cls.get_setting(db, 'maxResponseLength', 500),
-            'default_temperature': cls.get_setting(db, 'defaultTemperature', 0.7),
-            'default_language': cls.get_setting(db, 'defaultLanguage', 'fa'),
+            'defaultK': cls.get_setting(db, 'defaultK', 5),
+            'maxResponseLength': cls.get_setting(db, 'maxResponseLength', 500),
+            'defaultTemperature': cls.get_setting(db, 'defaultTemperature', 0.7),
+            'defaultLanguage': cls.get_setting(db, 'defaultLanguage', 'fa'),
         }
     
     @classmethod
     def get_crawler_settings(cls, db: Session) -> Dict[str, Any]:
         """دریافت تنظیمات کراولر"""
         return {
-            'max_pages_per_site': cls.get_setting(db, 'maxPagesPerSite', 100),
-            'crawl_delay': cls.get_setting(db, 'crawlDelay', 1),
-            'respect_robots_txt': cls.get_setting(db, 'respectRobotsTxt', True),
-            'user_agent': cls.get_setting(db, 'userAgent', 'RAG-Chatbot-Crawler/1.0'),
+            'maxPagesPerSite': cls.get_setting(db, 'maxPagesPerSite', 100),
+            'crawlDelay': cls.get_setting(db, 'crawlDelay', 1),
+            'respectRobotsTxt': cls.get_setting(db, 'respectRobotsTxt', True),
+            'userAgent': cls.get_setting(db, 'userAgent', 'RAG-Chatbot-Crawler/1.0'),
         }
     
     @classmethod

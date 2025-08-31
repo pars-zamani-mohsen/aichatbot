@@ -189,8 +189,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     # دریافت تنظیمات امنیت
     security_settings = SystemSettingsService.get_security_settings(db)
-    password_min_length = security_settings.get('password_min_length', 8)
-    require_email_verification = security_settings.get('require_email_verification', True)
+    password_min_length = security_settings.get('passwordMinLength', 8)
+    require_email_verification = security_settings.get('requireEmailVerification', True)
     
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if db_user:
@@ -277,7 +277,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             
             # دریافت تنظیمات امنیت
             security_settings = SystemSettingsService.get_security_settings(db)
-            max_login_attempts = security_settings.get('max_login_attempts', 5)
+            max_login_attempts = security_settings.get('maxLoginAttempts', 5)
             
             # اگر به حداکثر تلاش رسید، قفل کردن برای 30 دقیقه
             if user_settings.login_attempts >= max_login_attempts:

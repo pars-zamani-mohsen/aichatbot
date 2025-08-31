@@ -117,10 +117,10 @@ async def create_chat(
         
         # دریافت تنظیمات RAG
         rag_settings = SystemSettingsService.get_rag_settings(db)
-        default_k = rag_settings.get('default_k', 5)
-        max_response_length = rag_settings.get('max_response_length', 500)
-        default_temperature = rag_settings.get('default_temperature', 0.7)
-        default_language = rag_settings.get('default_language', 'fa')
+        default_k = rag_settings.get('defaultK', 5)
+        max_response_length = rag_settings.get('maxResponseLength', 500)
+        default_temperature = rag_settings.get('defaultTemperature', 0.7)
+        default_language = rag_settings.get('defaultLanguage', 'fa')
         
         # ایجاد چت‌بات با collection_name صحیح و تنظیمات RAG
         chatbot = ChatbotFactory.create_chatbot(
