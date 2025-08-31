@@ -69,8 +69,8 @@ const ConversationManagement = () => {
                 userFilter !== 'all' ? parseInt(userFilter) : null
             );
             
-            setConversations(response.conversations);
-            setTotalPages(response.total_pages);
+            setConversations(response.conversations || []);
+            setTotalPages(response.total_pages || 1);
         } catch (err) {
             console.error('Error fetching conversations:', err);
             setError('خطا در دریافت لیست گفتگوها');
@@ -237,7 +237,7 @@ const ConversationManagement = () => {
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {conversations.map((conversation) => (
+                                        {(conversations || []).map((conversation) => (
                                             <TableRow key={conversation.id}>
                                                 <TableCell>
                                                     <Typography variant="body2" fontWeight="bold">
