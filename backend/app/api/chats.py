@@ -92,7 +92,7 @@ manager = ConnectionManager()
 @router.post("/", response_model=schemas.ChatResponse)
 async def create_chat(
     chat: schemas.ChatCreate,
-    chatbot_type: str = "openai",
+    chatbot_type: str = Query("openai", description="نوع چت‌بات: openai یا gemini"),
     db: Session = Depends(get_db)
 ):
     """ارسال پرسش به چت‌بات"""
@@ -115,21 +115,26 @@ async def create_chat(
         collection_name = get_collection_name_from_website_id(db, chat.website_id)
         logger.info(f"استفاده از کالکشن: {collection_name}")
         
-        # دریافت تنظیمات RAG
-        rag_settings = SystemSettingsService.get_rag_settings(db)
-        default_k = rag_settings.get('defaultK', 5)
-        max_response_length = rag_settings.get('maxResponseLength', 500)
-        default_temperature = rag_settings.get('defaultTemperature', 0.7)
-        default_language = rag_settings.get('defaultLanguage', 'fa')
+        # دریافت تنظیمات RAG از وب‌سایت
+        rag_settings = website.rag_settings or {}
+        default_k = rag_settings.get('k', 5)
+        max_response_length = rag_settings.get('max_response_length', 500)
+        default_temperature = rag_settings.get('temperature', 0.7)
+        default_language = rag_settings.get('language', 'fa')
+        
+        # استفاده از chatbot_type از تنظیمات وب‌سایت یا پارامتر ورودی
+        website_chatbot_type = rag_settings.get('chatbot_type', chatbot_type)
+        logger.info(f"تنظیمات RAG وب‌سایت: {rag_settings}")
+        logger.info(f"نوع چت‌بات انتخاب شده: {website_chatbot_type}")
         
         # ایجاد چت‌بات با collection_name صحیح و تنظیمات RAG
         chatbot = ChatbotFactory.create_chatbot(
-            chatbot_type=chatbot_type,
+            chatbot_type=website_chatbot_type,
             collection_name=collection_name,
             max_tokens=max_response_length * 2,
             temperature=default_temperature
         )
-        logger.info("چت‌بات با موفقیت ایجاد شد")
+        logger.info(f"چت‌بات {website_chatbot_type} با موفقیت ایجاد شد")
         
         # بررسی وجود چت قبلی
         db_chat = None

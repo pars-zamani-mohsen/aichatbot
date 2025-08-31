@@ -139,7 +139,18 @@ const RAGSettings = ({ website }) => {
               <Typography variant="h6" gutterBottom>
                 تنظیمات اصلی
               </Typography>
-              
+
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>مدل چت‌بات</InputLabel>
+                <Select
+                  value={settings.chatbot_type || 'openai'}
+                  onChange={(e) => updateSetting('chatbot_type', e.target.value)}
+                >
+                  <MenuItem value="openai">OpenAI GPT</MenuItem>
+                  <MenuItem value="gemini">Google Gemini</MenuItem>
+                </Select>
+              </FormControl>
+
               <TextField
                 fullWidth
                 label="تعداد منابع (k)"
@@ -253,7 +264,7 @@ const RAGSettings = ({ website }) => {
               <Typography variant="h6" gutterBottom>
                 تست RAG
               </Typography>
-              
+
               <Box display="flex" gap={2} sx={{ mb: 2 }}>
                 <TextField
                   fullWidth
@@ -281,7 +292,7 @@ const RAGSettings = ({ website }) => {
                     <Typography paragraph>
                       {testResult.response}
                     </Typography>
-                    
+
                     {testResult.sources && testResult.sources.length > 0 && (
                       <>
                         <Divider sx={{ my: 2 }} />

@@ -1,6 +1,6 @@
 from typing import Optional
 from .chatbot_rag import RAGChatbot
-from .chatbot_rag_gemini import RAGChatbot as GeminiRAGChatbot
+from .chatbot_rag_gemini import RAGChatbotGemini
 from .chatbot_rag_local import RAGChatbot as LocalRAGChatbot
 from app.config import settings
 from pathlib import Path
@@ -41,7 +41,7 @@ class ChatbotFactory:
                 **kwargs
             )
         elif chatbot_type == 'gemini':
-            return GeminiRAGChatbot(
+            return RAGChatbotGemini(
                 collection_name=collection_name,
                 google_api_key=google_api_key,
                 **kwargs

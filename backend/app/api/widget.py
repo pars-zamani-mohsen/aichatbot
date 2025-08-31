@@ -217,8 +217,15 @@ async def widget_chat(
         
         # دریافت پاسخ از چت‌بات
         try:
+            # دریافت تنظیمات RAG از وب‌سایت
+            rag_settings = website.rag_settings or {}
+            chatbot_type = rag_settings.get('chatbot_type', 'openai')
+            
+            logger.info(f"Widget chat - تنظیمات RAG وب‌سایت: {rag_settings}")
+            logger.info(f"Widget chat - نوع چت‌بات انتخاب شده: {chatbot_type}")
+            
             chatbot = ChatbotFactory.create_chatbot(
-                chatbot_type="openai",
+                chatbot_type=chatbot_type,
                 collection_name=website.collection_name
             )
             

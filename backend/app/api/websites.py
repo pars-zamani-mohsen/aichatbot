@@ -574,6 +574,7 @@ async def get_rag_settings(
                 "temperature": 0.7,
                 "tone": "professional",
                 "language": "persian",
+                "chatbot_type": "openai",
                 "include_sources": True,
                 "max_context_length": 2000
             }
@@ -610,13 +611,21 @@ async def test_rag_query(
         temperature = rag_settings.get("temperature", 0.7)
         tone = rag_settings.get("tone", "professional")
         
-        # استفاده از RAGService با تنظیمات
-        from ..services.rag import RAGService
+        # استفاده از ChatbotFactory با تنظیمات
+        from ..core.chatbot_factory import ChatbotFactory
         
-        rag_service = RAGService(website.collection_name, rag_settings)
+        chatbot_type = rag_settings.get("chatbot_type", "openai")
+        chatbot = ChatbotFactory.create_chatbot(
+            chatbot_type=chatbot_type,
+            collection_name=website.collection_name,
+            max_tokens=max_response_length * 2,
+            temperature=temperature
+        )
         
         # اجرای پرسش
-        answer, sources = rag_service.get_answer(query)
+        response = chatbot.ask(query)
+        answer = response.get("answer", "")
+        sources = response.get("sources", [])
         
         return {
             "website_id": website_id,

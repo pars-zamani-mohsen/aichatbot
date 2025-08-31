@@ -1,11 +1,14 @@
 import google.generativeai as genai
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import logging
 from pathlib import Path
 from ..services.hybrid_searcher import HybridSearcher
 from ..services.prompt_manager import PromptManager
 from app.config import settings
 import chromadb
+import httpx
+import os
+import contextlib
 
 logging.basicConfig(
     level=logging.INFO,
@@ -13,7 +16,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class RAGChatbot:
+class RAGChatbotGemini:
     def __init__(
         self,
         collection_name: str,
@@ -23,22 +26,51 @@ class RAGChatbot:
         temperature: float = None
     ):
         self.collection_name = collection_name
-        self.model_name = model_name or settings.GEMINI_MODEL_NAME
+        self.model_name = model_name or "gemini-1.5-flash"
         self.max_tokens = max_tokens or int(settings.MAX_TOKENS)
         self.temperature = temperature or float(settings.TEMPERATURE)
         
         # تنظیم API key
-        genai.configure(api_key=google_api_key or settings.GOOGLE_API_KEY)
-        
-        # ایجاد مدل
-        self.model = genai.GenerativeModel(
-            model_name=self.model_name,
-            generation_config={
-                "max_output_tokens": self.max_tokens,
-                "temperature": self.temperature
-            }
-        )
-        
+        try:
+            # غیرفعال کردن proxy محیطی موقتاً
+            @contextlib.contextmanager
+            def no_proxy():
+                """Context manager برای غیرفعال کردن proxy"""
+                original_env = {}
+                proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']
+                
+                # ذخیره مقادیر اصلی
+                for var in proxy_vars:
+                    if var in os.environ:
+                        original_env[var] = os.environ[var]
+                        del os.environ[var]
+                
+                try:
+                    yield
+                finally:
+                    # بازگرداندن مقادیر اصلی
+                    for var, value in original_env.items():
+                        os.environ[var] = value
+            
+            # تنظیم API key و ایجاد مدل
+            with no_proxy():
+                api_key = google_api_key or getattr(settings, 'GOOGLE_API_KEY', None)
+                if not api_key:
+                    raise ValueError("Google API key is required")
+                
+                genai.configure(api_key=api_key)
+                self.model = genai.GenerativeModel(
+                    model_name=self.model_name,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=self.temperature,
+                        max_output_tokens=self.max_tokens,
+                    )
+                )
+                
+        except Exception as e:
+            logger.error(f"خطا در ایجاد Gemini client: {str(e)}")
+            raise
+
         # ایجاد کلاینت ChromaDB و دریافت کالکشن
         # مسیر دیتابیس باید در پوشه knowledge_base/domain باشد
         db_path = Path("/var/www/html/ai/backend/knowledge_base") / collection_name
@@ -73,31 +105,38 @@ class RAGChatbot:
             if not results['documents'][0]:
                 return []
                 
-            return [
-                f"منبع: {meta.get('url', 'نامشخص')}\n{doc}"
-                for doc, meta in zip(results['documents'][0], results['metadatas'][0])
-            ]
+            context = []
+            for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
+                if doc and metadata:
+                    # اضافه کردن منبع به کانتکست
+                    source = metadata.get('url', '')
+                    context.append(f"منبع: {source}\n{doc}")
+                    
+            return context
             
         except Exception as e:
             logger.error(f"خطا در استخراج کانتکست: {str(e)}")
             return []
-            
-    def _create_prompt(self, query: str, context: List[str]) -> str:
-        """ایجاد پرامپت برای مدل"""
+    
+    def _create_messages(self, query: str, context: List[str]) -> List[Dict]:
+        """ایجاد پیام‌ها برای ارسال به مدل"""
         # پرامپت سیستم
         system_prompt = self.prompt_manager.get_system_prompt()
         
         # پرامپت کاربر با کانتکست
         user_prompt = self.prompt_manager.generate_prompt(query, context)
         
-        # ساخت پرامپت نهایی
-        prompt = f"""
-        {system_prompt}
+        # ساخت لیست پیام‌ها
+        messages = [
+            {"role": "user", "parts": [system_prompt + "\n\n" + user_prompt]}
+        ]
         
-        {user_prompt}
-        """
-        
-        return prompt.strip()
+        # اضافه کردن تاریخچه چت
+        history_length = int(settings.CHAT_HISTORY_LENGTH)
+        for msg in self.chat_history[-history_length:]:
+            messages.append({"role": msg["role"], "parts": [msg["content"]]})
+            
+        return messages
         
     def _extract_sources(self, context: List[str]) -> List[Dict]:
         """استخراج منابع از کانتکست"""
@@ -108,27 +147,60 @@ class RAGChatbot:
                 sources.append({"url": url})
         return sources
         
-    def ask(self, question: str) -> Dict:
-        """پرسش از چت‌بات"""
+    def ask(self, query: str) -> Dict[str, Any]:
+        """پرسش از چت‌بات با استفاده از RAG"""
         try:
-            # استخراج کانتکست
-            context = self._extract_context(question)
+            # تشخیص نوع کوئری
+            query_type = self.prompt_manager.detect_query_type(query)
+            logger.info(f"Query type detected: {query_type}")
+            
+            # جستجو در پایگاه دانش
+            search_results = self.searcher.search(query, n_results=5, query_type=query_type)
+            
+            # اگر هیچ نتیجه‌ای پیدا نشد، به کاربر اطلاع دهیم
+            if not search_results.get('has_results', False):
+                return {
+                    "answer": "متأسفانه اطلاعاتی در مورد این موضوع در پایگاه دانش موجود نیست. لطفاً سوال دیگری بپرسید.",
+                    "sources": []
+                }
+            
+            # آماده‌سازی متن‌های مرتبط
+            relevant_texts = []
+            for doc, metadata in zip(search_results['documents'][0], search_results['metadatas'][0]):
+                if doc and metadata:
+                    relevant_texts.append({
+                        'text': doc,
+                        'metadata': metadata
+                    })
             
             # ایجاد پرامپت
-            prompt = self._create_prompt(question, context)
+            prompt = self.prompt_manager.create_prompt(
+                query=query,
+                relevant_texts=relevant_texts,
+                query_type=query_type
+            )
             
-            # ارسال درخواست به API
+            # ارسال به مدل زبانی
             response = self.model.generate_content(prompt)
             
-            # استخراج پاسخ
-            answer = response.text
-            
-            # به‌روزرسانی تاریخچه چت
-            self.chat_history.append({"role": "user", "content": question})
-            self.chat_history.append({"role": "assistant", "content": answer})
+            if response.text:
+                answer = response.text
+            else:
+                answer = "متأسفانه در پردازش درخواست شما مشکلی پیش آمده است."
             
             # استخراج منابع
-            sources = self._extract_sources(context)
+            sources = []
+            for text in relevant_texts:
+                if text['metadata']:
+                    sources.append({
+                        'title': text['metadata'].get('title', ''),
+                        'url': text['metadata'].get('url', ''),
+                        'content': text['text'][:200] + '...' if len(text['text']) > 200 else text['text']
+                    })
+            
+            # به‌روزرسانی تاریخچه چت
+            self.chat_history.append({"role": "user", "content": query})
+            self.chat_history.append({"role": "assistant", "content": answer})
             
             return {
                 "answer": answer,
@@ -136,9 +208,9 @@ class RAGChatbot:
             }
             
         except Exception as e:
-            logger.error(f"خطا در پاسخ به پرسش: {str(e)}")
+            logger.error(f"Error in RAG chatbot Gemini: {str(e)}")
             return {
-                "answer": "متأسفانه در پاسخ به پرسش شما مشکلی پیش آمده است.",
+                "answer": "متأسفانه در پردازش درخواست شما مشکلی پیش آمده است. لطفاً دوباره تلاش کنید.",
                 "sources": []
             }
             
