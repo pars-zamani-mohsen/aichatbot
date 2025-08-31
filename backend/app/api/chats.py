@@ -126,10 +126,8 @@ async def create_chat(
         chatbot = ChatbotFactory.create_chatbot(
             chatbot_type=chatbot_type,
             collection_name=collection_name,
-            k=default_k,
-            max_length=max_response_length,
-            temperature=default_temperature,
-            language=default_language
+            max_tokens=max_response_length * 2,
+            temperature=default_temperature
         )
         logger.info("چت‌بات با موفقیت ایجاد شد")
         

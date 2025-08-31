@@ -29,11 +29,40 @@ class RAGChatbot:
         self.temperature = temperature or float(settings.TEMPERATURE)
         
         # تنظیم API key
-        self.client = openai.OpenAI(
-            api_key=openai_api_key or settings.OPENAI_API_KEY,
-            base_url=settings.OPENAI_API_BASE_URL if hasattr(settings, 'OPENAI_API_BASE_URL') and settings.OPENAI_API_BASE_URL else None,
-            http_client=httpx.Client(timeout=30.0)
-        )
+        try:
+            # غیرفعال کردن proxy محیطی موقتاً
+            import os
+            import contextlib
+            
+            @contextlib.contextmanager
+            def no_proxy():
+                """Context manager برای غیرفعال کردن proxy"""
+                original_env = {}
+                proxy_vars = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']
+                
+                # ذخیره مقادیر اصلی
+                for var in proxy_vars:
+                    if var in os.environ:
+                        original_env[var] = os.environ[var]
+                        del os.environ[var]
+                
+                try:
+                    yield
+                finally:
+                    # بازگرداندن مقادیر اصلی
+                    for var, value in original_env.items():
+                        os.environ[var] = value
+            
+            # ایجاد کلاینت بدون proxy
+            with no_proxy():
+                self.client = openai.OpenAI(
+                    api_key=openai_api_key or settings.OPENAI_API_KEY,
+                    base_url=settings.OPENAI_API_BASE_URL if hasattr(settings, 'OPENAI_API_BASE_URL') and settings.OPENAI_API_BASE_URL else None
+                )
+                
+        except Exception as e:
+            logger.error(f"خطا در ایجاد OpenAI client: {str(e)}")
+            raise
 
         # ایجاد کلاینت ChromaDB و دریافت کالکشن
         # مسیر دیتابیس باید در پوشه knowledge_base/domain باشد

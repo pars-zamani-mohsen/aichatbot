@@ -41,7 +41,7 @@ class HybridSearcher:
         self.max_cache_size = 1000
 
         # تنظیم آستانه شباهت
-        self.similarity_threshold = 0.45  # کاهش آستانه برای نتایج بیشتر
+        self.similarity_threshold = 0.1  # کاهش آستانه برای نتایج بیشتر
 
         self._initialize()
 
@@ -53,7 +53,8 @@ class HybridSearcher:
     def _initialize(self):
         """آماده‌سازی موتور جستجو"""
         try:
-            results = self.collection.peek()
+            # دریافت همه اسناد از کالکشن
+            results = self.collection.get()
             if not results or not results['documents']:
                 logger.warning("No documents found in collection")
                 return
@@ -276,10 +277,10 @@ class HybridSearcher:
 
     def _perform_search(self, query: str, n_results: int) -> Dict:
         try:
-            # جستجوی معنایی
+            # جستجوی معنایی ساده
             semantic_results = self.collection.query(
                 query_texts=[query],
-                n_results=min(n_results * 3, len(self.documents))
+                n_results=n_results
             )
 
             if not semantic_results.get('distances') or not semantic_results['distances'][0]:
@@ -288,104 +289,31 @@ class HybridSearcher:
 
             semantic_scores = semantic_results['distances'][0]
             
-            # اگر همه امتیازات یکسان هستند، یعنی اطلاعات مرتبطی پیدا نشده
-            if np.all(semantic_scores == semantic_scores[0]):
-                self._log_debug("No distinct semantic matches found")
+            # اگر هیچ نتیجه‌ای پیدا نشد
+            if not semantic_scores:
+                logger.info("No semantic scores found")
                 return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
-            # اگر بهترین امتیاز زیر آستانه است، لاگ می‌کنیم اما ادامه می‌دهیم
-            max_semantic_score = max(semantic_scores)
-            if max_semantic_score < self.similarity_threshold:
-                self._log_debug(f"Best semantic score {max_semantic_score:.4f} below threshold {self.similarity_threshold}, but continuing search")
+            # نرمال‌سازی امتیازات
+            max_score = max(semantic_scores)
+            min_score = min(semantic_scores)
+            
+            if max_score > min_score:
+                normalized_scores = [(score - min_score) / (max_score - min_score) for score in semantic_scores]
+            else:
+                normalized_scores = [1.0] * len(semantic_scores)
 
             self._log_debug(f"Semantic Scores: {[f'{score:.4f}' for score in semantic_scores]}")
-
-            # جستجوی BM25
-            tokenized_query = self._tokenize_text(query)
-            if not tokenized_query:
-                logger.info("Query contains no searchable terms")
-                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
-
-            bm25_scores = self.bm25.get_scores(tokenized_query)
-            if len(bm25_scores) == 0:
-                logger.info("No BM25 matches found")
-                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
-
-            # نرمال‌سازی امتیازات BM25
-            max_bm25_score = max(bm25_scores)
-            min_bm25_score = min(bm25_scores)
-            if max_bm25_score > min_bm25_score:
-                # نرمال‌سازی به بازه [0, 1]
-                bm25_scores = (bm25_scores - min_bm25_score) / (max_bm25_score - min_bm25_score)
-                self._log_debug(f"BM25 Scores (normalized): {[f'{score:.4f}' for score in bm25_scores]}")
-            else:
-                logger.info("No relevant BM25 matches found")
-                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
-
-            # محاسبه وزن‌های پویا
-            sem_w, bm25_w = self._dynamic_weighting(query, semantic_results, bm25_scores)
-            self._log_debug(f"Weights - Semantic: {sem_w:.4f}, BM25: {bm25_w:.4f}")
-
-            # ترکیب نتایج
-            combined_docs, combined_meta = self._combine_results(
-                semantic_results, bm25_scores, sem_w, bm25_w
-            )
-
-            if not combined_docs:
-                logger.info("No combined matches found")
-                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
-
-            # بازمرتب‌سازی با CrossEncoder
-            doc_pairs = [(doc, query) for doc in combined_docs]
-            rerank_scores = self._rerank_results(doc_pairs)
-            
-            if len(rerank_scores) == 0:
-                logger.info("No reranking scores available")
-                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
-
-            # انتخاب بهترین نتایج
-            top_k = min(n_results, len(combined_docs))
-            indices = None
-            final_scores = None
-
-            # اگر همه امتیازات بازمرتب‌سازی یکسان هستند، از امتیازات معنایی استفاده کن
-            if np.all(rerank_scores == rerank_scores[0]):
-                self._log_debug("Using semantic scores for ranking")
-                indices = np.argsort(semantic_scores)[-top_k:][::-1]
-                final_scores = [float(semantic_scores[i]) for i in indices]
-            else:
-                # نرمال‌سازی امتیازات بازمرتب‌سازی
-                max_rerank = np.max(rerank_scores)
-                min_rerank = np.min(rerank_scores)
-                if max_rerank > min_rerank:
-                    rerank_scores = (rerank_scores - min_rerank) / (max_rerank - min_rerank)
-                else:
-                    self._log_debug("No distinct reranking scores available")
-                    return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
-
-                self._log_debug(f"Rerank Scores (normalized): {[f'{score:.4f}' for score in rerank_scores]}")
-                indices = np.argsort(rerank_scores)[-top_k:][::-1]
-                final_scores = [float(rerank_scores[i]) for i in indices]
-
-            if indices is None or final_scores is None:
-                logger.info("Failed to generate final results")
-                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
-
-            # بررسی کیفیت نهایی نتایج
-            if np.all(final_scores == final_scores[0]):
-                self._log_debug("No distinct final scores available")
-                return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
-
-            self._log_debug(f"Final Scores: {[f'{score:.4f}' for score in final_scores]}")
+            self._log_debug(f"Normalized Scores: {[f'{score:.4f}' for score in normalized_scores]}")
 
             return {
-                'documents': [[combined_docs[i] for i in indices]],
-                'metadatas': [[combined_meta[i] for i in indices]],
-                'distances': [final_scores]
+                'documents': semantic_results['documents'],
+                'metadatas': semantic_results['metadatas'],
+                'distances': [normalized_scores]
             }
 
         except Exception as e:
-            logger.error(f"خطا در جستجوی ترکیبی: {str(e)}")
+            logger.error(f"خطا در جستجوی معنایی: {str(e)}")
             return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
 
     def _combine_results(self,

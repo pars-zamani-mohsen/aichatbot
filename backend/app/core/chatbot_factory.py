@@ -12,7 +12,8 @@ class ChatbotFactory:
         collection_name: str = None,
         openai_api_key: str = None,
         google_api_key: str = None,
-        ollama_api_url: str = None
+        ollama_api_url: str = None,
+        **kwargs
     ) -> RAGChatbot:
         """
         ایجاد یک نمونه از چت‌بات با توجه به نوع درخواستی
@@ -23,6 +24,7 @@ class ChatbotFactory:
             openai_api_key: کلید API اپن‌ای
             google_api_key: کلید API گوگل
             ollama_api_url: آدرس API اولاما
+            **kwargs: پارامترهای اضافی
             
         Returns:
             یک نمونه از چت‌بات
@@ -35,17 +37,20 @@ class ChatbotFactory:
         if chatbot_type == 'openai':
             return RAGChatbot(
                 collection_name=collection_name,
-                openai_api_key=openai_api_key
+                openai_api_key=openai_api_key,
+                **kwargs
             )
         elif chatbot_type == 'gemini':
             return GeminiRAGChatbot(
                 collection_name=collection_name,
-                google_api_key=google_api_key
+                google_api_key=google_api_key,
+                **kwargs
             )
         elif chatbot_type == 'local':
             return LocalRAGChatbot(
                 collection_name=collection_name,
-                ollama_api_url=ollama_api_url
+                ollama_api_url=ollama_api_url,
+                **kwargs
             )
         else:
             raise ValueError(f"نوع چت‌بات نامعتبر است: {chatbot_type}") 
