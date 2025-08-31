@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 from ..database.database import get_db
 from ..database import models
-from ..database.models import User, Website, Chat, Message
+from ..database.models import User, Website, Chat, Message, Notification
 from ..services.system_settings_service import SystemSettingsService
 from .auth import get_current_user
 import logging
@@ -610,12 +610,12 @@ async def get_user_history(
         # ایجاد query base
         base_query = db.query(Website).filter(Website.owner_id == current_user.id)
         
-        # فیلتر بر اساس نوع فعالیت
-        if activity_type and activity_type != 'all':
-            if activity_type == 'website_added':
-                base_query = base_query.filter(Website.created_at.isnot(None))
-            elif activity_type == 'website_updated':
-                base_query = base_query.filter(Website.updated_at.isnot(None))
+        # فیلتر بر اساس نوع فعالیت - فعلاً غیرفعال می‌کنیم تا همه فعالیت‌ها نمایش داده شوند
+        # if activity_type and activity_type != 'all':
+        #     if activity_type == 'website_added':
+        #         base_query = base_query.filter(Website.created_at.isnot(None))
+        #     elif activity_type == 'website_updated':
+        #         base_query = base_query.filter(Website.updated_at.isnot(None))
         
         # فیلتر بر اساس جستجو
         if search:
@@ -626,21 +626,22 @@ async def get_user_history(
                 )
             )
         
-        # دریافت وب‌سایت‌ها
-        websites = base_query.order_by(Website.created_at.desc()).offset(offset).limit(limit).all()
+        # دریافت وب‌سایت‌ها - بدون offset و limit برای نمایش همه
+        websites = base_query.order_by(Website.created_at.desc()).all()
         
-        # دریافت چت‌ها
+        # دریافت چت‌ها - بدون offset و limit برای نمایش همه
         chats_query = db.query(Chat).join(Website).filter(Website.owner_id == current_user.id)
-        if activity_type and activity_type != 'all':
-            if activity_type == 'conversation_started':
-                chats_query = chats_query.filter(Chat.created_at.isnot(None))
-            elif activity_type == 'conversation_ended':
-                # چت‌هایی که پیام دارند (پایان یافته)
-                chats_query = chats_query.filter(Chat.id.in_(
-                    db.query(Message.chat_id).distinct()
-                ))
+        # فیلتر بر اساس نوع فعالیت - فعلاً غیرفعال می‌کنیم
+        # if activity_type and activity_type != 'all':
+        #     if activity_type == 'conversation_started':
+        #         chats_query = chats_query.filter(Chat.created_at.isnot(None))
+        #     elif activity_type == 'conversation_ended':
+        #         # چت‌هایی که پیام دارند (پایان یافته)
+        #         chats_query = chats_query.filter(Chat.id.in_(
+        #             db.query(Message.chat_id).distinct()
+        #         ))
         
-        chats = chats_query.order_by(Chat.created_at.desc()).offset(offset).limit(limit).all()
+        chats = chats_query.order_by(Chat.created_at.desc()).all()
         
         # ترکیب و مرتب‌سازی فعالیت‌ها
         activities = []
@@ -699,7 +700,7 @@ async def get_user_history(
                     "title": "گفتگو پایان یافت",
                     "description": f"گفتگوی وب‌سایت {chat.website.name or chat.website.domain} پایان یافت",
                     "website": chat.website.name or chat.website.domain,
-                    "timestamp": chat.updated_at.isoformat() if chat.updated_at else chat.created_at.isoformat(),
+                    "timestamp": chat.created_at.isoformat(),
                     "status": "completed",
                     "icon": "Chat",
                     "color": "secondary"

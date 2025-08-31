@@ -64,12 +64,16 @@ const UserHistory = () => {
       setLoading(true);
       setError(null);
 
+      console.log('Fetching history with params:', { page, filter, searchTerm });
+
       const response = await dashboard.getUserHistory(
         page,
         20,
         filter === 'all' ? null : filter,
         searchTerm || null
       );
+
+      console.log('History response:', response);
 
       setHistoryData(response.activities || []);
       setStats(response.stats || {});

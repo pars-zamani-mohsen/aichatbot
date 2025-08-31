@@ -782,15 +782,18 @@ export const dashboard = {
   // تاریخچه کاربر
   getUserHistory: async (page = 1, limit = 20, activityType = null, search = null) => {
     try {
-      const params = { page, limit };
+      const params = new URLSearchParams();
+      params.append('page', page);
+      params.append('limit', limit);
+      
       if (activityType && activityType !== 'all') {
-        params.activity_type = activityType;
+        params.append('activity_type', activityType);
       }
       if (search) {
-        params.search = search;
+        params.append('search', search);
       }
 
-      const response = await api.get('/api/dashboard/user/history', { params });
+      const response = await api.get(`/api/dashboard/user/history?${params.toString()}`);
       return response.data;
     } catch (error) {
       console.error('Error getting user history:', error);
