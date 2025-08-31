@@ -31,7 +31,6 @@ import {
     AccountCircle,
     Person,
     Logout,
-    Search,
     DarkMode,
     LightMode,
     History
@@ -166,23 +165,7 @@ const UserLayout = ({ children }) => {
                         <MenuIcon />
                     </IconButton>
 
-                    <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
-                        <Box sx={{ position: 'relative', mr: 2 }}>
-                            <Search sx={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.7)' }} />
-                            <input
-                                placeholder="جستجو در وب‌سایت‌های من..."
-                                style={{
-                                    padding: '8px 12px 8px 40px',
-                                    border: 'none',
-                                    borderRadius: '20px',
-                                    backgroundColor: 'rgba(255,255,255,0.2)',
-                                    color: 'white',
-                                    width: '280px',
-                                    outline: 'none'
-                                }}
-                            />
-                        </Box>
-                    </Box>
+                    <Box sx={{ flexGrow: 1 }} />
 
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <IconButton color="inherit" onClick={() => setDarkMode(!darkMode)}>
