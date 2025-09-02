@@ -271,25 +271,9 @@ Docker Compose بالا بیاید و سرویس‌ها سالم باشند.
 ******************************************************************************
 ------------------------------------------------------------------------------
 ******************************************************************************
-1. ساختار فایل‌ها در Root
-فایل‌های زیادی در root وجود دارند که باید به پوشه‌های مناسب منتقل شوند
-chatbot_rag.py, chatbot_rag_gemini.py, chatbot_rag_local.py باید به backend/app/core/ منتقل شوند
-hybrid_searcher.py, prompt_manager.py, text_processor.py باید به backend/app/services/ منتقل شوند
-فایل‌های run_phase1.py, run_phase2.py باید حذف شوند (فایل‌های موقت)
-2. فایل‌های اضافی
-virtual py.txt (17KB) - فایل موقت که باید حذف شود
-app.py در root - احتمالاً فایل قدیمی است
-create_knowledge_base.py, create_embeddings.py - فایل‌های موقت
-process_data.py - فایل موقت
-3. پوشه‌های اضافی
-services/, utils/, static/, templates/ در root - احتمالاً از نسخه قدیمی
-client-sdk/ - خالی است و نیاز نیست
-instance/ - فایل‌های موقت
+
 🚀 پیشنهادات بهبود:
-1. بهینه‌سازی ساختار پروژه
-انتقال همه فایل‌های backend به پوشه backend/
-حذف فایل‌های موقت و اضافی
-سازماندهی بهتر پوشه‌ها
+
 2. بهبود امنیت
 اضافه کردن rate limiting برای API endpoints
 بهبود validation ورودی‌ها
