@@ -271,54 +271,81 @@ Docker Compose بالا بیاید و سرویس‌ها سالم باشند.
 ******************************************************************************
 ------------------------------------------------------------------------------
 ******************************************************************************
-
-بر اساس بررسی جامع پروژه فعلی و مقایسه با پرامپت هدف، در ادامه گزارش کاملی از نقاط نیازمند بهبود و توسعه ارائه می‌دهم:
-🔄 موارد باقی‌مانده برای تکمیل:
-1. تست و بررسی عملکرد
-[ ] تست کامل ویجت چت
-[ ] تست کراولر با وب‌سایت‌های واقعی
-[ ] تست RAG با داده‌های واقعی
-[ ] تست احراز هویت و نقش‌ها
-2. بهبودهای جزئی
-[ ] اضافه کردن loading states بهتر
-[ ] بهبود error handling
-[ ] اضافه کردن validation بهتر
-[ ] بهینه‌سازی performance
-3. مستندات
-[ ] README کامل
-[ ] راهنمای نصب و راه‌اندازی
-[ ] API documentation
-[ ] راهنمای استفاده
-4. Docker و Deployment
-[ ] Docker Compose کامل
-[ ] Environment variables
-[ ] Production configuration
-
-5. کراولر پیشرفته (Medium Priority)
-❌ صف کراول با workerهای async
-❌ پشتیبانی از sitemap.xml
-❌ Headless browser برای JS-heavy
-❌ برنامه زمان‌بندی re-crawl
-❌ ETag/Last-Modified برای بهینه‌سازی
-6. RAG Pipeline پیشرفته (Medium Priority)
-❌ Hybrid retrieval (dense + lexical)
-❌ Re-ranking اختیاری
-❌ Guardrails برای hallucination
-❌ Feedback loop (رضایت/نارضایتی)
-❌ Citations بهتر با deduplication
-7. Observability و Monitoring (Low Priority)
-❌ Logging ساخت‌یافته
-❌ Metrics پایه
-❌ Error tracking
-❌ Health checks
-8. DevOps و Deployment (Low Priority)
-❌ Docker Compose کامل
-❌ تست‌های E2E
-❌ بکاپ‌های خودکار
-❌ مقیاس‌پذیری افقی
-
-
-
-
-
-
+1. ساختار فایل‌ها در Root
+فایل‌های زیادی در root وجود دارند که باید به پوشه‌های مناسب منتقل شوند
+chatbot_rag.py, chatbot_rag_gemini.py, chatbot_rag_local.py باید به backend/app/core/ منتقل شوند
+hybrid_searcher.py, prompt_manager.py, text_processor.py باید به backend/app/services/ منتقل شوند
+فایل‌های run_phase1.py, run_phase2.py باید حذف شوند (فایل‌های موقت)
+2. فایل‌های اضافی
+virtual py.txt (17KB) - فایل موقت که باید حذف شود
+app.py در root - احتمالاً فایل قدیمی است
+create_knowledge_base.py, create_embeddings.py - فایل‌های موقت
+process_data.py - فایل موقت
+3. پوشه‌های اضافی
+services/, utils/, static/, templates/ در root - احتمالاً از نسخه قدیمی
+client-sdk/ - خالی است و نیاز نیست
+instance/ - فایل‌های موقت
+🚀 پیشنهادات بهبود:
+1. بهینه‌سازی ساختار پروژه
+انتقال همه فایل‌های backend به پوشه backend/
+حذف فایل‌های موقت و اضافی
+سازماندهی بهتر پوشه‌ها
+2. بهبود امنیت
+اضافه کردن rate limiting برای API endpoints
+بهبود validation ورودی‌ها
+اضافه کردن CORS configuration مناسب
+بررسی امنیت JWT tokens
+3. بهبود Performance
+اضافه کردن caching برای database queries
+بهینه‌سازی database indexes
+اضافه کردن connection pooling
+بهبود async/await usage
+4. بهبود Monitoring
+اضافه کردن logging بهتر
+اضافه کردن health checks
+اضافه کردن metrics collection
+اضافه کردن error tracking
+5. بهبود Testing
+اضافه کردن unit tests
+اضافه کردن integration tests
+اضافه کردن API tests
+اضافه کردن frontend tests
+6. بهبود Documentation
+اضافه کردن API documentation
+اضافه کردن code documentation
+اضافه کردن architecture diagrams
+اضافه کردن troubleshooting guide
+7. بهبود Deployment
+اضافه کردن Docker support
+اضافه کردن CI/CD pipeline
+اضافه کردن environment-specific configs
+اضافه کردن backup strategies
+8. بهبود User Experience
+بهبود error messages
+اضافه کردن loading states
+بهبود responsive design
+اضافه کردن accessibility features
+9. بهبود Scalability
+اضافه کردن database migrations
+بهبود database schema
+اضافه کردن caching layer
+بهبود concurrency handling
+10. بهبود Maintenance
+اضافه کردن automated backups
+اضافه کردن log rotation
+اضافه کردن monitoring alerts
+اضافه کردن update procedures
+�� اولویت‌بندی:
+اولویت بالا (ضروری):
+پاکسازی ساختار پروژه - انتقال فایل‌ها و حذف موارد اضافی
+بهبود امنیت - rate limiting و validation
+بهبود testing - اضافه کردن tests
+اولویت متوسط (مهم):
+بهبود performance - caching و optimization
+بهبود monitoring - logging و health checks
+بهبود documentation - API docs و code docs
+اولویت پایین (اختیاری):
+بهبود deployment - Docker و CI/CD
+بهبود UX - error handling و loading states
+بهبود scalability - database optimization
+بهبود maintenance - automated procedures
