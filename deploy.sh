@@ -257,9 +257,9 @@ create_backup_script() {
 BACKUP_DIR="/var/backups/ai-chatbot"
 DATE=\$(date +%Y%m%d_%H%M%S)
 
-# خواندن تنظیمات از .env
+# خواندن تنظیمات از .env (حذف کامنت‌ها و خطوط خالی)
 if [[ -f "backend/.env" ]]; then
-    export \$(grep -v '^#' backend/.env | xargs)
+    export \$(grep -v '^#' backend/.env | grep -v '^$' | xargs)
 fi
 
 # ایجاد backup directory
@@ -357,8 +357,8 @@ load_env_config() {
     log_info "خواندن تنظیمات از فایل .env..."
     
     if [[ -f "backend/.env" ]]; then
-        # خواندن متغیرهای محیطی از فایل .env
-        export $(grep -v '^#' backend/.env | xargs)
+        # خواندن متغیرهای محیطی از فایل .env (حذف کامنت‌ها و خطوط خالی)
+        export $(grep -v '^#' backend/.env | grep -v '^$' | xargs)
         log_success "تنظیمات از backend/.env خوانده شد"
     else
         log_warning "فایل backend/.env یافت نشد"
@@ -369,8 +369,8 @@ load_env_config() {
             cp env.example backend/.env
             log_success "فایل backend/.env ایجاد شد"
             
-            # خواندن تنظیمات جدید
-            export $(grep -v '^#' backend/.env | xargs)
+            # خواندن تنظیمات جدید (حذف کامنت‌ها و خطوط خالی)
+            export $(grep -v '^#' backend/.env | grep -v '^$' | xargs)
             log_success "تنظیمات از backend/.env خوانده شد"
         else
             log_warning "فایل env.example یافت نشد، استفاده از مقادیر پیش‌فرض"

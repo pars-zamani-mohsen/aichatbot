@@ -11,6 +11,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from ..services.timezone_manager import TimezoneManager
+from ..middleware.rate_limiter import rate_limiter
 import os
 
 from ..database.database import get_db
@@ -1453,3 +1454,33 @@ async def update_system_timezone(
     except Exception as e:
         logger.error(f"Error updating system timezone: {str(e)}")
         raise HTTPException(status_code=500, detail="خطا در به‌روزرسانی timezone")
+
+@router.post("/admin/reset-rate-limits")
+async def reset_rate_limits(
+    reset_data: Dict[str, str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """ریست کردن محدودیت‌های rate limiting"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        client_ip = None
+        if reset_data and 'client_ip' in reset_data:
+            client_ip = reset_data['client_ip']
+        
+        # ریست کردن محدودیت‌ها
+        if client_ip:
+            rate_limiter.reset_limits(client_ip)
+            logger.info(f"Rate limits reset for IP {client_ip} by admin {current_user.email}")
+            return {"message": f"محدودیت‌های IP {client_ip} ریست شد"}
+        else:
+            rate_limiter.reset_limits()
+            logger.info(f"All rate limits reset by admin {current_user.email}")
+            return {"message": "همه محدودیت‌ها ریست شد"}
+        
+    except Exception as e:
+        logger.error(f"Error resetting rate limits: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطا در ریست کردن محدودیت‌ها")

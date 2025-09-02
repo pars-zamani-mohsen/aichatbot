@@ -18,7 +18,7 @@ class RateLimiter:
         # تنظیمات Rate Limiting
         self.limits = {
             "chat": {"requests": 10, "window": 60},  # 10 چت در دقیقه
-            "crawl": {"requests": 2, "window": 300},  # 2 کراول در 5 دقیقه
+            "crawl": {"requests": 5, "window": 300},  # 5 کراول در 5 دقیقه (افزایش یافت)
             "api": {"requests": 100, "window": 60},   # 100 درخواست API در دقیقه
             "widget": {"requests": 50, "window": 60}  # 50 درخواست widget در دقیقه
         }
@@ -62,6 +62,17 @@ class RateLimiter:
                 "requests_last_minute": len([t for t in self.requests[key] 
                                            if current_time - t <= 60])
             }
+    
+    def reset_limits(self, key: str = None):
+        """ریست کردن محدودیت‌ها برای یک کلید خاص یا همه"""
+        with self.lock:
+            if key:
+                if key in self.requests:
+                    self.requests[key].clear()
+                    logger.info(f"Rate limits reset for {key}")
+            else:
+                self.requests.clear()
+                logger.info("All rate limits reset")
 
 # Instance سراسری
 rate_limiter = RateLimiter()
