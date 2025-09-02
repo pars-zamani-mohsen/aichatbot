@@ -25,6 +25,7 @@ import {
   Save as SaveIcon
 } from '@mui/icons-material';
 import api from '../../services/api';
+import { dashboard } from '../../services/api';
 
 const RAGSettings = ({ website }) => {
   const [settings, setSettings] = useState({});
@@ -35,10 +36,12 @@ const RAGSettings = ({ website }) => {
   const [success, setSuccess] = useState(null);
   const [testQuery, setTestQuery] = useState('');
   const [testResult, setTestResult] = useState(null);
+  const [systemSettings, setSystemSettings] = useState({});
 
   useEffect(() => {
     if (website) {
       fetchRAGSettings();
+      fetchSystemSettings();
     }
   }, [website]);
 
@@ -52,6 +55,53 @@ const RAGSettings = ({ website }) => {
       console.error('Fetch RAG settings error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSystemSettings = async () => {
+    try {
+      const response = await dashboard.getSystemSettings();
+      setSystemSettings(response);
+
+      // بررسی و تصحیح مدل انتخاب شده
+      validateAndFixSelectedModel(response);
+    } catch (err) {
+      console.error('Fetch system settings error:', err);
+    }
+  };
+
+  const validateAndFixSelectedModel = (systemSettings) => {
+    const currentModel = settings.chatbot_type || 'openai';
+    let isValidModel = false;
+    let fallbackModel = null;
+
+    // بررسی اینکه مدل فعلی فعال است یا نه
+    if (currentModel === 'openai' && systemSettings.enableOpenAI) {
+      isValidModel = true;
+    } else if (currentModel === 'gemini' && systemSettings.enableGemini) {
+      isValidModel = true;
+    } else if (currentModel === 'local' && systemSettings.enableLocal) {
+      isValidModel = true;
+    }
+
+    // اگر مدل فعلی غیرفعال است، مدل جایگزین پیدا کن
+    if (!isValidModel) {
+      if (systemSettings.enableOpenAI) {
+        fallbackModel = 'openai';
+      } else if (systemSettings.enableGemini) {
+        fallbackModel = 'gemini';
+      } else if (systemSettings.enableLocal) {
+        fallbackModel = 'local';
+      }
+    }
+
+    // اگر مدل جایگزین پیدا شد، آن را تنظیم کن
+    if (fallbackModel && fallbackModel !== currentModel) {
+      setSettings(prev => ({
+        ...prev,
+        chatbot_type: fallbackModel
+      }));
+      setError(`مدل ${currentModel} غیرفعال شده است. مدل ${fallbackModel} به عنوان جایگزین انتخاب شد.`);
     }
   };
 
@@ -146,8 +196,15 @@ const RAGSettings = ({ website }) => {
                   value={settings.chatbot_type || 'openai'}
                   onChange={(e) => updateSetting('chatbot_type', e.target.value)}
                 >
-                  <MenuItem value="openai">OpenAI GPT</MenuItem>
-                  <MenuItem value="gemini">Google Gemini</MenuItem>
+                  {systemSettings.enableOpenAI && (
+                    <MenuItem value="openai">OpenAI GPT</MenuItem>
+                  )}
+                  {systemSettings.enableGemini && (
+                    <MenuItem value="gemini">Google Gemini</MenuItem>
+                  )}
+                  {systemSettings.enableLocal && (
+                    <MenuItem value="local">مدل محلی (Ollama)</MenuItem>
+                  )}
                 </Select>
               </FormControl>
 

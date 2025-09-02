@@ -132,7 +132,8 @@ async def create_chat(
             chatbot_type=website_chatbot_type,
             collection_name=collection_name,
             max_tokens=max_response_length * 2,
-            temperature=default_temperature
+            temperature=default_temperature,
+            db=db
         )
         logger.info(f"چت‌بات {website_chatbot_type} با موفقیت ایجاد شد")
         

@@ -78,7 +78,12 @@ const SystemSettings = () => {
         slackNotifications: false,
         slackWebhook: '',
         notifyOnError: true,
-        notifyOnNewUser: true
+        notifyOnNewUser: true,
+
+        // تنظیمات مدل‌های چت‌بات
+        enableOpenAI: true,
+        enableGemini: true,
+        enableLocal: false
     });
 
     useEffect(() => {
@@ -389,7 +394,7 @@ const SystemSettings = () => {
                                 sx={{ mb: 2 }}
                             />
 
-                            <FormControl fullWidth>
+                            <FormControl fullWidth sx={{ mb: 2 }}>
                                 <InputLabel>زبان پیش‌فرض</InputLabel>
                                 <Select
                                     value={settings.defaultLanguage}
@@ -401,6 +406,44 @@ const SystemSettings = () => {
                                     <MenuItem value="ar">عربی</MenuItem>
                                 </Select>
                             </FormControl>
+
+                            <Divider sx={{ my: 2 }} />
+
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+                                تنظیمات مدل‌های چت‌بات
+                            </Typography>
+
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={settings.enableOpenAI}
+                                        onChange={(e) => handleSettingChange('enableOpenAI', e.target.checked)}
+                                    />
+                                }
+                                label="فعال‌سازی OpenAI GPT"
+                                sx={{ mb: 1 }}
+                            />
+
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={settings.enableGemini}
+                                        onChange={(e) => handleSettingChange('enableGemini', e.target.checked)}
+                                    />
+                                }
+                                label="فعال‌سازی Google Gemini"
+                                sx={{ mb: 1 }}
+                            />
+
+                            <FormControlLabel
+                                control={
+                                    <Switch
+                                        checked={settings.enableLocal}
+                                        onChange={(e) => handleSettingChange('enableLocal', e.target.checked)}
+                                    />
+                                }
+                                label="فعال‌سازی مدل محلی (Ollama)"
+                            />
                         </CardContent>
                     </Card>
                 </Grid>

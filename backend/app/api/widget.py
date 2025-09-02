@@ -226,7 +226,8 @@ async def widget_chat(
             
             chatbot = ChatbotFactory.create_chatbot(
                 chatbot_type=chatbot_type,
-                collection_name=website.collection_name
+                collection_name=website.collection_name,
+                db=db
             )
             
             response = chatbot.ask(message)

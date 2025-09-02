@@ -565,19 +565,51 @@ async def get_rag_settings(
         # بررسی مالکیت وب‌سایت (جداسازی tenant)
         website = verify_website_ownership(website_id, current_user.id, db)
         
+        # دریافت تنظیمات RAG
+        rag_settings = website.rag_settings or {}
+        
+        # تنظیمات پیش‌فرض
+        default_settings = {
+            "k": 5,
+            "max_response_length": 500,
+            "temperature": 0.7,
+            "tone": "professional",
+            "language": "persian",
+            "chatbot_type": "openai",
+            "include_sources": True,
+            "max_context_length": 2000
+        }
+        
+        # ترکیب تنظیمات موجود با پیش‌فرض
+        final_settings = {**default_settings, **rag_settings}
+        
+        # بررسی و تصحیح مدل انتخاب شده
+        system_settings = SystemSettingsService.get_all_settings(db)
+        current_model = final_settings.get("chatbot_type", "openai")
+        
+        # بررسی اینکه مدل فعلی فعال است یا نه
+        if (current_model == "openai" and not system_settings.get("enableOpenAI", True)) or \
+           (current_model == "gemini" and not system_settings.get("enableGemini", True)) or \
+           (current_model == "local" and not system_settings.get("enableLocal", False)):
+            
+            # پیدا کردن مدل جایگزین
+            if system_settings.get("enableOpenAI", True):
+                final_settings["chatbot_type"] = "openai"
+            elif system_settings.get("enableGemini", True):
+                final_settings["chatbot_type"] = "gemini"
+            elif system_settings.get("enableLocal", False):
+                final_settings["chatbot_type"] = "local"
+            
+            # ذخیره تنظیمات تصحیح شده
+            website.rag_settings = final_settings
+            db.commit()
+            
+            logger.info(f"Website {website_id} chatbot type corrected from {current_model} to {final_settings['chatbot_type']}")
+        
         return {
             "website_id": website_id,
-            "rag_settings": website.rag_settings or {},
-            "default_settings": {
-                "k": 5,
-                "max_response_length": 500,
-                "temperature": 0.7,
-                "tone": "professional",
-                "language": "persian",
-                "chatbot_type": "openai",
-                "include_sources": True,
-                "max_context_length": 2000
-            }
+            "rag_settings": final_settings,
+            "default_settings": default_settings
         }
         
     except Exception as e:
@@ -619,7 +651,8 @@ async def test_rag_query(
             chatbot_type=chatbot_type,
             collection_name=website.collection_name,
             max_tokens=max_response_length * 2,
-            temperature=temperature
+            temperature=temperature,
+            db=db
         )
         
         # اجرای پرسش

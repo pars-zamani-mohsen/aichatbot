@@ -1303,7 +1303,11 @@ async def get_system_settings(
             "siteName": SystemSettingsService.get_setting(db, "siteName", "RAG Chatbot System"),
             "siteDescription": SystemSettingsService.get_setting(db, "siteDescription", "سیستم چت‌بات هوشمند"),
             "maintenanceMode": SystemSettingsService.get_setting(db, "maintenanceMode", False),
-            "debugMode": SystemSettingsService.get_setting(db, "debugMode", False)
+            "debugMode": SystemSettingsService.get_setting(db, "debugMode", False),
+            # تنظیمات مدل‌های چت‌بات
+            "enableOpenAI": SystemSettingsService.get_setting(db, "enableOpenAI", True),
+            "enableGemini": SystemSettingsService.get_setting(db, "enableGemini", True),
+            "enableLocal": SystemSettingsService.get_setting(db, "enableLocal", False)
         }
         
         return public_settings
