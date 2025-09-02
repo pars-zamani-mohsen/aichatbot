@@ -567,13 +567,13 @@ export const dashboard = {
 
       // در صورت خطا، داده‌های خالی برگردانیم
       return [
-        { day: 'شنبه', conversations: 0, messages: 0 },
-        { day: 'یکشنبه', conversations: 0, messages: 0 },
         { day: 'دوشنبه', conversations: 0, messages: 0 },
         { day: 'سه‌شنبه', conversations: 0, messages: 0 },
         { day: 'چهارشنبه', conversations: 0, messages: 0 },
         { day: 'پنج‌شنبه', conversations: 0, messages: 0 },
         { day: 'جمعه', conversations: 0, messages: 0 },
+        { day: 'شنبه', conversations: 0, messages: 0 },
+        { day: 'یکشنبه', conversations: 0, messages: 0 },
       ];
     }
   },
@@ -587,13 +587,13 @@ export const dashboard = {
       console.error('Error getting admin weekly stats:', error);
       // در صورت خطا، داده‌های خالی برگردانیم
       return [
-        { day: 'شنبه', conversations: 0, users: 0 },
-        { day: 'یکشنبه', conversations: 0, users: 0 },
         { day: 'دوشنبه', conversations: 0, users: 0 },
         { day: 'سه‌شنبه', conversations: 0, users: 0 },
         { day: 'چهارشنبه', conversations: 0, users: 0 },
         { day: 'پنج‌شنبه', conversations: 0, users: 0 },
         { day: 'جمعه', conversations: 0, users: 0 },
+        { day: 'شنبه', conversations: 0, users: 0 },
+        { day: 'یکشنبه', conversations: 0, users: 0 },
       ];
     }
   },

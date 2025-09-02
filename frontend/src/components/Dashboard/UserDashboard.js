@@ -130,13 +130,13 @@ const UserDashboard = () => {
                         messageTrend: 0
                     });
                     setChartData([
-                        { day: 'شنبه', conversations: 0, messages: 0 },
-                        { day: 'یکشنبه', conversations: 0, messages: 0 },
                         { day: 'دوشنبه', conversations: 0, messages: 0 },
                         { day: 'سه‌شنبه', conversations: 0, messages: 0 },
                         { day: 'چهارشنبه', conversations: 0, messages: 0 },
                         { day: 'پنج‌شنبه', conversations: 0, messages: 0 },
                         { day: 'جمعه', conversations: 0, messages: 0 },
+                        { day: 'شنبه', conversations: 0, messages: 0 },
+                        { day: 'یکشنبه', conversations: 0, messages: 0 },
                     ]);
                     setRecentActivity([]);
                 } else {
@@ -150,13 +150,13 @@ const UserDashboard = () => {
                         messageTrend: 0
                     });
                     setChartData([
-                        { day: 'شنبه', conversations: 0, messages: 0 },
-                        { day: 'یکشنبه', conversations: 0, messages: 0 },
                         { day: 'دوشنبه', conversations: 0, messages: 0 },
                         { day: 'سه‌شنبه', conversations: 0, messages: 0 },
                         { day: 'چهارشنبه', conversations: 0, messages: 0 },
                         { day: 'پنج‌شنبه', conversations: 0, messages: 0 },
                         { day: 'جمعه', conversations: 0, messages: 0 },
+                        { day: 'شنبه', conversations: 0, messages: 0 },
+                        { day: 'یکشنبه', conversations: 0, messages: 0 },
                     ]);
                     setRecentActivity([]);
                 }
