@@ -127,14 +127,21 @@ async def create_chat(
         logger.info(f"تنظیمات RAG وب‌سایت: {rag_settings}")
         logger.info(f"نوع چت‌بات انتخاب شده: {website_chatbot_type}")
         
-        # ایجاد چت‌بات با collection_name صحیح و تنظیمات RAG
-        chatbot = ChatbotFactory.create_chatbot(
-            chatbot_type=website_chatbot_type,
-            collection_name=collection_name,
-            max_tokens=max_response_length * 2,
-            temperature=default_temperature,
-            db=db
-        )
+        # استفاده از ChatbotManager برای مدیریت همزمانی
+        from app.core.chatbot_manager import chatbot_manager
+        
+        try:
+            chatbot = chatbot_manager.get_chatbot(
+                collection_name=collection_name,
+                chatbot_type=website_chatbot_type,
+                db_session=db
+            )
+        except Exception as e:
+            logger.error(f"Error getting chatbot: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="سرویس چت‌بات در دسترس نیست. لطفاً کمی صبر کنید."
+            )
         logger.info(f"چت‌بات {website_chatbot_type} با موفقیت ایجاد شد")
         
         # بررسی وجود چت قبلی
@@ -178,9 +185,13 @@ async def create_chat(
         
         # ارسال پرسش به چت‌بات
         logger.info(f"ارسال پرسش به چت‌بات: {chat.message[:100]}...")
-        response = chatbot.ask(chat.message)
-        logger.info(f"پاسخ از چت‌بات دریافت شد - Answer: {response['answer'][:100]}...")
-        logger.info(f"منابع پاسخ: {response['sources']}")
+        try:
+            response = chatbot.ask(chat.message)
+            logger.info(f"پاسخ از چت‌بات دریافت شد - Answer: {response['answer'][:100]}...")
+            logger.info(f"منابع پاسخ: {response['sources']}")
+        finally:
+            # آزادسازی chatbot
+            chatbot_manager.release_chatbot(collection_name, website_chatbot_type)
         
         # بررسی ساختار پاسخ
         if not isinstance(response, dict):

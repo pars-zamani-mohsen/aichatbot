@@ -8,6 +8,8 @@ from .config import settings
 from .middleware import error_handler, logging_middleware
 from .middleware.maintenance_middleware import maintenance_middleware
 from .middleware.debug_middleware import debug_middleware
+from .middleware.rate_limiter import rate_limit_middleware
+from .services.crawler_queue import crawler_queue
 from .core.logging_config import setup_logging
 import logging
 
@@ -36,6 +38,7 @@ app.middleware("http")(maintenance_middleware)
 app.middleware("http")(debug_middleware)
 app.middleware("http")(error_handler)
 app.middleware("http")(logging_middleware)
+app.middleware("http")(rate_limit_middleware)
 
 # اضافه کردن روترها
 app.include_router(auth.router, prefix="/api", tags=["auth"])
@@ -48,4 +51,16 @@ app.include_router(email_archive.router, prefix="/api", tags=["email_archive"])
 
 @app.get("/")
 async def root():
-    return {"message": "به API چت‌بات خوش آمدید"} 
+    return {"message": "به API چت‌بات خوش آمدید"}
+
+@app.on_event("startup")
+async def startup_event():
+    """شروع سیستم‌های مدیریت همزمانی"""
+    crawler_queue.start()
+    logger.info("Crawler queue started")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """توقف سیستم‌های مدیریت همزمانی"""
+    crawler_queue.stop()
+    logger.info("Crawler queue stopped") 

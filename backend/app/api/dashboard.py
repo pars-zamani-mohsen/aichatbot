@@ -9,6 +9,7 @@ except ImportError:
 from pathlib import Path
 import json
 from datetime import datetime, timedelta, timezone
+import os
 
 from ..database.database import get_db
 from ..database import models
@@ -1341,3 +1342,31 @@ async def update_admin_system_settings(
     except Exception as e:
         logger.error(f"Error updating system settings: {str(e)}")
         raise HTTPException(status_code=500, detail="خطا در به‌روزرسانی تنظیمات سیستم")
+
+@router.get("/admin/system-status")
+async def get_system_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت وضعیت سیستم برای ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        from app.core.chatbot_manager import chatbot_manager
+        from app.services.crawler_queue import crawler_queue
+        from app.middleware.rate_limiter import rate_limiter
+        
+        return {
+            "chatbot_manager": chatbot_manager.get_stats(),
+            "crawler_queue": crawler_queue.get_queue_status(),
+            "system_resources": {
+                "cpu_cores": os.cpu_count(),
+                "memory_total": os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / (1024**3)
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting system status: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطا در دریافت وضعیت سیستم")

@@ -132,8 +132,18 @@ async def crawl_website(
         db.commit()
         db.refresh(website_record)
         
-        # شروع پردازش در پس‌زمینه
-        background_tasks.add_task(process_website_background, website_record.id, db)
+        # استفاده از صف کراولینگ
+        from app.services.crawler_queue import crawler_queue
+        
+        task = crawler_queue.add_crawl_task(
+            website_id=website_record.id,
+            url=str(website.url),
+            domain=website_record.domain,
+            owner_id=current_user.id,
+            priority=1
+        )
+        
+        logger.info(f"Added crawl task to queue: {task.website_id}")
         
         return website_record
         
