@@ -97,10 +97,10 @@ setup_database() {
     sudo systemctl start postgresql
     sudo systemctl enable postgresql
     
-    # ایجاد database و user
-    sudo -u postgres psql -c "CREATE DATABASE ai_chatbot;" 2>/dev/null || log_warning "Database قبلاً وجود دارد"
-    sudo -u postgres psql -c "CREATE USER ai_user WITH PASSWORD 'ai_chatbot_2024';" 2>/dev/null || log_warning "User قبلاً وجود دارد"
-    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ai_chatbot TO ai_user;"
+    # ایجاد database و user با استفاده از تنظیمات .env
+    sudo -u postgres psql -c "CREATE DATABASE ${POSTGRES_DB};" 2>/dev/null || log_warning "Database قبلاً وجود دارد"
+    sudo -u postgres psql -c "CREATE USER ${POSTGRES_USER} WITH PASSWORD '${POSTGRES_PASSWORD}';" 2>/dev/null || log_warning "User قبلاً وجود دارد"
+    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${POSTGRES_DB} TO ${POSTGRES_USER};"
     
     log_success "Database تنظیم شد"
 }
@@ -257,11 +257,16 @@ create_backup_script() {
 BACKUP_DIR="/var/backups/ai-chatbot"
 DATE=\$(date +%Y%m%d_%H%M%S)
 
+# خواندن تنظیمات از .env
+if [[ -f "backend/.env" ]]; then
+    export \$(grep -v '^#' backend/.env | xargs)
+fi
+
 # ایجاد backup directory
 mkdir -p \$BACKUP_DIR
 
-# Backup database
-pg_dump ai_chatbot > \$BACKUP_DIR/db_backup_\$DATE.sql
+# Backup database با استفاده از تنظیمات .env
+pg_dump \${POSTGRES_DB:-ai_db} > \$BACKUP_DIR/db_backup_\$DATE.sql
 
 # Backup code
 tar -czf \$BACKUP_DIR/code_backup_\$DATE.tar.gz /var/www/html/ai
@@ -333,11 +338,50 @@ show_final_info() {
     echo "   📝 Logs: sudo journalctl -u ai-backend -f"
     echo
     echo "⚠️  نکات مهم:"
-    echo "   1. فایل .env را در backend تنظیم کنید (cp ../env.example .env)"
-    echo "   2. API keys را اضافه کنید"
+    echo "   1. فایل .env در backend ایجاد شده است"
+    echo "   2. API keys را در backend/.env تنظیم کنید"
     echo "   3. Domain name را در nginx تنظیم کنید"
     echo "   4. SSL certificate نصب کنید"
     echo
+    echo "🔧 تنظیمات بعدی:"
+    echo "   📝 ویرایش فایل .env: nano backend/.env"
+    echo "   🔑 اضافه کردن API keys:"
+    echo "      - OPENAI_API_KEY=your_openai_key"
+    echo "      - GEMINI_API_KEY=your_gemini_key"
+    echo "   🌐 تنظیم CORS_ORIGINS برای domain شما"
+    echo
+}
+
+# خواندن تنظیمات از فایل .env
+load_env_config() {
+    log_info "خواندن تنظیمات از فایل .env..."
+    
+    if [[ -f "backend/.env" ]]; then
+        # خواندن متغیرهای محیطی از فایل .env
+        export $(grep -v '^#' backend/.env | xargs)
+        log_success "تنظیمات از backend/.env خوانده شد"
+    else
+        log_warning "فایل backend/.env یافت نشد"
+        
+        # چک کردن وجود env.example
+        if [[ -f "env.example" ]]; then
+            log_info "ایجاد فایل .env از env.example..."
+            cp env.example backend/.env
+            log_success "فایل backend/.env ایجاد شد"
+            
+            # خواندن تنظیمات جدید
+            export $(grep -v '^#' backend/.env | xargs)
+            log_success "تنظیمات از backend/.env خوانده شد"
+        else
+            log_warning "فایل env.example یافت نشد، استفاده از مقادیر پیش‌فرض"
+            # مقادیر پیش‌فرض
+            export POSTGRES_USER="ai_user"
+            export POSTGRES_PASSWORD="ai_password"
+            export POSTGRES_DB="ai_db"
+            export POSTGRES_HOST="localhost"
+            export POSTGRES_PORT="5432"
+        fi
+    fi
 }
 
 # Main function
@@ -351,6 +395,9 @@ main() {
     
     # چک کردن dependencies
     check_dependencies
+    
+    # خواندن تنظیمات از فایل .env
+    load_env_config
     
     # سوال برای ادامه
     read -p "آیا می‌خواهید deployment را شروع کنید؟ (y/N): " -n 1 -r

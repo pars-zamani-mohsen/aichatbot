@@ -1,3 +1,4 @@
+sudo chown -R $USER:$USER ai/* && chmod 777 -R ai/*
 #جدید (newChatbotPanel)
 cd /var/www/html/ai/backend
 source venv/bin/activate
@@ -274,11 +275,7 @@ Docker Compose بالا بیاید و سرویس‌ها سالم باشند.
 
 🚀 پیشنهادات بهبود:
 
-2. بهبود امنیت
-اضافه کردن rate limiting برای API endpoints
-بهبود validation ورودی‌ها
-اضافه کردن CORS configuration مناسب
-بررسی امنیت JWT tokens
+
 3. بهبود Performance
 اضافه کردن caching برای database queries
 بهینه‌سازی database indexes

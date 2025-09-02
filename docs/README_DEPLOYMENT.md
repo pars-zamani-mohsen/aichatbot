@@ -39,9 +39,9 @@ sudo systemctl enable postgresql
 
 # ایجاد database
 sudo -u postgres psql
-CREATE DATABASE ai_chatbot;
+CREATE DATABASE ai_db;
 CREATE USER ai_user WITH PASSWORD 'your_secure_password';
-GRANT ALL PRIVILEGES ON DATABASE ai_chatbot TO ai_user;
+GRANT ALL PRIVILEGES ON DATABASE ai_db TO ai_user;
 \q
 ```
 
@@ -54,7 +54,7 @@ nano .env
 
 **محتویات مهم .env:**
 ```env
-DATABASE_URL=postgresql://ai_user:your_secure_password@localhost/ai_chatbot
+DATABASE_URL=postgresql://ai_user:your_secure_password@localhost/ai_db
 SECRET_KEY=your_super_secret_key_here
 OPENAI_API_KEY=your_openai_api_key
 GOOGLE_API_KEY=your_google_api_key
@@ -224,7 +224,7 @@ sudo tail -f /var/log/nginx/error.log
 ### Database connection:
 ```bash
 sudo systemctl status postgresql
-psql -h localhost -U ai_user -d ai_chatbot
+psql -h localhost -U ai_user -d ai_db
 ```
 
 ---

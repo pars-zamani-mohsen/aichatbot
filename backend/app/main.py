@@ -9,6 +9,7 @@ from .middleware import error_handler, logging_middleware
 from .middleware.maintenance_middleware import maintenance_middleware
 from .middleware.debug_middleware import debug_middleware
 from .middleware.rate_limiter import rate_limit_middleware
+from .middleware.security_middleware import security_middleware
 from .services.crawler_queue import crawler_queue
 from .core.logging_config import setup_logging
 import logging
@@ -26,19 +27,25 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# اضافه کردن میدلورها
+# بهبود CORS Configuration
+cors_origins = settings.CORS_ORIGINS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
 )
+
+# اضافه کردن میدلورها به ترتیب صحیح
+app.middleware("http")(security_middleware)  # اول security headers
 app.middleware("http")(maintenance_middleware)
 app.middleware("http")(debug_middleware)
 app.middleware("http")(error_handler)
 app.middleware("http")(logging_middleware)
-app.middleware("http")(rate_limit_middleware)
+app.middleware("http")(rate_limit_middleware)  # آخر rate limiting
 
 # اضافه کردن روترها
 app.include_router(auth.router, prefix="/api", tags=["auth"])
@@ -55,12 +62,14 @@ async def root():
 
 @app.on_event("startup")
 async def startup_event():
-    """شروع سیستم‌های مدیریت همزمانی"""
+    """رویداد شروع برنامه"""
+    logger.info("🚀 شروع برنامه...")
+    # شروع crawler queue
     crawler_queue.start()
-    logger.info("Crawler queue started")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """توقف سیستم‌های مدیریت همزمانی"""
-    crawler_queue.stop()
-    logger.info("Crawler queue stopped") 
+    """رویداد پایان برنامه"""
+    logger.info("🛑 پایان برنامه...")
+    # توقف crawler queue
+    crawler_queue.stop() 

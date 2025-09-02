@@ -50,9 +50,9 @@ sudo -u postgres psql
 
 ```sql
 -- در PostgreSQL
-CREATE DATABASE ai_chatbot;
+CREATE DATABASE ai_db;
 CREATE USER ai_user WITH PASSWORD 'your_secure_password';
-GRANT ALL PRIVILEGES ON DATABASE ai_chatbot TO ai_user;
+GRANT ALL PRIVILEGES ON DATABASE ai_db TO ai_user;
 \q
 ```
 
@@ -70,7 +70,7 @@ nano .env
 ### محتوای .env:
 ```env
 # Database Configuration
-DATABASE_URL=postgresql://ai_user:your_secure_password@localhost/ai_chatbot
+DATABASE_URL=postgresql://ai_user:your_secure_password@localhost/ai_db
 
 # Security Settings
 SECRET_KEY=your_super_secret_key_here_make_it_long_and_random_at_least_32_characters
@@ -352,7 +352,7 @@ DATE=$(date +%Y%m%d_%H%M%S)
 mkdir -p $BACKUP_DIR
 
 # Backup database
-pg_dump ai_chatbot > $BACKUP_DIR/db_backup_$DATE.sql
+pg_dump ai_db > $BACKUP_DIR/db_backup_$DATE.sql
 
 # Backup code
 tar -czf $BACKUP_DIR/code_backup_$DATE.tar.gz /var/www/html/ai
@@ -410,7 +410,7 @@ ls -la /var/www/html/ai/backend/
 #### 2. Database connection error:
 ```bash
 # تست connection
-psql -h localhost -U ai_user -d ai_chatbot
+psql -h localhost -U ai_user -d ai_db
 
 # چک کردن PostgreSQL status
 sudo systemctl status postgresql
