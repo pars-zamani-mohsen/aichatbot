@@ -30,7 +30,8 @@ cd rag-chatbot
 
 2. فایل `.env` را ایجاد کنید:
 ```bash
-cp .env.example .env
+cd backend
+cp ../env.example .env
 ```
 
 3. متغیرهای محیطی را در `.env` تنظیم کنید.
