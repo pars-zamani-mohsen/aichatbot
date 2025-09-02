@@ -206,3 +206,17 @@ class SystemSettingsService:
             'notify_on_error': cls.get_setting(db, 'notifyOnError', True),
             'notify_on_new_user': cls.get_setting(db, 'notifyOnNewUser', True),
         }
+    
+    @classmethod
+    def get_timezone_settings(cls, db: Session) -> Dict[str, Any]:
+        """دریافت تنظیمات timezone"""
+        return {
+            'system_timezone': cls.get_setting(db, 'systemTimezone', 'Asia/Tehran'),
+            'default_timezone': cls.get_setting(db, 'defaultTimezone', 'Asia/Tehran'),
+            'timezone_format': cls.get_setting(db, 'timezoneFormat', 'Asia/Tehran'),
+        }
+    
+    @classmethod
+    def get_system_timezone(cls, db: Session) -> str:
+        """دریافت timezone سیستم با کش"""
+        return cls.get_setting(db, 'systemTimezone', 'Asia/Tehran')

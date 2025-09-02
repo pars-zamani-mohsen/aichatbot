@@ -550,6 +550,7 @@ export const dashboard = {
   getWeeklyStats: async () => {
     try {
       const response = await api.get('/api/dashboard/weekly-stats');
+
       return response.data;
     } catch (error) {
       console.error('Error getting weekly stats:', error);
@@ -580,6 +581,7 @@ export const dashboard = {
   getAdminWeeklyStats: async () => {
     try {
       const response = await api.get('/api/dashboard/admin/weekly-stats');
+
       return response.data;
     } catch (error) {
       console.error('Error getting admin weekly stats:', error);
@@ -795,7 +797,7 @@ export const dashboard = {
       const params = new URLSearchParams();
       params.append('page', page);
       params.append('limit', limit);
-      
+
       if (activityType && activityType !== 'all') {
         params.append('activity_type', activityType);
       }

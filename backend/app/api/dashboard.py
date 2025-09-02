@@ -9,6 +9,8 @@ except ImportError:
 from pathlib import Path
 import json
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+from ..services.timezone_manager import TimezoneManager
 import os
 
 from ..database.database import get_db
@@ -431,24 +433,34 @@ async def get_weekly_stats(
 ):
     """دریافت آمار هفتگی برای نمودار"""
     try:
-        # محاسبه تاریخ‌های هفته گذشته
-        today = datetime.now(timezone.utc).date()
-        week_ago = today - timedelta(days=7)
+        # محاسبه تاریخ‌های هفته گذشته با timezone سیستم
+        system_tz = TimezoneManager.get_system_zone_info(db)
+        today = TimezoneManager.get_current_date(db)
+        # محاسبه هفته گذشته: از دوشنبه هفته گذشته
+        days_since_monday = today.weekday()
+        monday_this_week = today - timedelta(days=days_since_monday)
+        week_ago = monday_this_week - timedelta(days=7)  # دوشنبه هفته گذشته
         
-        # نام‌های روزهای هفته به فارسی
-        day_names = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه']
+        # نام‌های روزهای هفته به ترتیب صحیح (دوشنبه تا یکشنبه)
+        day_names = ['دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه', 'یکشنبه']
         
         weekly_data = []
         
         for i in range(7):
             current_date = week_ago + timedelta(days=i)
-            day_name = day_names[current_date.weekday()]
+            # استفاده از ترتیب ثابت روزها
+            day_name = day_names[i]
+            
+            # محاسبه بازه زمانی برای این روز (با timezone سیستم)
+            day_start = datetime.combine(current_date, datetime.min.time(), tzinfo=system_tz)
+            day_end = datetime.combine(current_date, datetime.max.time(), tzinfo=system_tz)
             
             # آمار چت‌ها برای این روز
             day_chats = db.query(Chat).join(Website).filter(
                 and_(
                     Website.owner_id == current_user.id,
-                    cast(Chat.created_at, Date) == current_date
+                    Chat.created_at >= day_start,
+                    Chat.created_at <= day_end
                 )
             ).count()
             
@@ -456,7 +468,8 @@ async def get_weekly_stats(
             day_messages = db.query(Message).join(Chat).join(Website).filter(
                 and_(
                     Website.owner_id == current_user.id,
-                    cast(Message.created_at, Date) == current_date
+                    Message.created_at >= day_start,
+                    Message.created_at <= day_end
                 )
             ).count()
             
@@ -759,35 +772,51 @@ async def get_admin_weekly_stats(
         if current_user.role != "admin":
             raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
         
-        # محاسبه تاریخ‌های هفته گذشته
-        today = datetime.now(timezone.utc).date()
-        week_ago = today - timedelta(days=7)
+        # محاسبه تاریخ‌های هفته گذشته با timezone سیستم
+        system_tz = TimezoneManager.get_system_zone_info(db)
+        today = TimezoneManager.get_current_date(db)
+        # محاسبه هفته گذشته: از دوشنبه هفته گذشته
+        days_since_monday = today.weekday()
+        monday_this_week = today - timedelta(days=days_since_monday)
+        week_ago = monday_this_week - timedelta(days=7)  # دوشنبه هفته گذشته
         
-        # نام‌های روزهای هفته به فارسی
-        day_names = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه']
+        # نام‌های روزهای هفته به ترتیب صحیح (دوشنبه تا یکشنبه)
+        day_names = ['دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه', 'یکشنبه']
         
         weekly_data = []
         
         for i in range(7):
             current_date = week_ago + timedelta(days=i)
-            day_name = day_names[current_date.weekday()]
+            # استفاده از ترتیب ثابت روزها
+            day_name = day_names[i]
+            
+            # محاسبه بازه زمانی برای این روز (با timezone سیستم)
+            day_start = datetime.combine(current_date, datetime.min.time(), tzinfo=system_tz)
+            day_end = datetime.combine(current_date, datetime.max.time(), tzinfo=system_tz)
             
             # آمار چت‌ها برای این روز
             day_chats = db.query(Chat).filter(
-                cast(Chat.created_at, Date) == current_date
+                and_(
+                    Chat.created_at >= day_start,
+                    Chat.created_at <= day_end
+                )
             ).count()
             
             # آمار کاربران فعال برای این روز
             day_users = db.query(User).filter(
                 and_(
                     User.last_login.isnot(None),
-                    cast(User.last_login, Date) == current_date
+                    User.last_login >= day_start,
+                    User.last_login <= day_end
                 )
             ).count()
             
             # آمار وب‌سایت‌های جدید برای این روز
             day_websites = db.query(Website).filter(
-                cast(Website.created_at, Date) == current_date
+                and_(
+                    Website.created_at >= day_start,
+                    Website.created_at <= day_end
+                )
             ).count()
             
             weekly_data.append({
@@ -1308,7 +1337,8 @@ async def get_system_settings(
             # تنظیمات مدل‌های چت‌بات
             "enableOpenAI": SystemSettingsService.get_setting(db, "enableOpenAI", True),
             "enableGemini": SystemSettingsService.get_setting(db, "enableGemini", True),
-            "enableLocal": SystemSettingsService.get_setting(db, "enableLocal", False)
+            "enableLocal": SystemSettingsService.get_setting(db, "enableLocal", False),
+            "systemTimezone": SystemSettingsService.get_setting(db, "systemTimezone", "Asia/Tehran")
         }
         
         return public_settings
@@ -1336,6 +1366,10 @@ async def update_admin_system_settings(
                 success_count += 1
         
         logger.info(f"System settings updated by admin {current_user.email}: {success_count} settings updated")
+        
+        # اگر timezone تغییر کرده، کش را پاک کن
+        if 'systemTimezone' in settings:
+            TimezoneManager.clear_cache()
         
         return {"message": f"تنظیمات سیستم با موفقیت به‌روزرسانی شد ({success_count} تنظیم)"}
         
@@ -1370,3 +1404,52 @@ async def get_system_status(
     except Exception as e:
         logger.error(f"Error getting system status: {str(e)}")
         raise HTTPException(status_code=500, detail="خطا در دریافت وضعیت سیستم")
+
+@router.get("/admin/timezone/available")
+async def get_available_timezones(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت لیست timezone های موجود"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        return {
+            "timezones": TimezoneManager.get_available_timezones(),
+            "current": TimezoneManager.get_system_timezone(db)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting available timezones: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطا در دریافت timezone ها")
+
+@router.put("/admin/timezone")
+async def update_system_timezone(
+    timezone_data: Dict[str, str],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """به‌روزرسانی timezone سیستم"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        new_timezone = timezone_data.get('timezone')
+        if not new_timezone:
+            raise HTTPException(status_code=400, detail="timezone الزامی است")
+        
+        # به‌روزرسانی timezone
+        success = TimezoneManager.update_system_timezone(db, new_timezone)
+        
+        if success:
+            logger.info(f"System timezone updated to {new_timezone} by admin {current_user.email}")
+            return {"message": f"timezone سیستم به {new_timezone} تغییر یافت"}
+        else:
+            raise HTTPException(status_code=400, detail="timezone نامعتبر است")
+        
+    except Exception as e:
+        logger.error(f"Error updating system timezone: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطا در به‌روزرسانی timezone")

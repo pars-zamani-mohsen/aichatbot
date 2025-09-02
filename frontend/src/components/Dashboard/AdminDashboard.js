@@ -86,6 +86,7 @@ const AdminDashboard = () => {
 
         // دریافت آمار هفتگی
         const weeklyStats = await dashboard.getAdminWeeklyStats();
+
         setChartData(weeklyStats);
 
         // تبدیل داده‌ها به فرمت مورد نیاز

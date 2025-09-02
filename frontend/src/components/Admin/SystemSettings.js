@@ -83,7 +83,10 @@ const SystemSettings = () => {
         // تنظیمات مدل‌های چت‌بات
         enableOpenAI: true,
         enableGemini: true,
-        enableLocal: false
+        enableLocal: false,
+
+        // تنظیمات timezone
+        systemTimezone: 'Asia/Tehran'
     });
 
     useEffect(() => {
@@ -444,6 +447,34 @@ const SystemSettings = () => {
                                 }
                                 label="فعال‌سازی مدل محلی (Ollama)"
                             />
+
+                            <Divider sx={{ my: 2 }} />
+
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
+                                تنظیمات زمان
+                            </Typography>
+
+                            <FormControl fullWidth sx={{ mb: 2 }}>
+                                <InputLabel>منطقه زمانی سیستم</InputLabel>
+                                <Select
+                                    value={settings.systemTimezone}
+                                    label="منطقه زمانی سیستم"
+                                    onChange={(e) => handleSettingChange('systemTimezone', e.target.value)}
+                                >
+                                    <MenuItem value="Asia/Tehran">تهران (UTC+3:30)</MenuItem>
+                                    <MenuItem value="UTC">UTC (UTC+0:00)</MenuItem>
+                                    <MenuItem value="Europe/London">لندن (GMT)</MenuItem>
+                                    <MenuItem value="America/New_York">نیویورک (EST)</MenuItem>
+                                    <MenuItem value="Asia/Dubai">دبی (UTC+4:00)</MenuItem>
+                                    <MenuItem value="Asia/Kolkata">کلکته (UTC+5:30)</MenuItem>
+                                    <MenuItem value="Asia/Shanghai">شانگهای (UTC+8:00)</MenuItem>
+                                    <MenuItem value="Asia/Tokyo">توکیو (UTC+9:00)</MenuItem>
+                                    <MenuItem value="Europe/Paris">پاریس (CET)</MenuItem>
+                                    <MenuItem value="Europe/Berlin">برلین (CET)</MenuItem>
+                                    <MenuItem value="America/Los_Angeles">لس آنجلس (PST)</MenuItem>
+                                    <MenuItem value="Australia/Sydney">سیدنی (AEST)</MenuItem>
+                                </Select>
+                            </FormControl>
                         </CardContent>
                     </Card>
                 </Grid>
