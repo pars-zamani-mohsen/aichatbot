@@ -10,6 +10,7 @@
 7. **تنظیم reverse proxy (nginx)**
 8. **تنظیم SSL/HTTPS**
 9. **تنظیم systemd services**
+10. **تنظیم monitoring و backup**
 
 ---
 
@@ -68,19 +69,19 @@ nano .env
 
 ### محتوای .env:
 ```env
-# Database
+# Database Configuration
 DATABASE_URL=postgresql://ai_user:your_secure_password@localhost/ai_chatbot
 
-# Security
-SECRET_KEY=your_super_secret_key_here_make_it_long_and_random
+# Security Settings
+SECRET_KEY=your_super_secret_key_here_make_it_long_and_random_at_least_32_characters
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
-# AI Models
-OPENAI_API_KEY=your_openai_api_key
-GOOGLE_API_KEY=your_google_api_key
+# AI Model API Keys
+OPENAI_API_KEY=your_openai_api_key_here
+GOOGLE_API_KEY=your_google_api_key_here
 
-# Email (اختیاری)
+# Email Configuration (Optional)
 SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USERNAME=your_email@gmail.com
@@ -96,6 +97,26 @@ ENABLE_LOCAL=false
 DEBUG=false
 ENVIRONMENT=production
 ALLOWED_HOSTS=your-domain.com,www.your-domain.com
+
+# Logging
+LOG_LEVEL=INFO
+LOG_FILE=logs/app.log
+
+# Rate Limiting
+RATE_LIMIT_PER_MINUTE=60
+RATE_LIMIT_PER_HOUR=1000
+
+# File Upload
+MAX_FILE_SIZE=10485760  # 10MB
+UPLOAD_DIR=uploads
+
+# ChromaDB Settings
+CHROMA_PERSIST_DIRECTORY=chroma_db
+CHROMA_ANONYMIZED_TELEMETRY=false
+
+# CORS Settings
+CORS_ORIGINS=["http://localhost:3000", "https://your-domain.com"]
+CORS_ALLOW_CREDENTIALS=true
 ```
 
 ---

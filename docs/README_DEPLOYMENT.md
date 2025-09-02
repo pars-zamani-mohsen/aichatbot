@@ -60,6 +60,9 @@ OPENAI_API_KEY=your_openai_api_key
 GOOGLE_API_KEY=your_google_api_key
 DEBUG=false
 ENVIRONMENT=production
+SYSTEM_TIMEZONE=Asia/Tehran
+ENABLE_OPENAI=true
+ENABLE_GEMINI=true
 ```
 
 ### مرحله 4: نصب Backend
@@ -70,7 +73,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # اجرای migrations
-cd /var/www/html/ai
+cd ..
 alembic upgrade head
 
 # ایجاد admin user
