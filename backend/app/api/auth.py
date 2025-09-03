@@ -293,18 +293,122 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
         detail="اعتبارنامه‌های نامعتبر",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        # بررسی وجود token
+        if not token:
+            logger.warning("Token not provided")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token ارائه نشده است",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # بررسی فرمت token - پشتیبانی از هر دو فرمت
+        clean_token = token
+        if token.startswith('Bearer '):
+            clean_token = token.replace('Bearer ', '')
+            logger.debug("Bearer prefix removed from token")
+        else:
+            logger.debug("Token without Bearer prefix - using as is")
+        
+        # بررسی طول token
+        if len(clean_token) < 10:
+            logger.warning(f"Token too short: {len(clean_token)} characters")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token خیلی کوتاه است",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # استفاده از clean_token
+        token = clean_token
+        
+        # بررسی طول token
+        if len(token) < 10:
+            logger.warning("Token too short")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token خیلی کوتاه است",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # decode کردن JWT
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        except jwt.ExpiredSignatureError:
+            logger.warning("Token expired")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token منقضی شده است",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        except jwt.InvalidTokenError as e:
+            logger.warning(f"Invalid token: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token نامعتبر است",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # بررسی payload
         email: str = payload.get("sub")
         if email is None:
-            raise credentials_exception
+            logger.warning("Token payload missing 'sub' field")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token فاقد اطلاعات کاربر است",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # بررسی زمان انقضا
+        exp = payload.get("exp")
+        if exp and datetime.now(timezone.utc).timestamp() > exp:
+            logger.warning("Token expired (from payload)")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token منقضی شده است",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
         token_data = schemas.TokenData(email=email)
-    except JWTError:
-        raise credentials_exception
-    user = db.query(models.User).filter(models.User.email == token_data.email).first()
-    if user is None:
-        raise credentials_exception
-    return user
+        
+        # بررسی وجود کاربر در دیتابیس
+        user = db.query(models.User).filter(models.User.email == token_data.email).first()
+        if user is None:
+            logger.warning(f"User not found: {email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="کاربر یافت نشد",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # بررسی فعال بودن کاربر
+        if not user.is_active:
+            logger.warning(f"User inactive: {email}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="حساب کاربری غیرفعال است",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # به‌روزرسانی آخرین ورود
+        user.last_login = datetime.now(timezone.utc)
+        db.commit()
+        
+        logger.info(f"User authenticated successfully: {email}")
+        return user
+        
+    except HTTPException:
+        # اگر HTTPException قبلاً raise شده، آن را دوباره raise کن
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in get_current_user: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="خطا در احراز هویت",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 @router.post("/register", response_model=schemas.User)
 def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):

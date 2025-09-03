@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
-import { createTheme as createRtlTheme } from '@mui/material/styles';
+
 import rtlPlugin from 'stylis-plugin-rtl';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
@@ -28,9 +28,12 @@ import UserSettings from './components/User/UserSettings';
 import NotificationCenter from './components/Notifications/NotificationCenter';
 import NotificationManagement from './components/Admin/NotificationManagement';
 import EmailArchive from './components/Admin/EmailArchive';
+import PerformanceMonitoring from './components/Admin/PerformanceMonitoring';
+
 import VerifyEmail from './pages/VerifyEmail';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+
 
 // ایجاد تم با پشتیبانی از RTL
 const theme = createTheme({
@@ -85,6 +88,7 @@ const cacheRtl = createCache({
 function AppContent() {
   const { user, loading } = useAuth();
 
+
   const renderLayout = () => {
     if (!user) return null;
 
@@ -100,6 +104,8 @@ function AppContent() {
             <Route path="/admin/reports" element={<Reports />} />
             <Route path="/admin/notifications" element={<NotificationManagement />} />
             <Route path="/admin/email-archive" element={<EmailArchive />} />
+            <Route path="/admin/performance" element={<PerformanceMonitoring />} />
+
             <Route path="/admin/settings" element={<SystemSettings />} />
             <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
           </Routes>

@@ -3,13 +3,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .database.database import engine
 from .database import models
-from .api import websites, chats, auth, widget, dashboard, notifications, email_archive
+from .api import websites, chats, auth, widget, dashboard, notifications, email_archive, performance
 from .config import settings
 from .middleware import error_handler, logging_middleware
 from .middleware.maintenance_middleware import maintenance_middleware
 from .middleware.debug_middleware import debug_middleware
 from .middleware.rate_limiter import rate_limit_middleware
 from .middleware.security_middleware import security_middleware
+from .middleware.auth_middleware import auth_middleware
 from .services.crawler_queue import crawler_queue
 from .core.logging_config import setup_logging
 import logging
@@ -45,6 +46,7 @@ app.middleware("http")(maintenance_middleware)
 app.middleware("http")(debug_middleware)
 app.middleware("http")(error_handler)
 app.middleware("http")(logging_middleware)
+# app.middleware("http")(auth_middleware)  # بررسی احراز هویت - موقتاً غیرفعال
 app.middleware("http")(rate_limit_middleware)  # آخر rate limiting
 
 # اضافه کردن روترها
@@ -55,6 +57,7 @@ app.include_router(widget.router, prefix="/api/widget", tags=["widget"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 app.include_router(email_archive.router, prefix="/api", tags=["email_archive"])
+app.include_router(performance.router, prefix="/api", tags=["performance"])
 
 @app.get("/")
 async def root():

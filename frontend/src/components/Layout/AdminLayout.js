@@ -34,7 +34,9 @@ import {
     AdminPanelSettings,
     Logout,
     DarkMode,
-    LightMode
+    LightMode,
+    Speed,
+    BugReport
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -48,6 +50,8 @@ const AdminLayout = ({ children }) => {
     const [anchorEl, setAnchorEl] = useState(null);
     const [darkMode, setDarkMode] = useState(false);
     const [siteName, setSiteName] = useState('RAG Chatbot System');
+    const [debugMode, setDebugMode] = useState(false);
+    const [debugModeLoading, setDebugModeLoading] = useState(false);
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const navigate = useNavigate();
@@ -57,13 +61,25 @@ const AdminLayout = ({ children }) => {
         // دریافت تنظیمات عمومی
         const fetchSiteSettings = async () => {
             try {
+                console.log('🔄 AdminLayout - Fetching site settings...');
+                setDebugModeLoading(true);
                 const settings = await dashboard.getSystemSettings();
+                console.log('✅ AdminLayout - Settings received:', settings);
+                console.log('🔧 AdminLayout - Debug mode value:', settings.debugMode);
+
                 if (settings.siteName) {
                     setSiteName(settings.siteName);
                     document.title = settings.siteName;
                 }
+                if (settings.debugMode !== undefined) {
+                    setDebugMode(settings.debugMode);
+                    console.log('🎯 AdminLayout - Debug mode set to:', settings.debugMode);
+                }
             } catch (error) {
-                console.error('Error fetching site settings:', error);
+                console.error('❌ AdminLayout - Error fetching site settings:', error);
+            } finally {
+                setDebugModeLoading(false);
+                console.log('🏁 AdminLayout - Loading finished');
             }
         };
 
@@ -95,6 +111,8 @@ const AdminLayout = ({ children }) => {
         { text: 'گزارشات', icon: <Assessment />, path: '/admin/reports' },
         { text: 'مدیریت اعلان‌ها', icon: <Notifications />, path: '/admin/notifications' },
         { text: 'آرشیو ایمیل‌ها', icon: <Email />, path: '/admin/email-archive' },
+        { text: 'نظارت بر عملکرد', icon: <Speed />, path: '/admin/performance' },
+        ...(debugMode && !debugModeLoading ? [{ text: 'Debug Token', icon: <BugReport />, path: '/admin/debug' }] : []),
         { text: 'تنظیمات سیستم', icon: <Settings />, path: '/admin/settings' },
     ];
 

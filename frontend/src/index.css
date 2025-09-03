@@ -1,1 +1,183 @@
- 
+/* Performance Monitoring Styles */
+.spinning {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Performance Cards */
+.performance-monitoring .card {
+    transition: all 0.3s ease;
+    border: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.performance-monitoring .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.performance-monitoring .card-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 12px 12px 0 0 !important;
+}
+
+/* Progress Bars */
+.performance-monitoring .progress {
+    height: 8px;
+    border-radius: 4px;
+}
+
+.performance-monitoring .progress-bar {
+    border-radius: 4px;
+}
+
+/* Metrics Display */
+.performance-monitoring .metric-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.performance-monitoring .metric-label {
+    font-size: 0.875rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Alert Styling */
+.performance-monitoring .alert {
+    border-radius: 8px;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Button Styling */
+.performance-monitoring .btn {
+    border-radius: 8px;
+    font-weight: 600;
+    text-transform: none;
+    transition: all 0.3s ease;
+}
+
+.performance-monitoring .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Badge Styling */
+.performance-monitoring .badge {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+}
+
+/* Health Status Colors */
+.health-healthy {
+    color: #28a745;
+}
+
+.health-warning {
+    color: #ffc107;
+}
+
+.health-critical {
+    color: #dc3545;
+}
+
+/* Resource Usage Colors */
+.resource-success {
+    color: #28a745;
+}
+
+.resource-warning {
+    color: #ffc107;
+}
+
+.resource-danger {
+    color: #dc3545;
+}
+
+/* Endpoint Stats */
+.endpoint-stats {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+.endpoint-item {
+    background: white;
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-left: 4px solid #667eea;
+    transition: all 0.3s ease;
+}
+
+.endpoint-item:hover {
+    transform: translateX(4px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Loading States */
+.performance-monitoring .loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255,255,255,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    z-index: 10;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .performance-monitoring .metric-value {
+        font-size: 1.5rem;
+    }
+    
+    .performance-monitoring .btn {
+        font-size: 0.875rem;
+        padding: 0.5rem 1rem;
+    }
+    
+    .performance-monitoring .card-body {
+        padding: 1rem;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .performance-monitoring .card {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+    
+    .performance-monitoring .card-header {
+        background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+    }
+    
+    .performance-monitoring .endpoint-stats {
+        background: #4a5568;
+    }
+    
+    .performance-monitoring .endpoint-item {
+        background: #2d3748;
+        color: #e2e8f0;
+    }
+} 

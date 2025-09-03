@@ -24,7 +24,16 @@ import {
 import { useNotifications } from '../../contexts/NotificationContext';
 
 const NotificationBell = () => {
-  const { unreadCount, notifications: recentNotifications, loading, fetchNotifications, markAsRead, currentUserId } = useNotifications();
+  const { unreadCount, notifications: recentNotifications = [], loading, fetchNotifications, markAsRead, currentUserId } = useNotifications();
+
+  // اضافه کردن fallback برای recentNotifications
+  const safeNotifications = Array.isArray(recentNotifications) ? recentNotifications : [];
+
+  // Debug logs
+  console.log('🔔 NotificationBell - recentNotifications:', recentNotifications);
+  console.log('🔔 NotificationBell - safeNotifications:', safeNotifications);
+  console.log('🔔 NotificationBell - Array.isArray(recentNotifications):', Array.isArray(recentNotifications));
+
   const [anchorEl, setAnchorEl] = useState(null);
 
   // علامت‌گذاری به عنوان خوانده شده
@@ -94,7 +103,7 @@ const NotificationBell = () => {
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);
     // فقط وقتی منو باز می‌شود، اعلان‌های اخیر را دریافت کن
-    if (recentNotifications.length === 0) {
+    if (safeNotifications.length === 0) {
       fetchNotifications(0, 5, true);
     }
   };
@@ -141,7 +150,7 @@ const NotificationBell = () => {
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
             <CircularProgress size={24} />
           </Box>
-        ) : recentNotifications.length === 0 ? (
+        ) : safeNotifications.length === 0 ? (
           <Box sx={{ p: 2, textAlign: 'center' }}>
             <Typography variant="body2" color="text.secondary">
               اعلان جدیدی وجود ندارد
@@ -149,45 +158,43 @@ const NotificationBell = () => {
           </Box>
         ) : (
           <>
-            {recentNotifications
-
-              .map((notification) => (
-                <MenuItem
-                  key={notification.id}
-                  sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-start',
-                    p: 2,
-                    minHeight: 'auto'
-                  }}
-                  onClick={() => handleMarkAsRead(notification.id)}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', mb: 1 }}>
-                    {getNotificationIcon(notification.type)}
-                    <Typography
-                      variant="subtitle2"
-                      sx={{ ml: 1, flexGrow: 1, fontWeight: notification.is_read ? 'normal' : 'bold' }}
-                    >
-                      {notification.title}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      {getCategoryIcon(notification.category)}
-                      <Typography variant="caption" color="text.secondary">
-                        {formatDate(notification.created_at)}
-                      </Typography>
-                    </Box>
-                  </Box>
-
+            {safeNotifications.map((notification) => (
+              <MenuItem
+                key={notification.id}
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  p: 2,
+                  minHeight: 'auto'
+                }}
+                onClick={() => handleMarkAsRead(notification.id)}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', mb: 1 }}>
+                  {getNotificationIcon(notification.type)}
                   <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{ width: '100%' }}
+                    variant="subtitle2"
+                    sx={{ ml: 1, flexGrow: 1, fontWeight: notification.is_read ? 'normal' : 'bold' }}
                   >
-                    {truncateText(notification.message)}
+                    {notification.title}
                   </Typography>
-                </MenuItem>
-              ))}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    {getCategoryIcon(notification.category)}
+                    <Typography variant="caption" color="text.secondary">
+                      {formatDate(notification.created_at)}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ width: '100%' }}
+                >
+                  {truncateText(notification.message)}
+                </Typography>
+              </MenuItem>
+            ))}
 
             <Divider />
 

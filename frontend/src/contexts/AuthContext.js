@@ -34,6 +34,22 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
     }, []);
 
+    // اضافه کردن event listener برای logout خودکار
+    useEffect(() => {
+        const handleForceLogout = (event) => {
+            console.log('Force logout triggered:', event.detail);
+            logout();
+            // redirect به صفحه login
+            window.location.href = '/login';
+        };
+
+        window.addEventListener('forceLogout', handleForceLogout);
+
+        return () => {
+            window.removeEventListener('forceLogout', handleForceLogout);
+        };
+    }, []);
+
     const login = (userData) => {
         setUser(userData);
     };
