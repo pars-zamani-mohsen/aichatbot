@@ -433,25 +433,26 @@ async def get_weekly_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """دریافت آمار هفتگی برای نمودار"""
+    """دریافت آمار هفتگی برای نمودار - آخرین 7 روز گذشته"""
     try:
-        # محاسبه تاریخ‌های هفته گذشته با timezone سیستم
+        # محاسبه تاریخ‌های آخرین 7 روز گذشته با timezone سیستم
         system_tz = TimezoneManager.get_system_zone_info(db)
         today = TimezoneManager.get_current_date(db)
-        # محاسبه هفته گذشته: از دوشنبه هفته گذشته
-        days_since_monday = today.weekday()
-        monday_this_week = today - timedelta(days=days_since_monday)
-        week_ago = monday_this_week - timedelta(days=7)  # دوشنبه هفته گذشته
         
-        # نام‌های روزهای هفته به ترتیب صحیح (دوشنبه تا یکشنبه)
-        day_names = ['دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه', 'یکشنبه']
+        # محاسبه آخرین 7 روز گذشته: از روز قبل تا 7 روز قبل
+        yesterday = today - timedelta(days=1)
+        week_ago = today - timedelta(days=7)  # 7 روز قبل
+        
+        # نام‌های روزهای هفته فارسی
+        persian_weekdays = ['دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه', 'یکشنبه']
         
         weekly_data = []
         
         for i in range(7):
             current_date = week_ago + timedelta(days=i)
-            # استفاده از ترتیب ثابت روزها
-            day_name = day_names[i]
+            # تبدیل تاریخ به نام روز هفته
+            weekday = current_date.weekday()
+            day_name = persian_weekdays[weekday]
             
             # محاسبه بازه زمانی برای این روز (با timezone سیستم)
             day_start = datetime.combine(current_date, datetime.min.time(), tzinfo=system_tz)
@@ -768,29 +769,30 @@ async def get_admin_weekly_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """دریافت آمار هفتگی برای ادمین"""
+    """دریافت آمار هفتگی برای ادمین - آخرین 7 روز گذشته"""
     try:
         # بررسی نقش ادمین
         if current_user.role != "admin":
             raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
         
-        # محاسبه تاریخ‌های هفته گذشته با timezone سیستم
+        # محاسبه تاریخ‌های آخرین 7 روز گذشته با timezone سیستم
         system_tz = TimezoneManager.get_system_zone_info(db)
         today = TimezoneManager.get_current_date(db)
-        # محاسبه هفته گذشته: از دوشنبه هفته گذشته
-        days_since_monday = today.weekday()
-        monday_this_week = today - timedelta(days=days_since_monday)
-        week_ago = monday_this_week - timedelta(days=7)  # دوشنبه هفته گذشته
         
-        # نام‌های روزهای هفته به ترتیب صحیح (دوشنبه تا یکشنبه)
-        day_names = ['دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه', 'یکشنبه']
+        # محاسبه آخرین 7 روز گذشته: از روز قبل تا 7 روز قبل
+        yesterday = today - timedelta(days=1)
+        week_ago = today - timedelta(days=7)  # 7 روز قبل
+        
+        # نام‌های روزهای هفته فارسی
+        persian_weekdays = ['دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه', 'یکشنبه']
         
         weekly_data = []
         
         for i in range(7):
             current_date = week_ago + timedelta(days=i)
-            # استفاده از ترتیب ثابت روزها
-            day_name = day_names[i]
+            # تبدیل تاریخ به نام روز هفته
+            weekday = current_date.weekday()
+            day_name = persian_weekdays[weekday]
             
             # محاسبه بازه زمانی برای این روز (با timezone سیستم)
             day_start = datetime.combine(current_date, datetime.min.time(), tzinfo=system_tz)
