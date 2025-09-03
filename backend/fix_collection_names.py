@@ -14,6 +14,7 @@ from app.database.database import get_db
 from app.database import models
 from sqlalchemy.orm import Session
 from app.database.database import engine
+from app.config import settings
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -34,7 +35,8 @@ def fix_collection_names():
             if website.status == "ready" and not website.collection_name:
                 # تنظیم collection_name بر اساس domain
                 website.collection_name = website.domain
-                logger.info(f"تنظیم collection_name برای {website.domain}: {website.collection_name}")
+                if settings.DEBUG_MODE:
+                    logger.info(f"تنظیم collection_name برای {website.domain}: {website.collection_name}")
             
             # اگر وب‌سایت آماده نیست اما فایل‌های کراول موجود هستند
             elif website.status != "ready":
@@ -52,7 +54,8 @@ def fix_collection_names():
         # نمایش نتیجه
         websites = session.query(models.Website).all()
         for website in websites:
-            logger.info(f"ID: {website.id}, Domain: {website.domain}, Status: {website.status}, Collection: {website.collection_name}")
+            if settings.DEBUG_MODE:
+                logger.info(f"ID: {website.id}, Domain: {website.domain}, Status: {website.status}, Collection: {website.collection_name}")
             
     except Exception as e:
         logger.error(f"خطا: {e}")

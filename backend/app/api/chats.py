@@ -97,7 +97,8 @@ async def create_chat(
 ):
     """ارسال پرسش به چت‌بات"""
     try:
-        logger.info(f"درخواست چت جدید - وب‌سایت: {chat.website_id}, نوع چت‌بات: {chatbot_type}")
+        if settings.DEBUG_MODE:
+            logger.info(f"درخواست چت جدید - وب‌سایت: {chat.website_id}, نوع چت‌بات: {chatbot_type}")
         
         # بررسی وجود سایت
         website = db.query(models.Website).filter(
@@ -113,7 +114,8 @@ async def create_chat(
         
         # دریافت collection_name از website_id
         collection_name = get_collection_name_from_website_id(db, chat.website_id)
-        logger.info(f"استفاده از کالکشن: {collection_name}")
+        if settings.DEBUG_MODE:
+            logger.info(f"استفاده از کالکشن: {collection_name}")
         
         # دریافت تنظیمات RAG از وب‌سایت
         rag_settings = website.rag_settings or {}
@@ -124,8 +126,9 @@ async def create_chat(
         
         # استفاده از chatbot_type از تنظیمات وب‌سایت یا پارامتر ورودی
         website_chatbot_type = rag_settings.get('chatbot_type', chatbot_type)
-        logger.info(f"تنظیمات RAG وب‌سایت: {rag_settings}")
-        logger.info(f"نوع چت‌بات انتخاب شده: {website_chatbot_type}")
+        if settings.DEBUG_MODE:
+            logger.info(f"تنظیمات RAG وب‌سایت: {rag_settings}")
+            logger.info(f"نوع چت‌بات انتخاب شده: {website_chatbot_type}")
         
         # بررسی وجود چت قبلی
         db_chat = None
@@ -174,7 +177,8 @@ async def create_chat(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="سرویس چت‌بات در دسترس نیست. لطفاً کمی صبر کنید."
             )
-        logger.info(f"چت‌بات {website_chatbot_type} با موفقیت ایجاد شد (Session: {session_id})")
+        if settings.DEBUG_MODE:
+            logger.info(f"چت‌بات {website_chatbot_type} با موفقیت ایجاد شد (Session: {session_id})")
         
         # ذخیره پیام کاربر
         user_message = models.Message(

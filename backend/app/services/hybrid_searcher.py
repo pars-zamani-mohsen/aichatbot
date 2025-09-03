@@ -114,7 +114,8 @@ class HybridSearcher:
 
             # ایجاد موتور BM25
             self.bm25 = BM25Okapi(tokenized_docs)
-            logger.info(f"تعداد اسناد بارگذاری شده: {len(self.documents)}")
+            if self.debug_mode:
+                logger.info(f"تعداد اسناد بارگذاری شده: {len(self.documents)}")
             self._log_debug(f"تعداد توکن‌های منحصر به فرد: {len(set([token for doc in tokenized_docs for token in doc]))}")
 
             # تست جستجوی ساده

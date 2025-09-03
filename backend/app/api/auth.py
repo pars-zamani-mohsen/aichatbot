@@ -986,8 +986,9 @@ async def forgot_password(email: schemas.EmailRequest, db: Session = Depends(get
         send_reset_password_email(email.email, reset_token, db)
     else:
         # در محیط local، توکن را در console نمایش دهیم
-        logger.info(f"کد بازیابی کلمه عبور برای {email.email}: {reset_token}")
-        logger.info(f"لینک بازیابی: http://localhost:3000/reset-password?token={reset_token}")
+        if settings.DEBUG_MODE:
+            logger.info(f"کد بازیابی کلمه عبور برای {email.email}: {reset_token}")
+            logger.info(f"لینک بازیابی: http://localhost:3000/reset-password?token={reset_token}")
     
     return {"message": "ایمیل بازیابی رمز عبور ارسال شد"}
 

@@ -58,9 +58,11 @@ class EmbeddingService:
         # بارگذاری مدل اگر قبلاً بارگذاری نشده
         if EmbeddingService._model is None:
             try:
-                logger.info("Loading SentenceTransformer model...")
+                if settings.DEBUG_MODE:
+                    logger.info("Loading SentenceTransformer model...")
                 EmbeddingService._model = SentenceTransformer(self.model_name)
-                logger.info(f"Model {self.model_name} loaded successfully in {time.time() - start_time:.2f} seconds")
+                if settings.DEBUG_MODE:
+                    logger.info(f"Model {self.model_name} loaded successfully in {time.time() - start_time:.2f} seconds")
             except Exception as e:
                 logger.error(f"Error loading model: {str(e)}")
                 raise
@@ -68,7 +70,8 @@ class EmbeddingService:
         # تنظیمات ChromaDB اگر قبلاً انجام نشده
         if EmbeddingService._client is None:
             try:
-                logger.info("Setting up ChromaDB...")
+                if settings.DEBUG_MODE:
+                    logger.info("Setting up ChromaDB...")
                 EmbeddingService._client = Client(Settings(
                     persist_directory=str(self.db_directory),
                     anonymized_telemetry=False
@@ -85,7 +88,8 @@ class EmbeddingService:
                     embedding_function=self.embedding_function
                 )
                 
-                logger.info(f"ChromaDB setup completed in {time.time() - start_time:.2f} seconds")
+                if settings.DEBUG_MODE:
+                    logger.info(f"ChromaDB setup completed in {time.time() - start_time:.2f} seconds")
                 
             except Exception as e:
                 logger.error(f"Error setting up ChromaDB: {str(e)}")
@@ -109,7 +113,8 @@ class EmbeddingService:
             if chunk:
                 chunks.append(chunk)
                 
-        logger.info(f"Text chunking completed in {time.time() - start_time:.2f} seconds")
+        if settings.DEBUG_MODE:
+            logger.info(f"Text chunking completed in {time.time() - start_time:.2f} seconds")
         return chunks
         
     def _create_embeddings(self, texts: List[str], batch_size: int = 32) -> np.ndarray:
@@ -119,19 +124,20 @@ class EmbeddingService:
             
             # تقسیم متن‌ها به batch‌های کوچکتر
             batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
-            logger.info(f"Processing {len(batches)} batches with batch size {batch_size}")
+            if settings.DEBUG_MODE:
+                logger.info(f"Processing {len(batches)} batches with batch size {batch_size}")
             
             # پردازش batch‌ها
             results = []
             for i, batch in enumerate(batches):
                 batch_result = self.model.encode(
                     batch,
-                    show_progress_bar=True,
+                    show_progress_bar=settings.DEBUG_MODE,  # فقط در debug mode
                     batch_size=batch_size
                 )
                 results.append(batch_result)
                 
-                if (i + 1) % 5 == 0:  # لاگ هر 5 batch
+                if settings.DEBUG_MODE and (i + 1) % 5 == 0:  # لاگ هر 5 batch فقط در debug
                     elapsed = time.time() - start_time
                     logger.info(f"Processed batch {i+1}/{len(batches)} in {elapsed:.2f} seconds")
                 
@@ -142,7 +148,8 @@ class EmbeddingService:
             
             # ترکیب نتایج
             final_result = np.vstack(results)
-            logger.info(f"All embeddings created in {time.time() - start_time:.2f} seconds")
+            if settings.DEBUG_MODE:
+                logger.info(f"All embeddings created in {time.time() - start_time:.2f} seconds")
             return final_result
             
         except Exception as e:
@@ -203,6 +210,7 @@ class EmbeddingService:
             
             total_time = time.time() - start_time
             logger.info(f"Total processing completed in {total_time:.2f} seconds")
+            if settings.DEBUG_MODE:
             logger.info(f"Average time per chunk: {total_time/len(chunks):.2f} seconds")
             
         except Exception as e:

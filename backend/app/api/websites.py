@@ -18,6 +18,7 @@ from ..database.models import User
 from .auth import get_current_user
 from ..services.notification_service import NotificationService
 from ..services.system_settings_service import SystemSettingsService
+from ..config import settings
 
 def verify_website_ownership(website_id: int, user_id: int, db: Session) -> Website:
     """بررسی مالکیت وب‌سایت (جداسازی tenant)"""
@@ -614,7 +615,8 @@ async def get_rag_settings(
             website.rag_settings = final_settings
             db.commit()
             
-            logger.info(f"Website {website_id} chatbot type corrected from {current_model} to {final_settings['chatbot_type']}")
+            if settings.DEBUG_MODE:
+                logger.info(f"Website {website_id} chatbot type corrected from {current_model} to {final_settings['chatbot_type']}")
         
         return {
             "website_id": website_id,

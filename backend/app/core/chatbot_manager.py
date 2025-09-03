@@ -6,6 +6,7 @@ import time
 from collections import defaultdict
 from app.core.chatbot_factory import ChatbotFactory
 from app.database.database import SessionLocal
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,8 @@ class ChatbotManager:
                 chatbot = self._session_chatbots[session_key]
                 self._session_usage_count[session_key] += 1
                 self._session_last_used[session_key] = time.time()
-                logger.info(f"Using existing session chatbot for {session_key}")
+                if settings.DEBUG_MODE:
+                    logger.info(f"Using existing session chatbot for {session_key}")
                 return chatbot
             
             # بررسی محدودیت همزمانی
@@ -71,7 +73,8 @@ class ChatbotManager:
                 self._session_usage_count[session_key] = 1
                 self._session_last_used[session_key] = time.time()
                 
-                logger.info(f"Created new session chatbot for {session_key}")
+                if settings.DEBUG_MODE:
+                    logger.info(f"Created new session chatbot for {session_key}")
                 return chatbot
                 
             except Exception as e:
@@ -88,7 +91,8 @@ class ChatbotManager:
                 chatbot = self._chatbots[chatbot_key]
                 self._usage_count[chatbot_key] += 1
                 self._last_used[chatbot_key] = time.time()
-                logger.info(f"Using existing shared chatbot for {chatbot_key}")
+                if settings.DEBUG_MODE:
+                    logger.info(f"Using existing shared chatbot for {chatbot_key}")
                 return chatbot
             
             # بررسی محدودیت همزمانی
@@ -114,7 +118,8 @@ class ChatbotManager:
                 self._usage_count[chatbot_key] = 1
                 self._last_used[chatbot_key] = time.time()
                 
-                logger.info(f"Created new shared chatbot for {chatbot_key}")
+                if settings.DEBUG_MODE:
+                    logger.info(f"Created new shared chatbot for {chatbot_key}")
                 return chatbot
                 
             except Exception as e:
@@ -168,7 +173,8 @@ class ChatbotManager:
             del self._chatbots[chatbot_key]
             del self._usage_count[chatbot_key]
             del self._last_used[chatbot_key]
-            logger.info(f"Removed shared chatbot {chatbot_key}")
+            if settings.DEBUG_MODE:
+                logger.info(f"Removed shared chatbot {chatbot_key}")
     
     def _remove_session_chatbot(self, session_key: str):
         """حذف session chatbot"""
@@ -176,7 +182,8 @@ class ChatbotManager:
             del self._session_chatbots[session_key]
             del self._session_usage_count[session_key]
             del self._session_last_used[session_key]
-            logger.info(f"Removed session chatbot {session_key}")
+            if settings.DEBUG_MODE:
+                logger.info(f"Removed session chatbot {session_key}")
     
     def get_stats(self) -> Dict[str, Any]:
         """دریافت آمار chatbot ها"""
@@ -198,7 +205,8 @@ class ChatbotManager:
             self._session_usage_count.clear()
             self._last_used.clear()
             self._session_last_used.clear()
-            logger.info("All chatbots cleared")
+            if settings.DEBUG_MODE:
+                logger.info("All chatbots cleared")
 
 # Global instance
 chatbot_manager = ChatbotManager()

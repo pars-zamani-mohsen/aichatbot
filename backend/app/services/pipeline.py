@@ -55,8 +55,9 @@ class WebCrawlerPipeline:
             'crawl_delay': 1
         }
         
-        logger.info(f"Output directory created at: {self.output_dir}")
-        logger.info(f"Crawl settings: max_pages={self.max_pages}, max_depth={self.max_depth}, delay={self.delay}")
+        if settings.DEBUG_MODE:
+            logger.info(f"Output directory created at: {self.output_dir}")
+            logger.info(f"Crawl settings: max_pages={self.max_pages}, max_depth={self.max_depth}, delay={self.delay}")
         
     def is_valid_url(self, url: str) -> bool:
         """بررسی معتبر بودن URL"""
@@ -381,7 +382,8 @@ class KnowledgeBasePipeline:
             # حذف کالکشن قبلی با همین نام (اگر وجود داشت)
             try:
                 client.delete_collection(self.collection_name)
-                logger.info(f"کالکشن قبلی {self.collection_name} حذف شد")
+                if settings.DEBUG_MODE:
+                    logger.info(f"کالکشن قبلی {self.collection_name} حذف شد")
             except:
                 pass
             
@@ -406,7 +408,8 @@ class KnowledgeBasePipeline:
                 ids=[str(i) for i in range(len(embeddings))]
             )
             
-            logger.info(f"Knowledge base با موفقیت ایجاد شد. نام collection: {self.collection_name}")
+            if settings.DEBUG_MODE:
+                logger.info(f"Knowledge base با موفقیت ایجاد شد. نام collection: {self.collection_name}")
             return True
             
         except Exception as e:
@@ -418,15 +421,19 @@ class EmbeddingPipeline:
         self.domain = domain
         self.base_dir = Path(__file__).parent.parent.parent
         self.data_dir = self.base_dir / "processed_data" / domain
-        logger.info("در حال بارگذاری مدل امبدینگ...")
+        if settings.DEBUG_MODE:
+            logger.info("در حال بارگذاری مدل امبدینگ...")
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        logger.info("مدل امبدینگ بارگذاری شد")
+        if settings.DEBUG_MODE:
+            logger.info("مدل امبدینگ بارگذاری شد")
         
     def generate_embeddings(self, texts: List[str]) -> np.ndarray:
         """تولید امبدینگ برای متون"""
-        logger.info(f"در حال تولید امبدینگ برای {len(texts)} متن...")
-        embeddings = self.model.encode(texts, show_progress_bar=True)
-        logger.info("تولید امبدینگ با موفقیت انجام شد")
+        if settings.DEBUG_MODE:
+            logger.info(f"در حال تولید امبدینگ برای {len(texts)} متن...")
+        embeddings = self.model.encode(texts, show_progress_bar=settings.DEBUG_MODE)
+        if settings.DEBUG_MODE:
+            logger.info("تولید امبدینگ با موفقیت انجام شد")
         return embeddings
         
     def run(self) -> bool:
@@ -438,22 +445,26 @@ class EmbeddingPipeline:
                 logger.error("فایل داده یافت نشد")
                 return False
                 
-            logger.info("در حال خواندن فایل CSV...")
+            if settings.DEBUG_MODE:
+                logger.info("در حال خواندن فایل CSV...")
             df = pd.read_csv(csv_path)
-            logger.info(f"تعداد رکوردهای خوانده شده: {len(df)}")
+            if settings.DEBUG_MODE:
+                logger.info(f"تعداد رکوردهای خوانده شده: {len(df)}")
             
             # تولید امبدینگ برای متن‌ها
             texts = df['text'].tolist()
             embeddings = self.generate_embeddings(texts)
             
             # ذخیره امبدینگ‌ها به صورت JSON (لیست لیست‌ها)
-            logger.info("در حال ذخیره امبدینگ‌ها به صورت JSON...")
+            if settings.DEBUG_MODE:
+                logger.info("در حال ذخیره امبدینگ‌ها به صورت JSON...")
             embeddings_list = embeddings.tolist()
             with open(self.data_dir / "embeddings.json", 'w', encoding='utf-8') as f:
                 json.dump(embeddings_list, f)
 
             # ذخیره metadata هر سند (url, title, chunk_id, ...)
-            logger.info("در حال ذخیره متادیتا...")
+            if settings.DEBUG_MODE:
+                logger.info("در حال ذخیره متادیتا...")
             metadata_list = []
             for i, row in df.iterrows():
                 meta = {
@@ -476,7 +487,8 @@ class EmbeddingPipeline:
             with open(self.data_dir / "model_info.json", 'w', encoding='utf-8') as f:
                 json.dump(model_info, f, ensure_ascii=False, indent=2)
 
-            logger.info("فرآیند امبدینگ با موفقیت به پایان رسید")
+            if settings.DEBUG_MODE:
+                logger.info("فرآیند امبدینگ با موفقیت به پایان رسید")
             
             # ایجاد knowledge base
             kb_pipeline = KnowledgeBasePipeline(self.domain)
