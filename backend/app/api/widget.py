@@ -217,7 +217,83 @@ async def widget_chat(
             raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد")
         
         # ادامه پردازش چت...
-        # (کد موجود ادامه می‌یابد)
+        try:
+            # دریافت collection_name از website
+            collection_name = website.collection_name
+            if not collection_name:
+                raise HTTPException(status_code=400, detail="کالکشن برای این وب‌سایت ایجاد نشده است")
+            
+            # دریافت تنظیمات RAG از وب‌سایت
+            rag_settings = website.rag_settings or {}
+            chatbot_type = rag_settings.get('chatbot_type', 'openai')
+            
+            # استفاده از ChatbotFactory برای ایجاد چت‌بات
+            chatbot = ChatbotFactory.create_chatbot(
+                chatbot_type=chatbot_type,
+                collection_name=collection_name,
+                max_tokens=rag_settings.get('max_response_length', 500) * 2,
+                temperature=rag_settings.get('temperature', 0.7),
+                db=db
+            )
+            
+            # ارسال پرسش به چت‌بات
+            response = chatbot.ask(message)
+            
+            # بررسی ساختار پاسخ
+            if not isinstance(response, dict) or 'answer' not in response:
+                raise HTTPException(status_code=500, detail="پاسخ چت‌بات در فرمت نامعتبر است")
+            
+            # ایجاد یا دریافت چت موجود
+            if conversation_id:
+                # استفاده از چت موجود
+                chat = db.query(models.Chat).filter(
+                    models.Chat.id == conversation_id,
+                    models.Chat.website_id == site_id
+                ).first()
+                if not chat:
+                    raise HTTPException(status_code=404, detail="چت یافت نشد")
+            else:
+                # ایجاد چت جدید
+                session_id = f"widget_{site_id}_{int(time.time())}"
+                chat = models.Chat(
+                    website_id=site_id,
+                    session_id=session_id
+                )
+                db.add(chat)
+                db.commit()
+                db.refresh(chat)
+                conversation_id = chat.id
+            
+            # ذخیره پیام کاربر
+            user_message = models.Message(
+                chat_id=conversation_id,
+                role="user",
+                content=message
+            )
+            db.add(user_message)
+            
+            # ذخیره پاسخ چت‌بات
+            assistant_message = models.Message(
+                chat_id=conversation_id,
+                role="assistant",
+                content=response["answer"],
+                sources=response.get("sources", [])
+            )
+            db.add(assistant_message)
+            
+            db.commit()
+            
+            # بازگرداندن پاسخ
+            return {
+                "conversation_id": conversation_id,
+                "answer": response["answer"],
+                "sources": response.get("sources", []),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"خطا در پردازش چت: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"خطا در پردازش چت: {str(e)}")
         
     except HTTPException:
         raise
@@ -267,6 +343,9 @@ async def get_widget_snippet(
             borderRadius: '8px'
         }}
     }};
+    
+    // متغیر برای نگهداری conversation_id
+    var conversationId = null;
     
     // ایجاد استایل ویجت
     var style = document.createElement('style');
@@ -475,13 +554,16 @@ async def get_widget_snippet(
             
             var data = await response.json();
             
-            if (response.ok) {{
-                conversationId = data.conversation_id;
+            if (response.ok && data) {{
+                // بررسی و تنظیم conversation_id
+                if (data.conversation_id) {{
+                    conversationId = data.conversation_id;
+                }}
                 
                 // اضافه کردن پاسخ
                 var assistantDiv = document.createElement('div');
                 assistantDiv.className = 'ai-chat-message assistant';
-                assistantDiv.innerHTML = data.answer;
+                assistantDiv.innerHTML = data.answer || 'پاسخ دریافت شد';
                 
                 // اضافه کردن منابع
                 if (data.sources && data.sources.length > 0) {{
@@ -493,14 +575,22 @@ async def get_widget_snippet(
                 
                 messages.appendChild(assistantDiv);
             }} else {{
-                throw new Error(data.detail || 'خطا در دریافت پاسخ');
+                var errorMessage = 'خطا در دریافت پاسخ';
+                if (data && data.detail) {{
+                    errorMessage = data.detail;
+                }}
+                throw new Error(errorMessage);
             }}
             
         }} catch (error) {{
             console.error('خطا در ارسال پیام:', error);
             var errorDiv = document.createElement('div');
-            errorDiv.className = 'ai-chat-message assistant';
-            errorDiv.textContent = 'خطا: ' + error.message + ' - لطفاً دوباره تلاش کنید.';
+            errorDiv.className = 'ai-chat-message assistant error';
+            var errorText = 'خطا در دریافت پاسخ';
+            if (error.message) {{
+                errorText = error.message;
+            }}
+            errorDiv.textContent = errorText + ' - لطفاً دوباره تلاش کنید.';
             messages.appendChild(errorDiv);
         }} finally {{
             // فعال کردن دکمه
