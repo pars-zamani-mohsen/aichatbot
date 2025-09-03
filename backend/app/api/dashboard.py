@@ -1565,3 +1565,22 @@ async def update_rate_limits_settings(
     except Exception as e:
         logger.error(f"Error updating rate limits settings: {str(e)}")
         raise HTTPException(status_code=500, detail="خطا در به‌روزرسانی تنظیمات rate limiting")
+
+@router.get("/admin/chatbot-manager-status")
+async def get_chatbot_manager_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت وضعیت chatbot manager برای ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        from app.core.chatbot_manager import chatbot_manager
+        stats = chatbot_manager.get_stats()
+        return {"stats": stats}
+        
+    except Exception as e:
+        logger.error(f"Error getting chatbot manager status: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطا در دریافت وضعیت chatbot manager")
