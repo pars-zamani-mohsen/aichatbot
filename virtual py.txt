@@ -61,7 +61,6 @@ test: add unit tests for payment service
 
 🚀 پیشنهادات بهبود:
 
-
 3. بهبود Performance
 اضافه کردن caching برای database queries
 بهینه‌سازی database indexes
@@ -77,11 +76,7 @@ test: add unit tests for payment service
 اضافه کردن integration tests
 اضافه کردن API tests
 اضافه کردن frontend tests
-6. بهبود Documentation
-اضافه کردن API documentation
-اضافه کردن code documentation
-اضافه کردن architecture diagrams
-اضافه کردن troubleshooting guide
+
 7. بهبود Deployment
 اضافه کردن Docker support
 اضافه کردن CI/CD pipeline
@@ -102,20 +97,6 @@ test: add unit tests for payment service
 اضافه کردن log rotation
 اضافه کردن monitoring alerts
 اضافه کردن update procedures
-�� اولویت‌بندی:
-اولویت بالا (ضروری):
-پاکسازی ساختار پروژه - انتقال فایل‌ها و حذف موارد اضافی
-بهبود امنیت - rate limiting و validation
-بهبود testing - اضافه کردن tests
-اولویت متوسط (مهم):
-بهبود performance - caching و optimization
-بهبود monitoring - logging و health checks
-بهبود documentation - API docs و code docs
-اولویت پایین (اختیاری):
-بهبود deployment - Docker و CI/CD
-بهبود UX - error handling و loading states
-بهبود scalability - database optimization
-بهبود maintenance - automated procedures
 
 ******************************************************************************
 ------------------------------------------------------------------------------

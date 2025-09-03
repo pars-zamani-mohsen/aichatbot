@@ -1,192 +1,215 @@
-# 🚀 راهنمای Deployment روی Production
+# 🚀 راهنمای Deployment - سیستم چت‌بات هوشمند
 
-## 📋 مراحل کلی
-1. **آماده‌سازی سرور**
-2. **نصب dependencies**
-3. **تنظیم environment variables**
-4. **تنظیم database**
-5. **Deploy کردن backend**
-6. **Deploy کردن frontend**
-7. **تنظیم reverse proxy (nginx)**
-8. **تنظیم SSL/HTTPS**
-9. **تنظیم systemd services**
-10. **تنظیم monitoring و backup**
+## فهرست مطالب
+- [معرفی](#معرفی)
+- [پیش‌نیازها](#پیش‌نیازها)
+- [نصب و راه‌اندازی](#نصب-و-راه‌اندازی)
+- [تنظیمات Production](#تنظیمات-production)
+- [SSL و Domain](#ssl-و-domain)
+- [Monitoring و Logging](#monitoring-و-logging)
+- [Backup و Recovery](#backup-و-recovery)
+- [Scaling](#scaling)
+- [Troubleshooting](#troubleshooting)
 
----
+## معرفی
 
-## 🖥️ مرحله 1: آماده‌سازی سرور
+این راهنما مراحل کامل deployment سیستم چت‌بات هوشمند روی production server را توضیح می‌دهد.
 
-### نصب packages مورد نیاز:
+### ویژگی‌های Production
+- 🔒 امنیت بالا
+- 🚀 عملکرد بهینه
+- 📊 Monitoring کامل
+- 🔄 Auto-scaling
+- 💾 Backup خودکار
+- 🛡️ DDoS Protection
+
+## پیش‌نیازها
+
+### سخت‌افزار
 ```bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install -y python3 python3-pip python3-venv nodejs npm nginx postgresql postgresql-contrib git curl
+# حداقل نیازمندی‌ها
+CPU: 4 cores
+RAM: 8GB
+Storage: 100GB SSD
+Network: 100Mbps
 
-# CentOS/RHEL
-sudo yum update
-sudo yum install -y python3 python3-pip nodejs npm nginx postgresql postgresql-server git curl
+# توصیه شده
+CPU: 8+ cores
+RAM: 16GB+
+Storage: 500GB+ SSD
+Network: 1Gbps+
 ```
 
-### نصب Docker (اختیاری):
+### نرم‌افزار
 ```bash
+# سیستم عامل
+Ubuntu 20.04 LTS یا 22.04 LTS
+CentOS 8+ یا RHEL 8+
+
+# سرویس‌های پایه
+Docker 20.10+
+Docker Compose 2.0+
+Nginx 1.18+
+PostgreSQL 13+
+Redis 6+
+```
+
+### دامنه و SSL
+- دامنه معتبر
+- گواهی SSL (Let's Encrypt)
+- DNS Records
+
+## نصب و راه‌اندازی
+
+### 1. آماده‌سازی سرور
+
+```bash
+# به‌روزرسانی سیستم
+sudo apt update && sudo apt upgrade -y
+
+# نصب پکیج‌های ضروری
+sudo apt install -y curl wget git unzip software-properties-common
+
+# نصب Docker
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 sudo usermod -aG docker $USER
+
+# نصب Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# نصب Nginx
+sudo apt install -y nginx
+
+# نصب PostgreSQL
+sudo apt install -y postgresql postgresql-contrib
+
+# نصب Redis
+sudo apt install -y redis-server
 ```
 
----
+### 2. کلون کردن پروژه
 
-## 🗄️ مرحله 2: تنظیم Database
-
-### نصب و تنظیم PostgreSQL:
 ```bash
-# Ubuntu/Debian
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
+# کلون کردن پروژه
+git clone https://github.com/your-username/ai-chatbot.git
+cd ai-chatbot
 
-# ایجاد کاربر و دیتابیس
-sudo -u postgres psql
+# تغییر به branch production
+git checkout production
 ```
 
-```sql
--- در PostgreSQL
-CREATE DATABASE ai_db;
-CREATE USER ai_user WITH PASSWORD 'your_secure_password';
-GRANT ALL PRIVILEGES ON DATABASE ai_db TO ai_user;
-\q
-```
+### 3. تنظیم Environment Variables
 
----
-
-## ⚙️ مرحله 3: تنظیم Environment Variables
-
-### ایجاد فایل .env در backend:
 ```bash
-cd /var/www/html/ai/backend
-cp ../env.example .env
+# ایجاد فایل .env
+cp .env.example .env
+
+# ویرایش فایل .env
 nano .env
 ```
 
-### محتوای .env:
+#### محتوای فایل .env
 ```env
-# Database Configuration
-DATABASE_URL=postgresql://ai_user:your_secure_password@localhost/ai_db
+# Database
+DATABASE_URL=postgresql://ai_user:secure_password@localhost/ai_database
+POSTGRES_DB=ai_database
+POSTGRES_USER=ai_user
+POSTGRES_PASSWORD=secure_password
 
-# Security Settings
-SECRET_KEY=your_super_secret_key_here_make_it_long_and_random_at_least_32_characters
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+# Security
+SECRET_KEY=your-super-secret-key-here
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
 
-# AI Model API Keys
-OPENAI_API_KEY=your_openai_api_key_here
-GOOGLE_API_KEY=your_google_api_key_here
-
-# Email Configuration (Optional)
-SMTP_SERVER=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USERNAME=your_email@gmail.com
-SMTP_PASSWORD=your_app_password
+# AI Models
+OPENAI_API_KEY=your-openai-api-key
+GEMINI_API_KEY=your-gemini-api-key
 
 # System Settings
-SYSTEM_TIMEZONE=Asia/Tehran
-ENABLE_OPENAI=true
-ENABLE_GEMINI=true
-ENABLE_LOCAL=false
-
-# Production Settings
 DEBUG=false
-ENVIRONMENT=production
-ALLOWED_HOSTS=your-domain.com,www.your-domain.com
-
-# Logging
 LOG_LEVEL=INFO
-LOG_FILE=logs/app.log
+TIMEZONE=Asia/Tehran
+ENVIRONMENT=production
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# ChromaDB
+CHROMA_BASE_DIR=/var/www/html/ai/backend/knowledge_base
 
 # Rate Limiting
-RATE_LIMIT_PER_MINUTE=60
-RATE_LIMIT_PER_HOUR=1000
+RATE_LIMIT_CHAT=20
+RATE_LIMIT_CRAWL=5
+RATE_LIMIT_WINDOW=60
 
 # File Upload
-MAX_FILE_SIZE=10485760  # 10MB
-UPLOAD_DIR=uploads
-
-# ChromaDB Settings
-CHROMA_PERSIST_DIRECTORY=chroma_db
-CHROMA_ANONYMIZED_TELEMETRY=false
-
-# CORS Settings
-CORS_ORIGINS=["http://localhost:3000", "https://your-domain.com"]
-CORS_ALLOW_CREDENTIALS=true
+MAX_FILE_SIZE=10485760
+UPLOAD_DIR=/var/www/html/ai/backend/uploads
 ```
 
----
+### 4. تنظیم دیتابیس
 
-## 🔧 مرحله 4: Deploy Backend
-
-### نصب dependencies:
 ```bash
-cd /var/www/html/ai/backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
+# ورود به PostgreSQL
+sudo -u postgres psql
 
-### اجرای migrations:
-```bash
-# از root directory
-cd /var/www/html/ai
+# ایجاد دیتابیس و کاربر
+CREATE DATABASE ai_database;
+CREATE USER ai_user WITH PASSWORD 'secure_password';
+GRANT ALL PRIVILEGES ON DATABASE ai_database TO ai_user;
+ALTER USER ai_user CREATEDB;
+\q
+
+# اجرای migrations
+cd backend
 alembic upgrade head
 ```
 
-### ایجاد admin user:
+### 5. تنظیم Nginx
+
 ```bash
-cd backend
-source venv/bin/activate
-python create_admin_user.py
-```
-
-### تست backend:
-```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
----
-
-## 🎨 مرحله 5: Deploy Frontend
-
-### نصب dependencies:
-```bash
-cd /var/www/html/ai/frontend
-npm install
-```
-
-### Build کردن برای production:
-```bash
-npm run build
-```
-
-### تست frontend:
-```bash
-# نصب serve برای تست
-npm install -g serve
-serve -s build -l 3000
-```
-
----
-
-## 🌐 مرحله 6: تنظیم Nginx
-
-### ایجاد فایل nginx config:
-```bash
+# ایجاد فایل configuration
 sudo nano /etc/nginx/sites-available/ai-chatbot
 ```
 
-### محتوای nginx config:
+#### محتوای فایل Nginx
 ```nginx
 server {
     listen 80;
     server_name your-domain.com www.your-domain.com;
+    
+    # Redirect HTTP to HTTPS
+    return 301 https://$server_name$request_uri;
+}
 
+server {
+    listen 443 ssl http2;
+    server_name your-domain.com www.your-domain.com;
+    
+    # SSL Configuration
+    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+    
+    # Security Headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer-when-downgrade" always;
+    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    
+    # Gzip Compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied expired no-cache no-store private must-revalidate auth;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss;
+    
     # Frontend
     location / {
         root /var/www/html/ai/frontend/build;
@@ -198,322 +221,390 @@ server {
             add_header Cache-Control "public, immutable";
         }
     }
-
+    
     # Backend API
     location /api/ {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:5000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         
-        # CORS headers
-        add_header Access-Control-Allow-Origin *;
-        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS";
-        add_header Access-Control-Allow-Headers "Content-Type, Authorization";
+        # Timeout settings
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
     }
-
-    # WebSocket support (اگر نیاز باشد)
-    location /ws/ {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
+    
+    # Health Check
+    location /health {
+        proxy_pass http://127.0.0.1:5000/health;
+        access_log off;
+    }
+    
+    # Rate Limiting
+    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+    location /api/ {
+        limit_req zone=api burst=20 nodelay;
+        # ... rest of proxy settings
     }
 }
 ```
 
-### فعال کردن سایت:
 ```bash
+# فعال‌سازی سایت
 sudo ln -s /etc/nginx/sites-available/ai-chatbot /etc/nginx/sites-enabled/
 sudo nginx -t
-sudo systemctl restart nginx
+sudo systemctl reload nginx
 ```
 
----
+### 6. تنظیم SSL با Let's Encrypt
 
-## 🔒 مرحله 7: تنظیم SSL/HTTPS
-
-### نصب Certbot:
 ```bash
-sudo apt install certbot python3-certbot-nginx
-```
+# نصب Certbot
+sudo apt install -y certbot python3-certbot-nginx
 
-### دریافت SSL certificate:
-```bash
+# دریافت گواهی SSL
 sudo certbot --nginx -d your-domain.com -d www.your-domain.com
-```
 
-### تنظیم auto-renewal:
-```bash
+# تنظیم auto-renewal
 sudo crontab -e
 # اضافه کردن این خط:
 0 12 * * * /usr/bin/certbot renew --quiet
 ```
 
----
+### 7. راه‌اندازی با Docker
 
-## 🚀 مرحله 8: تنظیم Systemd Services
-
-### ایجاد service برای backend:
 ```bash
-sudo nano /etc/systemd/system/ai-backend.service
+# ساخت Docker images
+docker-compose -f docker-compose.prod.yml build
+
+# راه‌اندازی سرویس‌ها
+docker-compose -f docker-compose.prod.yml up -d
+
+# بررسی وضعیت
+docker-compose -f docker-compose.prod.yml ps
 ```
 
-### محتوای backend service:
-```ini
-[Unit]
-Description=AI Chatbot Backend
-After=network.target
+## تنظیمات Production
 
-[Service]
-Type=exec
-User=www-data
-Group=www-data
-WorkingDirectory=/var/www/html/ai/backend
-Environment=PATH=/var/www/html/ai/backend/venv/bin
-ExecStart=/var/www/html/ai/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
-Restart=always
-RestartSec=10
+### 1. تنظیمات PostgreSQL
 
-[Install]
-WantedBy=multi-user.target
+```bash
+# ویرایش postgresql.conf
+sudo nano /etc/postgresql/*/main/postgresql.conf
+
+# تنظیمات مهم
+shared_buffers = 256MB
+effective_cache_size = 1GB
+work_mem = 4MB
+maintenance_work_mem = 64MB
+checkpoint_completion_target = 0.9
+wal_buffers = 16MB
+default_statistics_target = 100
+random_page_cost = 1.1
+effective_io_concurrency = 200
 ```
 
-### فعال کردن و شروع service:
+### 2. تنظیمات Redis
+
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable ai-backend
-sudo systemctl start ai-backend
-sudo systemctl status ai-backend
+# ویرایش redis.conf
+sudo nano /etc/redis/redis.conf
+
+# تنظیمات مهم
+maxmemory 512mb
+maxmemory-policy allkeys-lru
+save 900 1
+save 300 10
+save 60 10000
 ```
 
----
+### 3. تنظیمات System
 
-## 🔧 مرحله 9: تنظیمات نهایی
-
-### تنظیم permissions:
 ```bash
-sudo chown -R www-data:www-data /var/www/html/ai
-sudo chmod -R 755 /var/www/html/ai
+# تنظیم limits
+sudo nano /etc/security/limits.conf
+
+# اضافه کردن این خطوط
+www-data soft nofile 65536
+www-data hard nofile 65536
+root soft nofile 65536
+root hard nofile 65536
+
+# تنظیم sysctl
+sudo nano /etc/sysctl.conf
+
+# اضافه کردن این خطوط
+net.core.somaxconn = 65535
+net.ipv4.tcp_max_syn_backlog = 65535
+net.ipv4.tcp_fin_timeout = 30
+net.ipv4.tcp_keepalive_time = 300
 ```
 
-### تنظیم firewall:
+### 4. Firewall
+
 ```bash
-sudo ufw allow 22
+# نصب UFW
+sudo apt install -y ufw
+
+# تنظیم قوانین
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow ssh
 sudo ufw allow 80
 sudo ufw allow 443
+sudo ufw allow 22
+
+# فعال‌سازی
 sudo ufw enable
 ```
 
-### تنظیم log rotation:
+## Monitoring و Logging
+
+### 1. نصب Prometheus
+
+```yaml
+# docker-compose.monitoring.yml
+version: '3.8'
+services:
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+```
+
+### 2. نصب Grafana
+
+```yaml
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-storage:/var/lib/grafana
+```
+
+### 3. Log Aggregation
+
 ```bash
-sudo nano /etc/logrotate.d/ai-chatbot
+# نصب Filebeat
+curl -L -O https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-7.17.0-amd64.deb
+sudo dpkg -i filebeat-7.17.0-amd64.deb
+
+# تنظیم Filebeat
+sudo nano /etc/filebeat/filebeat.yml
 ```
 
-```conf
-/var/www/html/ai/backend/logs/*.log {
-    daily
-    missingok
-    rotate 52
-    compress
-    delaycompress
-    notifempty
-    create 644 www-data www-data
-}
-```
+## Backup و Recovery
 
----
+### 1. Backup دیتابیس
 
-## 📊 مرحله 10: Monitoring و Maintenance
-
-### نصب monitoring tools:
-```bash
-# نصب htop برای monitoring
-sudo apt install htop
-
-# نصب logwatch برای log monitoring
-sudo apt install logwatch
-```
-
-### تنظیم backup:
 ```bash
 # ایجاد script backup
-nano /var/www/html/ai/backup.sh
+sudo nano /usr/local/bin/backup-db.sh
 ```
 
+#### محتوای script backup
 ```bash
 #!/bin/bash
 BACKUP_DIR="/var/backups/ai-chatbot"
 DATE=$(date +%Y%m%d_%H%M%S)
+DB_NAME="ai_database"
+DB_USER="ai_user"
 
-# ایجاد backup directory
+# ایجاد پوشه backup
 mkdir -p $BACKUP_DIR
 
-# Backup database
-pg_dump ai_db > $BACKUP_DIR/db_backup_$DATE.sql
+# Backup دیتابیس
+pg_dump -U $DB_USER $DB_NAME > $BACKUP_DIR/db_backup_$DATE.sql
 
-# Backup code
-tar -czf $BACKUP_DIR/code_backup_$DATE.tar.gz /var/www/html/ai
+# Backup فایل‌ها
+tar -czf $BACKUP_DIR/files_backup_$DATE.tar.gz /var/www/html/ai/backend/knowledge_base
 
-# حذف backup های قدیمی (بیشتر از 7 روز)
-find $BACKUP_DIR -name "*.sql" -mtime +7 -delete
-find $BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete
+# حذف backup های قدیمی (بیش از 30 روز)
+find $BACKUP_DIR -name "*.sql" -mtime +30 -delete
+find $BACKUP_DIR -name "*.tar.gz" -mtime +30 -delete
+
+echo "Backup completed: $DATE"
 ```
 
 ```bash
-chmod +x /var/www/html/ai/backup.sh
+# تنظیم مجوزها
+sudo chmod +x /usr/local/bin/backup-db.sh
 
 # اضافه کردن به crontab
 sudo crontab -e
 # اضافه کردن این خط:
-0 2 * * * /var/www/html/ai/backup.sh
+0 2 * * * /usr/local/bin/backup-db.sh
 ```
 
----
+### 2. Recovery
 
-## 🧪 مرحله 11: تست نهایی
-
-### تست API endpoints:
 ```bash
-# تست health check
-curl https://your-domain.com/api/health
+# بازیابی دیتابیس
+psql -U ai_user -d ai_database < /var/backups/ai-chatbot/db_backup_20240101_120000.sql
 
-# تست admin login
-curl -X POST https://your-domain.com/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"your_password"}'
+# بازیابی فایل‌ها
+tar -xzf /var/backups/ai-chatbot/files_backup_20240101_120000.tar.gz -C /
 ```
 
-### تست frontend:
-- باز کردن https://your-domain.com
-- تست login/logout
-- تست chat functionality
-- تست admin panel
+## Scaling
 
----
+### 1. Horizontal Scaling
 
-## 🚨 Troubleshooting
-
-### مشکلات رایج:
-
-#### 1. Backend نمی‌شروعد:
-```bash
-# چک کردن logs
-sudo journalctl -u ai-backend -f
-
-# چک کردن permissions
-ls -la /var/www/html/ai/backend/
+```yaml
+# docker-compose.scale.yml
+version: '3.8'
+services:
+  backend:
+    image: ai-chatbot-backend
+    deploy:
+      replicas: 3
+    environment:
+      - DATABASE_URL=postgresql://user:pass@load-balancer/db
+    depends_on:
+      - load-balancer
 ```
 
-#### 2. Database connection error:
-```bash
-# تست connection
-psql -h localhost -U ai_user -d ai_db
+### 2. Load Balancer
 
-# چک کردن PostgreSQL status
-sudo systemctl status postgresql
-```
-
-#### 3. Frontend load نمی‌شود:
-```bash
-# چک کردن nginx logs
-sudo tail -f /var/log/nginx/error.log
-
-# چک کردن nginx config
-sudo nginx -t
-```
-
-#### 4. SSL certificate issues:
-```bash
-# renew certificate
-sudo certbot renew
-
-# چک کردن certificate status
-sudo certbot certificates
-```
-
----
-
-## 📈 Performance Optimization
-
-### تنظیمات nginx برای performance:
 ```nginx
-# اضافه کردن به nginx config
-gzip on;
-gzip_vary on;
-gzip_min_length 1024;
-gzip_types text/plain text/css text/xml text/javascript application/javascript application/xml+rss application/json;
+# nginx-load-balancer.conf
+upstream backend_servers {
+    server 127.0.0.1:5001;
+    server 127.0.0.1:5002;
+    server 127.0.0.1:5003;
+}
 
-# تنظیم worker processes
-worker_processes auto;
-worker_connections 1024;
+server {
+    listen 80;
+    server_name your-domain.com;
+    
+    location /api/ {
+        proxy_pass http://backend_servers;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
 ```
 
-### تنظیمات PostgreSQL:
+### 3. Auto-scaling
+
 ```bash
-# تنظیم shared_buffers
-sudo nano /etc/postgresql/*/main/postgresql.conf
-# shared_buffers = 256MB
-# effective_cache_size = 1GB
+# نصب Kubernetes
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+# تنظیم HPA (Horizontal Pod Autoscaler)
+kubectl autoscale deployment ai-chatbot-backend --cpu-percent=70 --min=2 --max=10
 ```
 
----
+## Troubleshooting
 
-## 🔄 Update Process
+### 1. مشکلات رایج
 
-### برای update کردن:
+#### سرور راه‌اندازی نمی‌شود
 ```bash
-# 1. Backup
-/var/www/html/ai/backup.sh
+# بررسی لاگ‌ها
+docker-compose logs backend
+sudo journalctl -u ai-chatbot -f
 
-# 2. Pull changes
-cd /var/www/html/ai
-git pull origin main
-
-# 3. Update backend
-cd backend
-source venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head
-
-# 4. Update frontend
-cd ../frontend
-npm install
-npm run build
-
-# 5. Restart services
-sudo systemctl restart ai-backend
-sudo systemctl reload nginx
+# بررسی پورت‌ها
+sudo netstat -tulpn | grep :5000
+sudo lsof -i :5000
 ```
 
+#### مشکل دیتابیس
+```bash
+# بررسی وضعیت PostgreSQL
+sudo systemctl status postgresql
+sudo -u postgres psql -c "SELECT version();"
+
+# بررسی اتصالات
+sudo -u postgres psql -c "SELECT * FROM pg_stat_activity;"
+```
+
+#### مشکل Nginx
+```bash
+# بررسی configuration
+sudo nginx -t
+
+# بررسی لاگ‌ها
+sudo tail -f /var/log/nginx/error.log
+sudo tail -f /var/log/nginx/access.log
+```
+
+### 2. Performance Issues
+
+```bash
+# بررسی منابع سیستم
+htop
+iotop
+netstat -i
+
+# بررسی دیتابیس
+sudo -u postgres psql -c "SELECT * FROM pg_stat_database;"
+sudo -u postgres psql -c "SELECT * FROM pg_stat_user_tables;"
+```
+
+### 3. Security Issues
+
+```bash
+# بررسی فایل‌های log
+sudo tail -f /var/log/auth.log
+sudo tail -f /var/log/nginx/access.log
+
+# بررسی process های مشکوک
+ps aux | grep -v grep | grep -E "(python|node|docker)"
+```
+
+## نکات مهم
+
+### 1. **امنیت**
+- همیشه از HTTPS استفاده کنید
+- فایل‌های حساس را در .env نگه دارید
+- Firewall را فعال کنید
+- به‌روزرسانی‌های امنیتی را نصب کنید
+
+### 2. **Performance**
+- از CDN برای فایل‌های استاتیک استفاده کنید
+- Caching را بهینه کنید
+- Database indexing را بررسی کنید
+- Monitoring را فعال کنید
+
+### 3. **Backup**
+- Backup منظم داشته باشید
+- Backup را در مکان امن نگه دارید
+- Recovery procedure را تست کنید
+- Backup automation را پیاده‌سازی کنید
+
+### 4. **Monitoring**
+- Health checks را پیاده‌سازی کنید
+- Alerting را تنظیم کنید
+- Metrics را جمع‌آوری کنید
+- Log aggregation را فعال کنید
+
+## منابع مفید
+
+- [Docker Documentation](https://docs.docker.com/)
+- [Nginx Documentation](https://nginx.org/en/docs/)
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [Let's Encrypt Documentation](https://letsencrypt.org/docs/)
+- [Prometheus Documentation](https://prometheus.io/docs/)
+- [Grafana Documentation](https://grafana.com/docs/)
+
 ---
 
-## ✅ Checklist نهایی
-
-- [ ] سرور آماده شده
-- [ ] Database تنظیم شده
-- [ ] Environment variables تنظیم شده
-- [ ] Backend deploy شده
-- [ ] Frontend build شده
-- [ ] Nginx تنظیم شده
-- [ ] SSL certificate نصب شده
-- [ ] Systemd services فعال شده
-- [ ] Firewall تنظیم شده
-- [ ] Backup system آماده شده
-- [ ] Monitoring فعال شده
-- [ ] تست نهایی انجام شده
-
----
-
-## 📞 Support
-
-در صورت بروز مشکل:
-1. چک کردن logs
-2. بررسی system status
-3. تست connectivity
-4. بررسی permissions
-5. مراجعه به troubleshooting section
-
-**🎉 تبریک! پروژه شما آماده production است!**
+**🚀 موفقیت در deployment!**
