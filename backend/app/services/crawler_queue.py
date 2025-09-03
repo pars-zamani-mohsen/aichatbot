@@ -143,7 +143,9 @@ class CrawlerQueue:
                 'respect_robots': True
             })
             
-            if not crawler.run_async():
+            # اجرای کراولینگ به صورت async
+            import asyncio
+            if not asyncio.run(crawler.run_async()):
                 raise Exception("Crawling failed")
             
             # اجرای امبدینگ
@@ -193,10 +195,16 @@ class CrawlerQueue:
             # محاسبه آمار
             if task.started_at and task.completed_at:
                 duration = (task.completed_at - task.started_at).total_seconds()
-                self.stats["average_duration"] = (
-                    (self.stats["average_duration"] * (self.stats["successful_crawls"] - 1) + duration) / 
-                    self.stats["successful_crawls"]
-                )
+                
+                # جلوگیری از تقسیم بر صفر
+                if self.stats["successful_crawls"] > 0:
+                    self.stats["average_duration"] = (
+                        (self.stats["average_duration"] * (self.stats["successful_crawls"] - 1) + duration) / 
+                        self.stats["successful_crawls"]
+                    )
+                else:
+                    # اگر اولین کراول موفق است
+                    self.stats["average_duration"] = duration
         
         logger.info(f"Crawl {status.value} for {task.domain}")
     

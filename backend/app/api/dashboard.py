@@ -20,6 +20,7 @@ from ..database.models import User, Website, Chat, Message, Notification
 from ..services.system_settings_service import SystemSettingsService
 from .auth import get_current_user
 import logging
+from fastapi import Request
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1484,3 +1485,83 @@ async def reset_rate_limits(
     except Exception as e:
         logger.error(f"Error resetting rate limits: {str(e)}")
         raise HTTPException(status_code=500, detail="خطا در ریست کردن محدودیت‌ها")
+
+@router.get("/rate-limits-status")
+async def get_rate_limits_status(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت وضعیت محدودیت‌های rate limiting برای کاربر"""
+    try:
+        # دریافت IP کاربر
+        client_ip = request.client.host
+        key = f"{current_user.id}_{client_ip}"
+        
+        # دریافت آمار برای انواع مختلف درخواست
+        status = {}
+        for limit_type in ["chat", "crawl", "api", "widget"]:
+            is_allowed, limits = rate_limiter.is_allowed(key, limit_type, db)
+            status[limit_type] = {
+                "allowed": is_allowed,
+                "remaining": limits["remaining"],
+                "limit": limits["limit"],
+                "reset_time": limits["reset_time"]
+            }
+        
+        return {
+            "user_id": current_user.id,
+            "client_ip": client_ip,
+            "limits": status
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting rate limits status: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطا در دریافت وضعیت محدودیت‌ها")
+
+@router.get("/admin/rate-limits-settings")
+async def get_rate_limits_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """دریافت تنظیمات rate limiting برای ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        settings = SystemSettingsService.get_rate_limit_settings(db)
+        return {"rate_limits": settings}
+        
+    except Exception as e:
+        logger.error(f"Error getting rate limits settings: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطا در دریافت تنظیمات rate limiting")
+
+@router.put("/admin/rate-limits-settings")
+async def update_rate_limits_settings(
+    settings: Dict[str, Dict[str, int]],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """به‌روزرسانی تنظیمات rate limiting برای ادمین"""
+    try:
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # به‌روزرسانی تنظیمات
+        success = SystemSettingsService.set_rate_limit_settings(db, settings)
+        
+        if success:
+            # ریست کردن کش rate limiter
+            rate_limiter._limits = None
+            rate_limiter._last_update = 0
+            
+            logger.info(f"Rate limits settings updated by admin {current_user.email}")
+            return {"message": "تنظیمات rate limiting با موفقیت به‌روزرسانی شد"}
+        else:
+            raise HTTPException(status_code=500, detail="خطا در به‌روزرسانی تنظیمات")
+        
+    except Exception as e:
+        logger.error(f"Error updating rate limits settings: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطا در به‌روزرسانی تنظیمات rate limiting")

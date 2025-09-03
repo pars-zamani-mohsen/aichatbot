@@ -86,15 +86,47 @@ const SystemSettings = () => {
         enableLocal: false,
 
         // تنظیمات timezone
-        systemTimezone: 'Asia/Tehran'
+        systemTimezone: 'Asia/Tehran',
+
+        // تنظیمات Rate Limiting
+        rateLimitChatRequests: 20,
+        rateLimitChatWindow: 60,
+        rateLimitCrawlRequests: 5,
+        rateLimitCrawlWindow: 300,
+        rateLimitApiRequests: 100,
+        rateLimitApiWindow: 60,
+        rateLimitWidgetRequests: 50,
+        rateLimitWidgetWindow: 60
     });
 
     useEffect(() => {
         const fetchSettings = async () => {
             try {
                 setLoading(true);
-                const data = await dashboard.getAdminSystemSettings();
-                setSettings(data);
+                const [systemData, rateLimitsData] = await Promise.all([
+                    dashboard.getAdminSystemSettings(),
+                    dashboard.getRateLimitsSettings()
+                ]);
+
+                // ترکیب تنظیمات سیستم و rate limiting
+                const combinedSettings = {
+                    ...systemData,
+                    ...rateLimitsData.rate_limits.chat,
+                    ...rateLimitsData.rate_limits.crawl,
+                    ...rateLimitsData.rate_limits.api,
+                    ...rateLimitsData.rate_limits.widget,
+                    // تبدیل به فرمت مورد نیاز
+                    rateLimitChatRequests: rateLimitsData.rate_limits.chat.requests,
+                    rateLimitChatWindow: rateLimitsData.rate_limits.chat.window,
+                    rateLimitCrawlRequests: rateLimitsData.rate_limits.crawl.requests,
+                    rateLimitCrawlWindow: rateLimitsData.rate_limits.crawl.window,
+                    rateLimitApiRequests: rateLimitsData.rate_limits.api.requests,
+                    rateLimitApiWindow: rateLimitsData.rate_limits.api.window,
+                    rateLimitWidgetRequests: rateLimitsData.rate_limits.widget.requests,
+                    rateLimitWidgetWindow: rateLimitsData.rate_limits.widget.window
+                };
+
+                setSettings(combinedSettings);
             } catch (error) {
                 console.error('Error fetching system settings:', error);
                 setMessage({ type: 'error', text: 'خطا در دریافت تنظیمات سیستم' });
@@ -117,7 +149,45 @@ const SystemSettings = () => {
         try {
             setSaving(true);
             setMessage({ type: '', text: '' });
-            await dashboard.updateAdminSystemSettings(settings);
+
+            // جداسازی تنظیمات سیستم و rate limiting
+            const {
+                rateLimitChatRequests,
+                rateLimitChatWindow,
+                rateLimitCrawlRequests,
+                rateLimitCrawlWindow,
+                rateLimitApiRequests,
+                rateLimitApiWindow,
+                rateLimitWidgetRequests,
+                rateLimitWidgetWindow,
+                ...systemSettings
+            } = settings;
+
+            // ذخیره تنظیمات سیستم
+            await dashboard.updateAdminSystemSettings(systemSettings);
+
+            // ذخیره تنظیمات rate limiting
+            const rateLimitsSettings = {
+                chat: {
+                    requests: rateLimitChatRequests,
+                    window: rateLimitChatWindow
+                },
+                crawl: {
+                    requests: rateLimitCrawlRequests,
+                    window: rateLimitCrawlWindow
+                },
+                api: {
+                    requests: rateLimitApiRequests,
+                    window: rateLimitApiWindow
+                },
+                widget: {
+                    requests: rateLimitWidgetRequests,
+                    window: rateLimitWidgetWindow
+                }
+            };
+
+            await dashboard.updateRateLimitsSettings(rateLimitsSettings);
+
             setMessage({ type: 'success', text: 'تنظیمات سیستم با موفقیت ذخیره شد' });
         } catch (error) {
             console.error('Error saving system settings:', error);
@@ -593,6 +663,120 @@ const SystemSettings = () => {
                                 }
                                 label="اعلان کاربران جدید"
                             />
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                {/* تنظیمات Rate Limiting */}
+                <Grid item xs={12} md={6}>
+                    <Card>
+                        <CardContent>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                                <Speed sx={{ mr: 1, color: 'info.main' }} />
+                                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                                    تنظیمات Rate Limiting
+                                </Typography>
+                            </Box>
+
+                            <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary' }}>
+                                کنترل تعداد درخواست‌های مجاز برای جلوگیری از سوء استفاده
+                            </Typography>
+
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: 'primary.main' }}>
+                                چت
+                            </Typography>
+                            <Grid container spacing={2} sx={{ mb: 3 }}>
+                                <Grid item xs={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="تعداد درخواست"
+                                        type="number"
+                                        value={settings.rateLimitChatRequests}
+                                        onChange={(e) => handleSettingChange('rateLimitChatRequests', parseInt(e.target.value))}
+                                    />
+                                </Grid>
+                                <Grid item xs={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="بازه زمانی (ثانیه)"
+                                        type="number"
+                                        value={settings.rateLimitChatWindow}
+                                        onChange={(e) => handleSettingChange('rateLimitChatWindow', parseInt(e.target.value))}
+                                    />
+                                </Grid>
+                            </Grid>
+
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: 'warning.main' }}>
+                                کراول
+                            </Typography>
+                            <Grid container spacing={2} sx={{ mb: 3 }}>
+                                <Grid item xs={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="تعداد درخواست"
+                                        type="number"
+                                        value={settings.rateLimitCrawlRequests}
+                                        onChange={(e) => handleSettingChange('rateLimitCrawlRequests', parseInt(e.target.value))}
+                                    />
+                                </Grid>
+                                <Grid item xs={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="بازه زمانی (ثانیه)"
+                                        type="number"
+                                        value={settings.rateLimitCrawlWindow}
+                                        onChange={(e) => handleSettingChange('rateLimitCrawlWindow', parseInt(e.target.value))}
+                                    />
+                                </Grid>
+                            </Grid>
+
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: 'success.main' }}>
+                                API عمومی
+                            </Typography>
+                            <Grid container spacing={2} sx={{ mb: 3 }}>
+                                <Grid item xs={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="تعداد درخواست"
+                                        type="number"
+                                        value={settings.rateLimitApiRequests}
+                                        onChange={(e) => handleSettingChange('rateLimitApiRequests', parseInt(e.target.value))}
+                                    />
+                                </Grid>
+                                <Grid item xs={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="بازه زمانی (ثانیه)"
+                                        type="number"
+                                        value={settings.rateLimitApiWindow}
+                                        onChange={(e) => handleSettingChange('rateLimitApiWindow', parseInt(e.target.value))}
+                                    />
+                                </Grid>
+                            </Grid>
+
+                            <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: 'secondary.main' }}>
+                                Widget
+                            </Typography>
+                            <Grid container spacing={2}>
+                                <Grid item xs={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="تعداد درخواست"
+                                        type="number"
+                                        value={settings.rateLimitWidgetRequests}
+                                        onChange={(e) => handleSettingChange('rateLimitWidgetRequests', parseInt(e.target.value))}
+                                    />
+                                </Grid>
+                                <Grid item xs={6}>
+                                    <TextField
+                                        fullWidth
+                                        label="بازه زمانی (ثانیه)"
+                                        type="number"
+                                        value={settings.rateLimitWidgetWindow}
+                                        onChange={(e) => handleSettingChange('rateLimitWidgetWindow', parseInt(e.target.value))}
+                                    />
+                                </Grid>
+                            </Grid>
                         </CardContent>
                     </Card>
                 </Grid>

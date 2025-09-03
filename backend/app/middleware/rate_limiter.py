@@ -5,6 +5,7 @@ from collections import defaultdict, deque
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 import threading
+from ..services.system_settings_service import SystemSettingsService
 
 logger = logging.getLogger(__name__)
 
@@ -14,19 +15,47 @@ class RateLimiter:
     def __init__(self):
         self.requests: Dict[str, deque] = defaultdict(deque)
         self.lock = threading.Lock()
+        self._limits = None
+        self._last_update = 0
+        self._update_interval = 60  # به‌روزرسانی هر 60 ثانیه
         
-        # تنظیمات Rate Limiting
-        self.limits = {
-            "chat": {"requests": 10, "window": 60},  # 10 چت در دقیقه
-            "crawl": {"requests": 5, "window": 300},  # 5 کراول در 5 دقیقه (افزایش یافت)
-            "api": {"requests": 100, "window": 60},   # 100 درخواست API در دقیقه
-            "widget": {"requests": 50, "window": 60}  # 50 درخواست widget در دقیقه
-        }
+    def _get_limits(self, db=None):
+        """دریافت تنظیمات rate limiting از دیتابیس"""
+        current_time = time.time()
+        
+        # اگر تنظیمات قدیمی هستند یا وجود ندارند، به‌روزرسانی کن
+        if (self._limits is None or 
+            current_time - self._last_update > self._update_interval):
+            
+            try:
+                if db:
+                    self._limits = SystemSettingsService.get_rate_limit_settings(db)
+                else:
+                    # مقادیر پیش‌فرض اگر دیتابیس در دسترس نباشد
+                    self._limits = {
+                        "chat": {"requests": 20, "window": 60},
+                        "crawl": {"requests": 5, "window": 300},
+                        "api": {"requests": 100, "window": 60},
+                        "widget": {"requests": 50, "window": 60}
+                    }
+                self._last_update = current_time
+            except Exception as e:
+                logger.error(f"Error getting rate limit settings: {str(e)}")
+                # استفاده از مقادیر پیش‌فرض
+                self._limits = {
+                    "chat": {"requests": 20, "window": 60},
+                    "crawl": {"requests": 5, "window": 300},
+                    "api": {"requests": 100, "window": 60},
+                    "widget": {"requests": 50, "window": 60}
+                }
+        
+        return self._limits
     
-    def is_allowed(self, key: str, limit_type: str = "api") -> Tuple[bool, Dict[str, int]]:
+    def is_allowed(self, key: str, limit_type: str = "api", db=None) -> Tuple[bool, Dict[str, int]]:
         """بررسی مجاز بودن درخواست"""
         current_time = time.time()
-        limit_config = self.limits.get(limit_type, self.limits["api"])
+        limits = self._get_limits(db)
+        limit_config = limits.get(limit_type, limits["api"])
         
         with self.lock:
             # پاکسازی درخواست‌های قدیمی
@@ -95,8 +124,16 @@ async def rate_limit_middleware(request: Request, call_next):
     user_id = getattr(request.state, "user_id", None)
     key = f"{user_id}_{client_ip}" if user_id else client_ip
     
+    # دریافت db session برای خواندن تنظیمات
+    db = None
+    try:
+        from ..database.database import get_db
+        db = next(get_db())
+    except:
+        pass
+    
     # بررسی Rate Limit
-    is_allowed, limits = rate_limiter.is_allowed(key, limit_type)
+    is_allowed, limits = rate_limiter.is_allowed(key, limit_type, db)
     
     if not is_allowed:
         logger.warning(f"Rate limit exceeded for {key} ({limit_type})")
@@ -109,7 +146,7 @@ async def rate_limit_middleware(request: Request, call_next):
             }
         )
     
-    # اضافه کردن headers
+    # اضافه کردن headers به response
     response = await call_next(request)
     response.headers["X-RateLimit-Limit"] = str(limits["limit"])
     response.headers["X-RateLimit-Remaining"] = str(limits["remaining"])

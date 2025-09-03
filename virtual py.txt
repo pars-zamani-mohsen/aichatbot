@@ -22,9 +22,8 @@ curl -X POST "http://localhost:5000/api/chat" -H "Authorization: Bearer {TOKEN}"
 #فرانت
 
 cd /var/www/html/ai/frontend
-npm install
 npm start
-
+npm install
 http://localhost:3000/login
 
 
@@ -56,6 +55,67 @@ refactor: optimize database queries
 test: add unit tests for payment service
 ```
 
+******************************************************************************
+------------------------------------------------------------------------------
+******************************************************************************
+
+🚀 پیشنهادات بهبود:
+
+
+3. بهبود Performance
+اضافه کردن caching برای database queries
+بهینه‌سازی database indexes
+اضافه کردن connection pooling
+بهبود async/await usage
+4. بهبود Monitoring
+اضافه کردن logging بهتر
+اضافه کردن health checks
+اضافه کردن metrics collection
+اضافه کردن error tracking
+5. بهبود Testing
+اضافه کردن unit tests
+اضافه کردن integration tests
+اضافه کردن API tests
+اضافه کردن frontend tests
+6. بهبود Documentation
+اضافه کردن API documentation
+اضافه کردن code documentation
+اضافه کردن architecture diagrams
+اضافه کردن troubleshooting guide
+7. بهبود Deployment
+اضافه کردن Docker support
+اضافه کردن CI/CD pipeline
+اضافه کردن environment-specific configs
+اضافه کردن backup strategies
+8. بهبود User Experience
+بهبود error messages
+اضافه کردن loading states
+بهبود responsive design
+اضافه کردن accessibility features
+9. بهبود Scalability
+اضافه کردن database migrations
+بهبود database schema
+اضافه کردن caching layer
+بهبود concurrency handling
+10. بهبود Maintenance
+اضافه کردن automated backups
+اضافه کردن log rotation
+اضافه کردن monitoring alerts
+اضافه کردن update procedures
+�� اولویت‌بندی:
+اولویت بالا (ضروری):
+پاکسازی ساختار پروژه - انتقال فایل‌ها و حذف موارد اضافی
+بهبود امنیت - rate limiting و validation
+بهبود testing - اضافه کردن tests
+اولویت متوسط (مهم):
+بهبود performance - caching و optimization
+بهبود monitoring - logging و health checks
+بهبود documentation - API docs و code docs
+اولویت پایین (اختیاری):
+بهبود deployment - Docker و CI/CD
+بهبود UX - error handling و loading states
+بهبود scalability - database optimization
+بهبود maintenance - automated procedures
 
 ******************************************************************************
 ------------------------------------------------------------------------------
@@ -268,65 +328,3 @@ Docker Compose بالا بیاید و سرویس‌ها سالم باشند.
 تحویل: ریپوی کامل، دستورالعمل نصب و اجرای محلی، و دیپلوی با Docker.
 
 
-
-******************************************************************************
-------------------------------------------------------------------------------
-******************************************************************************
-
-🚀 پیشنهادات بهبود:
-
-
-3. بهبود Performance
-اضافه کردن caching برای database queries
-بهینه‌سازی database indexes
-اضافه کردن connection pooling
-بهبود async/await usage
-4. بهبود Monitoring
-اضافه کردن logging بهتر
-اضافه کردن health checks
-اضافه کردن metrics collection
-اضافه کردن error tracking
-5. بهبود Testing
-اضافه کردن unit tests
-اضافه کردن integration tests
-اضافه کردن API tests
-اضافه کردن frontend tests
-6. بهبود Documentation
-اضافه کردن API documentation
-اضافه کردن code documentation
-اضافه کردن architecture diagrams
-اضافه کردن troubleshooting guide
-7. بهبود Deployment
-اضافه کردن Docker support
-اضافه کردن CI/CD pipeline
-اضافه کردن environment-specific configs
-اضافه کردن backup strategies
-8. بهبود User Experience
-بهبود error messages
-اضافه کردن loading states
-بهبود responsive design
-اضافه کردن accessibility features
-9. بهبود Scalability
-اضافه کردن database migrations
-بهبود database schema
-اضافه کردن caching layer
-بهبود concurrency handling
-10. بهبود Maintenance
-اضافه کردن automated backups
-اضافه کردن log rotation
-اضافه کردن monitoring alerts
-اضافه کردن update procedures
-�� اولویت‌بندی:
-اولویت بالا (ضروری):
-پاکسازی ساختار پروژه - انتقال فایل‌ها و حذف موارد اضافی
-بهبود امنیت - rate limiting و validation
-بهبود testing - اضافه کردن tests
-اولویت متوسط (مهم):
-بهبود performance - caching و optimization
-بهبود monitoring - logging و health checks
-بهبود documentation - API docs و code docs
-اولویت پایین (اختیاری):
-بهبود deployment - Docker و CI/CD
-بهبود UX - error handling و loading states
-بهبود scalability - database optimization
-بهبود maintenance - automated procedures

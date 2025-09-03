@@ -220,3 +220,73 @@ class SystemSettingsService:
     def get_system_timezone(cls, db: Session) -> str:
         """دریافت timezone سیستم با کش"""
         return cls.get_setting(db, 'systemTimezone', 'Asia/Tehran')
+    
+    @classmethod
+    def get_rate_limit_settings(cls, db: Session) -> Dict[str, Dict[str, int]]:
+        """دریافت تنظیمات rate limiting"""
+        try:
+            return {
+                "chat": {
+                    "requests": int(cls.get_setting(db, "rate_limit_chat_requests", 20)),
+                    "window": int(cls.get_setting(db, "rate_limit_chat_window", 60))
+                },
+                "crawl": {
+                    "requests": int(cls.get_setting(db, "rate_limit_crawl_requests", 5)),
+                    "window": int(cls.get_setting(db, "rate_limit_crawl_window", 300))
+                },
+                "api": {
+                    "requests": int(cls.get_setting(db, "rate_limit_api_requests", 100)),
+                    "window": int(cls.get_setting(db, "rate_limit_api_window", 60))
+                },
+                "widget": {
+                    "requests": int(cls.get_setting(db, "rate_limit_widget_requests", 50)),
+                    "window": int(cls.get_setting(db, "rate_limit_widget_window", 60))
+                }
+            }
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error converting rate limit settings to int: {str(e)}")
+            # If conversion fails, return default values
+            return {
+                "chat": {"requests": 20, "window": 60},
+                "crawl": {"requests": 5, "window": 300},
+                "api": {"requests": 100, "window": 60},
+                "widget": {"requests": 50, "window": 60}
+            }
+        except Exception as e:
+            logger.error(f"Error getting rate limit settings: {str(e)}")
+            return {
+                "chat": {"requests": 20, "window": 60},
+                "crawl": {"requests": 5, "window": 300},
+                "api": {"requests": 100, "window": 60},
+                "widget": {"requests": 50, "window": 60}
+            }
+    
+    @classmethod
+    def set_rate_limit_settings(cls, db: Session, settings: Dict[str, Dict[str, int]]) -> bool:
+        """تنظیم rate limiting"""
+        try:
+            for limit_type, config in settings.items():
+                if "requests" in config:
+                    cls.set_setting(
+                        db, 
+                        f"rate_limit_{limit_type}_requests", 
+                        config["requests"], 
+                        "integer", 
+                        f"تعداد درخواست‌های مجاز برای {limit_type}",
+                        "rate_limiting"
+                    )
+                
+                if "window" in config:
+                    cls.set_setting(
+                        db, 
+                        f"rate_limit_{limit_type}_window", 
+                        config["window"], 
+                        "integer", 
+                        f"بازه زمانی (ثانیه) برای {limit_type}",
+                        "rate_limiting"
+                    )
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error setting rate limit settings: {str(e)}")
+            return False

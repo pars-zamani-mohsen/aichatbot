@@ -766,6 +766,37 @@ export const dashboard = {
     }
   },
 
+  // Rate Limiting Settings
+  getRateLimitsSettings: async () => {
+    try {
+      const response = await api.get('/api/dashboard/admin/rate-limits-settings');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting rate limits settings:', error);
+      throw error;
+    }
+  },
+
+  updateRateLimitsSettings: async (settings) => {
+    try {
+      const response = await api.put('/api/dashboard/admin/rate-limits-settings', settings);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating rate limits settings:', error);
+      throw error;
+    }
+  },
+
+  getRateLimitsStatus: async () => {
+    try {
+      const response = await api.get('/api/dashboard/rate-limits-status');
+      return response.data;
+    } catch (error) {
+      console.error('Error getting rate limits status:', error);
+      throw error;
+    }
+  },
+
   // گزارشات کاربر
   getUserReports: async (timeRange = '7d') => {
     try {
