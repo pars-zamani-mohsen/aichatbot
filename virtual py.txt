@@ -1,4 +1,8 @@
 sudo chown -R $USER:$USER ai/* && chmod 777 -R ai/*
+
+cd /var/www/html/ai/backend
+source venv/bin/activate
+pg_dump -h localhost -U ai_user -d ai_db > backup_$(date +%Y%m%d_%H%M%S).sql
 #جدید (newChatbotPanel)
 cd /var/www/html/ai/backend
 source venv/bin/activate

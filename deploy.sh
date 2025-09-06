@@ -172,7 +172,7 @@ server {
 
     # Backend API
     location /api/ {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://127.0.0.1:7000;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -210,7 +210,7 @@ User=www-data
 Group=www-data
 WorkingDirectory=/var/www/html/ai/backend
 Environment=PATH=/var/www/html/ai/backend/venv/bin
-ExecStart=/var/www/html/ai/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+ExecStart=/var/www/html/ai/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 7000
 Restart=always
 RestartSec=10
 
@@ -291,7 +291,7 @@ final_test() {
     log_info "انجام تست نهایی..."
     
     # تست backend
-    if curl -s http://localhost:8000/api/health > /dev/null; then
+    if curl -s http://localhost:7000/api/health > /dev/null; then
         log_success "Backend درست کار می‌کند"
     else
         log_error "Backend کار نمی‌کند!"
@@ -318,7 +318,7 @@ show_final_info() {
     echo
     echo "📋 اطلاعات مهم:"
     echo "   🌐 Frontend: http://$(hostname -I | awk '{print $1}')"
-    echo "   🔧 Backend API: http://$(hostname -I | awk '{print $1}'):8000"
+    echo "   🔧 Backend API: http://$(hostname -I | awk '{print $1}'):7000"
     echo "   👤 Admin Panel: http://$(hostname -I | awk '{print $1}')/admin"
     echo
     echo "🔑 اطلاعات ورود:"
