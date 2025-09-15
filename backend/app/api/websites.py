@@ -913,6 +913,8 @@ async def search_website_pages(
 async def export_website_data(
     website_id: int,
     format: str = "csv",  # csv, json
+    export_type: str = "full",  # full, excel_compatible
+    max_text_length: int = 1000,  # حداکثر طول متن در هر سلول (فقط برای excel_compatible)
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -933,6 +935,12 @@ async def export_website_data(
         
         df = pd.read_csv(csv_path)
         
+        # تقسیم متن‌های طولانی برای سازگاری با Excel
+        if export_type == "excel_compatible":
+            df['text'] = df['text'].apply(
+                lambda x: str(x)[:max_text_length] + "..." if len(str(x)) > max_text_length else str(x)
+            )
+        
         if format == "json":
             data = df.to_dict('records')
             return {
@@ -941,7 +949,10 @@ async def export_website_data(
                 "format": "json",
                 "data": data,
                 "total_pages": len(df),
-                "exported_at": datetime.now().isoformat()
+                "exported_at": datetime.now().isoformat(),
+                "export_type": export_type,
+                "text_truncated": export_type == "excel_compatible",
+                "max_text_length": max_text_length if export_type == "excel_compatible" else None
             }
         else:  # csv
             # ایجاد فایل موقت
@@ -962,6 +973,9 @@ async def export_website_data(
                 "domain": website.domain,
                 "format": "csv",
                 "data": csv_content,
+                "export_type": export_type,
+                "text_truncated": export_type == "excel_compatible",
+                "max_text_length": max_text_length if export_type == "excel_compatible" else None,
                 "total_pages": len(df),
                 "exported_at": datetime.now().isoformat()
             }

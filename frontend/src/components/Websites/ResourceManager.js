@@ -209,18 +209,24 @@ const ResourceManager = ({ website }) => {
         fetchPages();
     };
 
-    const handleExport = async (format) => {
+    const handleExport = async (format, exportType = 'full', maxTextLength = 1000) => {
         try {
             const response = await api.get(`/api/${website.id}/export`, {
-                params: { format }
+                params: { 
+                    format,
+                    export_type: exportType,
+                    max_text_length: maxTextLength
+                }
             });
 
+            const suffix = exportType === 'excel_compatible' ? '_excel' : '_full';
+            
             if (format === 'csv') {
                 const blob = new Blob([response.data.data], { type: 'text/csv' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `${website.domain}_export.csv`;
+                a.download = `${website.domain}_export${suffix}.csv`;
                 a.click();
                 window.URL.revokeObjectURL(url);
             } else {
@@ -228,7 +234,7 @@ const ResourceManager = ({ website }) => {
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = `${website.domain}_export.json`;
+                a.download = `${website.domain}_export${suffix}.json`;
                 a.click();
                 window.URL.revokeObjectURL(url);
             }

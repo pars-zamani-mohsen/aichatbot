@@ -13,7 +13,9 @@ import {
     Select,
     MenuItem,
     Alert,
-    CircularProgress
+    CircularProgress,
+    FormControlLabel,
+    Checkbox
 } from '@mui/material';
 
 // Dialog ویرایش صفحه
@@ -175,12 +177,14 @@ export const AddPageDialog = ({ open, onClose, onSave }) => {
 // Dialog صادرات
 export const ExportDialog = ({ open, onClose, onExport }) => {
     const [format, setFormat] = useState('csv');
+    const [exportType, setExportType] = useState('full');
+    const [maxTextLength, setMaxTextLength] = useState(1000);
     const [loading, setLoading] = useState(false);
 
     const handleExport = async () => {
         try {
             setLoading(true);
-            await onExport(format);
+            await onExport(format, exportType, maxTextLength);
         } catch (err) {
             console.error('Export error:', err);
         } finally {
@@ -192,7 +196,7 @@ export const ExportDialog = ({ open, onClose, onExport }) => {
         <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
             <DialogTitle>صادرات داده‌ها</DialogTitle>
             <DialogContent>
-                <Box sx={{ pt: 2 }}>
+                <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <FormControl fullWidth>
                         <InputLabel>فرمت صادرات</InputLabel>
                         <Select
@@ -203,6 +207,34 @@ export const ExportDialog = ({ open, onClose, onExport }) => {
                             <MenuItem value="json">JSON</MenuItem>
                         </Select>
                     </FormControl>
+
+                    <FormControl fullWidth>
+                        <InputLabel>نوع صادرات</InputLabel>
+                        <Select
+                            value={exportType}
+                            onChange={(e) => setExportType(e.target.value)}
+                        >
+                            <MenuItem value="full">صادرات کامل (برای بک‌آپ و واردات مجدد)</MenuItem>
+                            <MenuItem value="excel_compatible">سازگار با Excel (متن‌های کوتاه شده)</MenuItem>
+                        </Select>
+                    </FormControl>
+                    
+                    {exportType === "excel_compatible" && (
+                        <TextField
+                            label="حداکثر طول متن در هر سلول"
+                            type="number"
+                            value={maxTextLength}
+                            onChange={(e) => setMaxTextLength(parseInt(e.target.value) || 1000)}
+                            inputProps={{ min: 100, max: 10000 }}
+                            helperText="متن‌های طولانی‌تر از این مقدار کوتاه می‌شوند - قابل واردات مجدد نیست"
+                        />
+                    )}
+                    
+                    {exportType === "full" && (
+                        <Alert severity="info">
+                            صادرات کامل شامل تمام داده‌ها است و قابل واردات مجدد می‌باشد
+                        </Alert>
+                    )}
                 </Box>
             </DialogContent>
             <DialogActions>
