@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Box,
     Typography,
@@ -20,16 +20,33 @@ import {
     TextField,
     Alert,
     CircularProgress,
-    Tooltip
+    Tooltip,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Grid,
+    Card,
+    CardContent,
+    Divider,
+    Checkbox,
+    FormControlLabel
 } from '@mui/material';
 import {
     Refresh as RefreshIcon,
     Delete as DeleteIcon,
     Visibility as ViewIcon,
-    Settings as SettingsIcon
+    Settings as SettingsIcon,
+    Edit as EditIcon,
+    Add as AddIcon,
+    Search as SearchIcon,
+    Download as DownloadIcon,
+    Upload as UploadIcon,
+    FilterList as FilterIcon
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { EditPageDialog, AddPageDialog, ExportDialog, ImportDialog } from './ResourceManagerDialogs';
 
 const ResourceManager = ({ website }) => {
     const { user } = useAuth();
@@ -48,28 +65,46 @@ const ResourceManager = ({ website }) => {
     const [viewDialogOpen, setViewDialogOpen] = useState(false);
     const [selectedPageForView, setSelectedPageForView] = useState(null);
 
+    // حالت‌های جدید
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
+    const [addDialogOpen, setAddDialogOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterBy, setFilterBy] = useState('all');
+    const [sortBy, setSortBy] = useState('title');
+    const [sortOrder, setSortOrder] = useState('asc');
+    const [selectedPages, setSelectedPages] = useState([]);
+    const [importDialogOpen, setImportDialogOpen] = useState(false);
+    const [exportDialogOpen, setExportDialogOpen] = useState(false);
+
     // بررسی نقش ادمین
     const isAdmin = user && user.role === 'admin';
 
-    useEffect(() => {
-        if (website) {
-            fetchPages();
-            // فقط ادمین‌ها می‌توانند تنظیمات کراولینگ را ببینند
-            if (isAdmin) {
-                fetchCrawlSettings();
-            }
-        }
-    }, [website, page, rowsPerPage, isAdmin]);
-
-    const fetchPages = async () => {
+    const fetchPages = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await api.get(`/api/${website.id}/pages`, {
-                params: {
-                    page: page + 1,
-                    limit: rowsPerPage
-                }
-            });
+            let response;
+
+            if (searchQuery) {
+                // استفاده از API جستجو
+                response = await api.get(`/api/${website.id}/pages/search`, {
+                    params: {
+                        query: searchQuery,
+                        filter_by: filterBy,
+                        sort_by: sortBy,
+                        sort_order: sortOrder,
+                        page: page + 1,
+                        limit: rowsPerPage
+                    }
+                });
+            } else {
+                // استفاده از API عادی
+                response = await api.get(`/api/${website.id}/pages`, {
+                    params: {
+                        page: page + 1,
+                        limit: rowsPerPage
+                    }
+                });
+            }
 
             setPages(response.data.pages);
             setTotal(response.data.total);
@@ -80,9 +115,9 @@ const ResourceManager = ({ website }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [website, searchQuery, filterBy, sortBy, sortOrder, page, rowsPerPage]);
 
-    const fetchCrawlSettings = async () => {
+    const fetchCrawlSettings = useCallback(async () => {
         try {
             const response = await api.get(`/api/${website.id}/crawl-settings`);
             setCrawlSettings(response.data.crawl_settings || {});
@@ -92,7 +127,17 @@ const ResourceManager = ({ website }) => {
                 setError('شما دسترسی لازم برای مشاهده تنظیمات کراولینگ را ندارید');
             }
         }
-    };
+    }, [website]);
+
+    useEffect(() => {
+        if (website) {
+            fetchPages();
+            // فقط ادمین‌ها می‌توانند تنظیمات کراولینگ را ببینند
+            if (isAdmin) {
+                fetchCrawlSettings();
+            }
+        }
+    }, [website, isAdmin, fetchPages, fetchCrawlSettings]);
 
     const handleReCrawl = async () => {
         try {
@@ -141,6 +186,132 @@ const ResourceManager = ({ website }) => {
         setViewDialogOpen(true);
     };
 
+    const handleEditPage = (page) => {
+        setSelectedPageForView(page);
+        setEditDialogOpen(true);
+    };
+
+    const handleAddPage = () => {
+        setAddDialogOpen(true);
+    };
+
+    const handleSearch = () => {
+        setPage(0);
+        fetchPages();
+    };
+
+    const handleClearSearch = () => {
+        setSearchQuery('');
+        setFilterBy('all');
+        setSortBy('title');
+        setSortOrder('asc');
+        setPage(0);
+        fetchPages();
+    };
+
+    const handleExport = async (format) => {
+        try {
+            const response = await api.get(`/api/${website.id}/export`, {
+                params: { format }
+            });
+
+            if (format === 'csv') {
+                const blob = new Blob([response.data.data], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${website.domain}_export.csv`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            } else {
+                const blob = new Blob([JSON.stringify(response.data.data, null, 2)], { type: 'application/json' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${website.domain}_export.json`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+
+            setExportDialogOpen(false);
+        } catch (err) {
+            setError('خطا در صادرات داده‌ها');
+            console.error('Export error:', err);
+        }
+    };
+
+    const handleImport = async (file, format) => {
+        try {
+            const fileContent = await file.text();
+            const importData = {
+                format: format,
+                data: format === 'json' ? JSON.parse(fileContent) : fileContent
+            };
+
+            await api.post(`/api/${website.id}/import`, importData);
+            setImportDialogOpen(false);
+            fetchPages();
+            setError(null);
+        } catch (err) {
+            setError('خطا در واردات داده‌ها');
+            console.error('Import error:', err);
+        }
+    };
+
+    const handleUpdatePage = async (pageData) => {
+        try {
+            await api.put(`/api/${website.id}/pages/${encodeURIComponent(selectedPageForView.url)}`, pageData);
+            setEditDialogOpen(false);
+            fetchPages();
+            setError(null);
+        } catch (err) {
+            setError('خطا در به‌روزرسانی صفحه');
+            console.error('Update page error:', err);
+        }
+    };
+
+    const handleAddNewPage = async (pageData) => {
+        try {
+            await api.post(`/api/${website.id}/pages`, pageData);
+            setAddDialogOpen(false);
+            fetchPages();
+            setError(null);
+        } catch (err) {
+            setError('خطا در اضافه کردن صفحه');
+            console.error('Add page error:', err);
+        }
+    };
+
+    const handleSelectPage = (pageUrl) => {
+        setSelectedPages(prev =>
+            prev.includes(pageUrl)
+                ? prev.filter(url => url !== pageUrl)
+                : [...prev, pageUrl]
+        );
+    };
+
+    const handleSelectAll = () => {
+        if (selectedPages.length === pages.length) {
+            setSelectedPages([]);
+        } else {
+            setSelectedPages(pages.map(page => page.url));
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        try {
+            for (const pageUrl of selectedPages) {
+                await api.delete(`/api/${website.id}/pages/${encodeURIComponent(pageUrl)}`);
+            }
+            setSelectedPages([]);
+            fetchPages();
+            setError(null);
+        } catch (err) {
+            setError('خطا در حذف صفحات');
+            console.error('Bulk delete error:', err);
+        }
+    };
+
     const handleChangePage = (event, newPage) => {
         setPage(newPage);
     };
@@ -160,7 +331,22 @@ const ResourceManager = ({ website }) => {
                 <Typography variant="h5">
                     مدیریت منابع - {website.name || website.domain}
                 </Typography>
-                <Box>
+                <Box display="flex" gap={1}>
+                    <Tooltip title="اضافه کردن صفحه جدید">
+                        <IconButton onClick={handleAddPage} color="primary">
+                            <AddIcon />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="صادرات داده‌ها">
+                        <IconButton onClick={() => setExportDialogOpen(true)} color="success">
+                            <DownloadIcon />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="واردات داده‌ها">
+                        <IconButton onClick={() => setImportDialogOpen(true)} color="info">
+                            <UploadIcon />
+                        </IconButton>
+                    </Tooltip>
                     {/* فقط ادمین‌ها می‌توانند تنظیمات کراولینگ را ببینند */}
                     {isAdmin && (
                         <Tooltip title="تنظیمات کراولینگ (فقط ادمین)">
@@ -169,18 +355,79 @@ const ResourceManager = ({ website }) => {
                             </IconButton>
                         </Tooltip>
                     )}
-                    {/* دکمه کراول مجدد مخفی شده است */}
-                    {/* <Button
-                        variant="contained"
-                        startIcon={reCrawlLoading ? <CircularProgress size={20} /> : <RefreshIcon />}
-                        onClick={handleReCrawl}
-                        disabled={reCrawlLoading || website.status === 'crawling'}
-                        sx={{ mr: 1 }}
-                    >
-                        کراول مجدد
-                    </Button> */}
                 </Box>
             </Box>
+
+            {/* بخش جستجو و فیلتر */}
+            <Card sx={{ mb: 3 }}>
+                <CardContent>
+                    <Grid container spacing={2} alignItems="center">
+                        <Grid item xs={12} md={4}>
+                            <TextField
+                                fullWidth
+                                label="جستجو"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                InputProps={{
+                                    endAdornment: (
+                                        <IconButton onClick={handleSearch}>
+                                            <SearchIcon />
+                                        </IconButton>
+                                    )
+                                }}
+                            />
+                        </Grid>
+                        <Grid item xs={12} md={2}>
+                            <FormControl fullWidth>
+                                <InputLabel>فیلتر بر اساس</InputLabel>
+                                <Select
+                                    value={filterBy}
+                                    onChange={(e) => setFilterBy(e.target.value)}
+                                >
+                                    <MenuItem value="all">همه</MenuItem>
+                                    <MenuItem value="title">عنوان</MenuItem>
+                                    <MenuItem value="text">محتوا</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item xs={12} md={2}>
+                            <FormControl fullWidth>
+                                <InputLabel>مرتب‌سازی بر اساس</InputLabel>
+                                <Select
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value)}
+                                >
+                                    <MenuItem value="title">عنوان</MenuItem>
+                                    <MenuItem value="url">URL</MenuItem>
+                                    <MenuItem value="links_count">تعداد لینک‌ها</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item xs={12} md={2}>
+                            <FormControl fullWidth>
+                                <InputLabel>ترتیب</InputLabel>
+                                <Select
+                                    value={sortOrder}
+                                    onChange={(e) => setSortOrder(e.target.value)}
+                                >
+                                    <MenuItem value="asc">صعودی</MenuItem>
+                                    <MenuItem value="desc">نزولی</MenuItem>
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                        <Grid item xs={12} md={2}>
+                            <Button
+                                fullWidth
+                                variant="outlined"
+                                onClick={handleClearSearch}
+                                startIcon={<FilterIcon />}
+                            >
+                                پاک کردن
+                            </Button>
+                        </Grid>
+                    </Grid>
+                </CardContent>
+            </Card>
 
             {error && (
                 <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
@@ -189,10 +436,35 @@ const ResourceManager = ({ website }) => {
             )}
 
             <Paper>
+                {selectedPages.length > 0 && (
+                    <Box sx={{ p: 2, bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center">
+                            <Typography>
+                                {selectedPages.length} صفحه انتخاب شده
+                            </Typography>
+                            <Button
+                                variant="contained"
+                                color="error"
+                                size="small"
+                                onClick={handleBulkDelete}
+                                startIcon={<DeleteIcon />}
+                            >
+                                حذف انتخاب شده‌ها
+                            </Button>
+                        </Box>
+                    </Box>
+                )}
                 <TableContainer>
                     <Table>
                         <TableHead>
                             <TableRow>
+                                <TableCell padding="checkbox">
+                                    <Checkbox
+                                        checked={selectedPages.length === pages.length && pages.length > 0}
+                                        indeterminate={selectedPages.length > 0 && selectedPages.length < pages.length}
+                                        onChange={handleSelectAll}
+                                    />
+                                </TableCell>
                                 <TableCell>عنوان</TableCell>
                                 <TableCell>URL</TableCell>
                                 <TableCell>تعداد لینک‌ها</TableCell>
@@ -202,19 +474,25 @@ const ResourceManager = ({ website }) => {
                         <TableBody>
                             {loading ? (
                                 <TableRow>
-                                    <TableCell colSpan={4} align="center">
+                                    <TableCell colSpan={5} align="center">
                                         <CircularProgress />
                                     </TableCell>
                                 </TableRow>
                             ) : pages.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={4} align="center">
+                                    <TableCell colSpan={5} align="center">
                                         صفحه‌ای یافت نشد
                                     </TableCell>
                                 </TableRow>
                             ) : (
                                 pages.map((page, index) => (
-                                    <TableRow key={index}>
+                                    <TableRow key={index} selected={selectedPages.includes(page.url)}>
+                                        <TableCell padding="checkbox">
+                                            <Checkbox
+                                                checked={selectedPages.includes(page.url)}
+                                                onChange={() => handleSelectPage(page.url)}
+                                            />
+                                        </TableCell>
                                         <TableCell>
                                             <Typography variant="body2" noWrap>
                                                 {page.title}
@@ -235,6 +513,15 @@ const ResourceManager = ({ website }) => {
                                                     onClick={() => handleViewPage(page)}
                                                 >
                                                     <ViewIcon />
+                                                </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="ویرایش">
+                                                <IconButton
+                                                    size="small"
+                                                    color="primary"
+                                                    onClick={() => handleEditPage(page)}
+                                                >
+                                                    <EditIcon />
                                                 </IconButton>
                                             </Tooltip>
                                             <Tooltip title="حذف">
@@ -397,6 +684,35 @@ const ResourceManager = ({ website }) => {
                     <Button onClick={() => setViewDialogOpen(false)}>بستن</Button>
                 </DialogActions>
             </Dialog>
+
+            {/* Dialog ویرایش صفحه */}
+            <EditPageDialog
+                open={editDialogOpen}
+                onClose={() => setEditDialogOpen(false)}
+                page={selectedPageForView}
+                onSave={handleUpdatePage}
+            />
+
+            {/* Dialog اضافه کردن صفحه */}
+            <AddPageDialog
+                open={addDialogOpen}
+                onClose={() => setAddDialogOpen(false)}
+                onSave={handleAddNewPage}
+            />
+
+            {/* Dialog صادرات */}
+            <ExportDialog
+                open={exportDialogOpen}
+                onClose={() => setExportDialogOpen(false)}
+                onExport={handleExport}
+            />
+
+            {/* Dialog واردات */}
+            <ImportDialog
+                open={importDialogOpen}
+                onClose={() => setImportDialogOpen(false)}
+                onImport={handleImport}
+            />
         </Box>
     );
 };

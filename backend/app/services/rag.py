@@ -140,4 +140,57 @@ class RAGService:
             
         except Exception as e:
             logger.error(f"خطا در دریافت پاسخ: {str(e)}")
-            return "متاسفانه در دریافت پاسخ مشکلی پیش آمده است. لطفاً دوباره تلاش کنید.", [] 
+            return "متاسفانه در دریافت پاسخ مشکلی پیش آمده است. لطفاً دوباره تلاش کنید.", []
+    
+    def add_document(self, text: str, metadata: dict = None):
+        """اضافه کردن سند جدید به collection"""
+        try:
+            # تولید امبدینگ
+            embedding = self.embedding_model.encode(text).tolist()
+            
+            # اضافه کردن به collection
+            self.collection.add(
+                documents=[text],
+                embeddings=[embedding],
+                metadatas=[metadata or {}],
+                ids=[str(len(self.collection.get()['ids']))]
+            )
+            
+            logger.info(f"سند جدید با موفقیت اضافه شد")
+            return True
+            
+        except Exception as e:
+            logger.error(f"خطا در اضافه کردن سند: {str(e)}")
+            return False
+    
+    def update_document(self, document_id: str, text: str, metadata: dict = None):
+        """به‌روزرسانی سند موجود"""
+        try:
+            # تولید امبدینگ جدید
+            embedding = self.embedding_model.encode(text).tolist()
+            
+            # به‌روزرسانی سند
+            self.collection.update(
+                ids=[document_id],
+                documents=[text],
+                embeddings=[embedding],
+                metadatas=[metadata or {}]
+            )
+            
+            logger.info(f"سند {document_id} با موفقیت به‌روزرسانی شد")
+            return True
+            
+        except Exception as e:
+            logger.error(f"خطا در به‌روزرسانی سند: {str(e)}")
+            return False
+    
+    def delete_document(self, document_id: str):
+        """حذف سند از collection"""
+        try:
+            self.collection.delete(ids=[document_id])
+            logger.info(f"سند {document_id} با موفقیت حذف شد")
+            return True
+            
+        except Exception as e:
+            logger.error(f"خطا در حذف سند: {str(e)}")
+            return False 

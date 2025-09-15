@@ -7,6 +7,10 @@ from ..database.models import Website, Chat
 from ..database.database import get_db
 from . import schemas
 import logging
+import json
+import tempfile
+import os
+import io
 from urllib.parse import urlparse
 from datetime import datetime
 from pathlib import Path
@@ -81,6 +85,28 @@ def validate_crawl_settings(settings: dict) -> dict:
         validated['user_agent'] = user_agent
     
     return validated
+
+def get_links_count(links_data) -> int:
+    """محاسبه تعداد لینک‌ها از داده‌های مختلف"""
+    try:
+        if isinstance(links_data, list):
+            return len(links_data)
+        elif isinstance(links_data, str):
+            if links_data == '' or links_data == '[]':
+                return 0
+            # تلاش برای parse کردن JSON string
+            try:
+                parsed_links = json.loads(links_data)
+                if isinstance(parsed_links, list):
+                    return len(parsed_links)
+            except (json.JSONDecodeError, ValueError):
+                pass
+            # اگر JSON نباشد، تعداد کاماها را بشماریم (تقریبی)
+            return links_data.count(',') + 1 if links_data else 0
+        else:
+            return 0
+    except Exception:
+        return 0
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -520,8 +546,9 @@ async def get_website_pages(
             pages.append({
                 "url": row.get('url', ''),
                 "title": row.get('title', ''),
+                "text": row.get('text', ''),  # کل متن برای ویرایش
                 "text_preview": row.get('text', '')[:200] + "..." if len(str(row.get('text', ''))) > 200 else row.get('text', ''),
-                "links_count": len(row.get('links', [])) if isinstance(row.get('links', []), list) else 0
+                "links_count": get_links_count(row.get('links', []))
             })
         
         return {
@@ -612,6 +639,426 @@ async def delete_website_page(
         
     except Exception as e:
         logger.error(f"خطا در حذف صفحه: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/{website_id}/pages/{page_url:path}")
+async def update_website_page(
+    website_id: int,
+    page_url: str,
+    page_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """ویرایش محتوای یک صفحه از وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # خواندن فایل CSV
+        base_dir = Path(__file__).parent.parent.parent
+        csv_path = base_dir / "processed_data" / website.domain / "processed_data.csv"
+        
+        if not csv_path.exists():
+            raise HTTPException(status_code=404, detail="فایل داده یافت نشد")
+        
+        # خواندن و ویرایش صفحه
+        if pd is None:
+            raise HTTPException(status_code=500, detail="pandas در دسترس نیست")
+        
+        df = pd.read_csv(csv_path)
+        
+        # پیدا کردن صفحه
+        page_index = df[df['url'] == page_url].index
+        if len(page_index) == 0:
+            raise HTTPException(status_code=404, detail="صفحه یافت نشد")
+        
+        # به‌روزرسانی داده‌ها
+        if 'title' in page_data:
+            df.at[page_index[0], 'title'] = page_data['title']
+        if 'text' in page_data:
+            df.at[page_index[0], 'text'] = page_data['text']
+        
+        # ذخیره مجدد
+        df.to_csv(csv_path, index=False)
+        
+        # به‌روزرسانی امبدینگ‌ها اگر متن تغییر کرده
+        if 'text' in page_data:
+            try:
+                from ..services.embedding import EmbeddingService
+                embedding_service = EmbeddingService()
+                
+                # خواندن امبدینگ‌های موجود
+                embeddings_path = base_dir / "processed_data" / website.domain / "embeddings.json"
+                if embeddings_path.exists():
+                    with open(embeddings_path, 'r') as f:
+                        embeddings = json.load(f)
+                    
+                    # تولید امبدینگ جدید
+                    new_embedding = embedding_service.generate_embedding(page_data['text'])
+                    embeddings[str(page_index[0])] = new_embedding.tolist()
+                    
+                    # ذخیره امبدینگ‌های به‌روزرسانی شده
+                    with open(embeddings_path, 'w') as f:
+                        json.dump(embeddings, f)
+                    
+                    # به‌روزرسانی ChromaDB
+                    from ..services.rag import RAGService
+                    rag_service = RAGService(collection_name=website.domain)
+                    rag_service.update_document(
+                        document_id=str(page_index[0]),
+                        text=page_data['text'],
+                        metadata={'url': page_url, 'title': page_data.get('title', '')}
+                    )
+                    
+            except Exception as e:
+                logger.warning(f"خطا در به‌روزرسانی امبدینگ: {str(e)}")
+        
+        return {
+            "website_id": website_id,
+            "page_url": page_url,
+            "message": "صفحه با موفقیت به‌روزرسانی شد",
+            "updated_fields": list(page_data.keys())
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در ویرایش صفحه: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{website_id}/pages")
+async def add_manual_page(
+    website_id: int,
+    page_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """اضافه کردن صفحه جدید به صورت دستی"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # اعتبارسنجی داده‌ها
+        required_fields = ['url', 'title', 'text']
+        for field in required_fields:
+            if field not in page_data or not page_data[field]:
+                raise HTTPException(status_code=400, detail=f"فیلد {field} الزامی است")
+        
+        # خواندن فایل CSV
+        base_dir = Path(__file__).parent.parent.parent
+        csv_path = base_dir / "processed_data" / website.domain / "processed_data.csv"
+        
+        # ایجاد پوشه اگر وجود ندارد
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        if pd is None:
+            raise HTTPException(status_code=500, detail="pandas در دسترس نیست")
+        
+        # خواندن یا ایجاد DataFrame
+        if csv_path.exists():
+            df = pd.read_csv(csv_path)
+        else:
+            df = pd.DataFrame(columns=['url', 'title', 'text', 'links'])
+        
+        # بررسی تکراری نبودن URL
+        if page_data['url'] in df['url'].values:
+            raise HTTPException(status_code=400, detail="این URL قبلاً اضافه شده است")
+        
+        # اضافه کردن صفحه جدید
+        new_page = {
+            'url': page_data['url'],
+            'title': page_data['title'],
+            'text': page_data['text'],
+            'links': page_data.get('links', [])
+        }
+        
+        df = pd.concat([df, pd.DataFrame([new_page])], ignore_index=True)
+        df.to_csv(csv_path, index=False)
+        
+        # تولید امبدینگ برای صفحه جدید
+        try:
+            from ..services.embedding import EmbeddingService
+            embedding_service = EmbeddingService()
+            
+            # خواندن امبدینگ‌های موجود
+            embeddings_path = base_dir / "processed_data" / website.domain / "embeddings.json"
+            embeddings = []
+            if embeddings_path.exists():
+                with open(embeddings_path, 'r') as f:
+                    embeddings = json.load(f)
+            
+            # تولید امبدینگ جدید
+            new_embedding = embedding_service.generate_embedding(page_data['text'])
+            embeddings.append(new_embedding.tolist())
+            
+            # ذخیره امبدینگ‌ها
+            with open(embeddings_path, 'w') as f:
+                json.dump(embeddings, f)
+            
+            # اضافه کردن به ChromaDB
+            from ..services.rag import RAGService
+            rag_service = RAGService(collection_name=website.domain)
+            rag_service.add_document(
+                text=page_data['text'],
+                metadata={'url': page_data['url'], 'title': page_data['title']}
+            )
+            
+        except Exception as e:
+            logger.warning(f"خطا در تولید امبدینگ: {str(e)}")
+        
+        return {
+            "website_id": website_id,
+            "page_url": page_data['url'],
+            "message": "صفحه جدید با موفقیت اضافه شد",
+            "total_pages": len(df)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در اضافه کردن صفحه: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{website_id}/pages/search")
+async def search_website_pages(
+    website_id: int,
+    query: str = "",
+    filter_by: str = "all",  # all, title, text
+    sort_by: str = "title",  # title, url, links_count
+    sort_order: str = "asc",  # asc, desc
+    page: int = 1,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """جستجو و فیلتر صفحات وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # خواندن فایل CSV
+        base_dir = Path(__file__).parent.parent.parent
+        csv_path = base_dir / "processed_data" / website.domain / "processed_data.csv"
+        
+        if not csv_path.exists():
+            return {
+                "pages": [],
+                "total": 0,
+                "page": page,
+                "limit": limit,
+                "message": "هنوز صفحه‌ای کراول نشده است"
+            }
+        
+        if pd is None:
+            raise HTTPException(status_code=500, detail="pandas در دسترس نیست")
+        
+        df = pd.read_csv(csv_path)
+        
+        # جستجو
+        if query:
+            if filter_by == "title":
+                mask = df['title'].str.contains(query, case=False, na=False)
+            elif filter_by == "text":
+                mask = df['text'].str.contains(query, case=False, na=False)
+            else:  # all
+                mask = (df['title'].str.contains(query, case=False, na=False) | 
+                       df['text'].str.contains(query, case=False, na=False))
+            df = df[mask]
+        
+        # مرتب‌سازی
+        if sort_by == "title":
+            df = df.sort_values('title', ascending=(sort_order == "asc"))
+        elif sort_by == "url":
+            df = df.sort_values('url', ascending=(sort_order == "asc"))
+        elif sort_by == "links_count":
+            df['links_count'] = df['links'].apply(lambda x: len(x) if isinstance(x, list) else 0)
+            df = df.sort_values('links_count', ascending=(sort_order == "asc"))
+        
+        total_pages = len(df)
+        
+        # صفحه‌بندی
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        df_page = df.iloc[start_idx:end_idx]
+        
+        pages = []
+        for _, row in df_page.iterrows():
+            pages.append({
+                "url": row.get('url', ''),
+                "title": row.get('title', ''),
+                "text": row.get('text', ''),  # کل متن برای ویرایش
+                "text_preview": row.get('text', '')[:200] + "..." if len(str(row.get('text', ''))) > 200 else row.get('text', ''),
+                "links_count": get_links_count(row.get('links', []))
+            })
+        
+        return {
+            "pages": pages,
+            "total": total_pages,
+            "page": page,
+            "limit": limit,
+            "total_pages": (total_pages + limit - 1) // limit,
+            "query": query,
+            "filter_by": filter_by,
+            "sort_by": sort_by,
+            "sort_order": sort_order
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در جستجوی صفحات: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{website_id}/export")
+async def export_website_data(
+    website_id: int,
+    format: str = "csv",  # csv, json
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """صادرات داده‌های وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # خواندن فایل CSV
+        base_dir = Path(__file__).parent.parent.parent
+        csv_path = base_dir / "processed_data" / website.domain / "processed_data.csv"
+        
+        if not csv_path.exists():
+            raise HTTPException(status_code=404, detail="داده‌ای برای صادرات یافت نشد")
+        
+        if pd is None:
+            raise HTTPException(status_code=500, detail="pandas در دسترس نیست")
+        
+        df = pd.read_csv(csv_path)
+        
+        if format == "json":
+            data = df.to_dict('records')
+            return {
+                "website_id": website_id,
+                "domain": website.domain,
+                "format": "json",
+                "data": data,
+                "total_pages": len(df),
+                "exported_at": datetime.now().isoformat()
+            }
+        else:  # csv
+            # ایجاد فایل موقت
+            
+            temp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False)
+            df.to_csv(temp_file.name, index=False)
+            temp_file.close()
+            
+            # خواندن محتوای فایل
+            with open(temp_file.name, 'r', encoding='utf-8') as f:
+                csv_content = f.read()
+            
+            # حذف فایل موقت
+            os.unlink(temp_file.name)
+            
+            return {
+                "website_id": website_id,
+                "domain": website.domain,
+                "format": "csv",
+                "data": csv_content,
+                "total_pages": len(df),
+                "exported_at": datetime.now().isoformat()
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در صادرات داده‌ها: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{website_id}/import")
+async def import_website_data(
+    website_id: int,
+    import_data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """واردات داده‌های وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # اعتبارسنجی داده‌ها
+        if 'format' not in import_data or 'data' not in import_data:
+            raise HTTPException(status_code=400, detail="فرمت و داده الزامی است")
+        
+        if pd is None:
+            raise HTTPException(status_code=500, detail="pandas در دسترس نیست")
+        
+        base_dir = Path(__file__).parent.parent.parent
+        csv_path = base_dir / "processed_data" / website.domain / "processed_data.csv"
+        
+        # ایجاد پوشه اگر وجود ندارد
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # پردازش داده‌های وارداتی
+        if import_data['format'] == 'json':
+            df_import = pd.DataFrame(import_data['data'])
+        elif import_data['format'] == 'csv':
+            df_import = pd.read_csv(io.StringIO(import_data['data']))
+        else:
+            raise HTTPException(status_code=400, detail="فرمت پشتیبانی نمی‌شود")
+        
+        # اعتبارسنجی ستون‌های مورد نیاز
+        required_columns = ['url', 'title', 'text']
+        for col in required_columns:
+            if col not in df_import.columns:
+                raise HTTPException(status_code=400, detail=f"ستون {col} الزامی است")
+        
+        # خواندن داده‌های موجود
+        if csv_path.exists():
+            df_existing = pd.read_csv(csv_path)
+            # ترکیب داده‌ها (حذف تکراری‌ها)
+            df_combined = pd.concat([df_existing, df_import]).drop_duplicates(subset=['url'], keep='last')
+        else:
+            df_combined = df_import
+        
+        # ذخیره داده‌های ترکیبی
+        df_combined.to_csv(csv_path, index=False)
+        
+        # تولید امبدینگ‌های جدید
+        try:
+            from ..services.embedding import EmbeddingService
+            embedding_service = EmbeddingService()
+            
+            # تولید امبدینگ برای صفحات جدید
+            new_embeddings = []
+            for _, row in df_import.iterrows():
+                embedding = embedding_service.generate_embedding(row['text'])
+                new_embeddings.append(embedding.tolist())
+            
+            # ذخیره امبدینگ‌ها
+            embeddings_path = base_dir / "processed_data" / website.domain / "embeddings.json"
+            embeddings = []
+            if embeddings_path.exists():
+                with open(embeddings_path, 'r') as f:
+                    embeddings = json.load(f)
+            
+            embeddings.extend(new_embeddings)
+            
+            with open(embeddings_path, 'w') as f:
+                json.dump(embeddings, f)
+            
+        except Exception as e:
+            logger.warning(f"خطا در تولید امبدینگ: {str(e)}")
+        
+        return {
+            "website_id": website_id,
+            "message": "داده‌ها با موفقیت وارد شدند",
+            "imported_pages": len(df_import),
+            "total_pages": len(df_combined)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در واردات داده‌ها: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{website_id}/rag-settings")

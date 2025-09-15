@@ -239,6 +239,14 @@ class EmbeddingService:
             logger.error(f"Error processing file: {str(e)}")
             raise
             
+    def generate_embedding(self, text: str) -> np.ndarray:
+        """تولید امبدینگ برای متن"""
+        try:
+            return self.model.encode(text)
+        except Exception as e:
+            logger.error(f"خطا در تولید امبدینگ: {str(e)}")
+            raise
+    
     def search(self, query: str, n_results: int = 5) -> List[Dict]:
         """جستجو در دیتابیس"""
         try:
