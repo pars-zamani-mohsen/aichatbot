@@ -29,8 +29,10 @@ import {
     Settings as SettingsIcon
 } from '@mui/icons-material';
 import api from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 const ResourceManager = ({ website }) => {
+    const { user } = useAuth();
     const [pages, setPages] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -46,12 +48,18 @@ const ResourceManager = ({ website }) => {
     const [viewDialogOpen, setViewDialogOpen] = useState(false);
     const [selectedPageForView, setSelectedPageForView] = useState(null);
 
+    // بررسی نقش ادمین
+    const isAdmin = user && user.role === 'admin';
+
     useEffect(() => {
         if (website) {
             fetchPages();
-            fetchCrawlSettings();
+            // فقط ادمین‌ها می‌توانند تنظیمات کراولینگ را ببینند
+            if (isAdmin) {
+                fetchCrawlSettings();
+            }
         }
-    }, [website, page, rowsPerPage]);
+    }, [website, page, rowsPerPage, isAdmin]);
 
     const fetchPages = async () => {
         try {
@@ -80,6 +88,9 @@ const ResourceManager = ({ website }) => {
             setCrawlSettings(response.data.crawl_settings || {});
         } catch (err) {
             console.error('Fetch crawl settings error:', err);
+            if (err.response?.status === 403) {
+                setError('شما دسترسی لازم برای مشاهده تنظیمات کراولینگ را ندارید');
+            }
         }
     };
 
@@ -113,10 +124,15 @@ const ResourceManager = ({ website }) => {
         try {
             await api.put(`/api/${website.id}/crawl-settings`, crawlSettings);
             setSettingsDialogOpen(false);
+            setError(null);
             // نمایش پیام موفقیت
         } catch (err) {
-            setError('خطا در به‌روزرسانی تنظیمات');
             console.error('Update settings error:', err);
+            if (err.response?.status === 403) {
+                setError('شما دسترسی لازم برای تغییر تنظیمات کراولینگ را ندارید');
+            } else {
+                setError('خطا در به‌روزرسانی تنظیمات');
+            }
         }
     };
 
@@ -145,11 +161,14 @@ const ResourceManager = ({ website }) => {
                     مدیریت منابع - {website.name || website.domain}
                 </Typography>
                 <Box>
-                    <Tooltip title="تنظیمات کراولینگ">
-                        <IconButton onClick={() => setSettingsDialogOpen(true)}>
-                            <SettingsIcon />
-                        </IconButton>
-                    </Tooltip>
+                    {/* فقط ادمین‌ها می‌توانند تنظیمات کراولینگ را ببینند */}
+                    {isAdmin && (
+                        <Tooltip title="تنظیمات کراولینگ (فقط ادمین)">
+                            <IconButton onClick={() => setSettingsDialogOpen(true)}>
+                                <SettingsIcon />
+                            </IconButton>
+                        </Tooltip>
+                    )}
                     {/* دکمه کراول مجدد مخفی شده است */}
                     {/* <Button
                         variant="contained"

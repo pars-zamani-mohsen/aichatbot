@@ -22,12 +22,8 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { websites } from '../../services/api';
-import WidgetManager from './WidgetManager';
-import ResourceManager from './ResourceManager';
-import RAGSettings from './RAGSettings';
-import ConversationLogs from './ConversationLogs';
 
-const WebsiteManager = ({ onSelectWebsite }) => {
+const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChange }) => {
   const [websiteList, setWebsiteList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -39,8 +35,6 @@ const WebsiteManager = ({ onSelectWebsite }) => {
   const [crawlingStatus, setCrawlingStatus] = useState({});
   const [crawlingStartTime, setCrawlingStartTime] = useState({});
   const [crawlingProgress, setCrawlingProgress] = useState({});
-  const [selectedWebsite, setSelectedWebsite] = useState(null);
-  const [activeTab, setActiveTab] = useState(0);
 
   const getErrorMessage = (err) => {
 
@@ -293,8 +287,8 @@ const WebsiteManager = ({ onSelectWebsite }) => {
       </Box>
 
       {selectedWebsite && (
-        <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
-          <Tab label="لیست وب‌سایت‌ها" />
+        <Tabs value={activeTab} onChange={(e, newValue) => onTabChange(newValue)}>
+          <Tab label="چت" />
           <Tab label="مدیریت ویجت" />
           <Tab label="مدیریت منابع" />
           <Tab label="تنظیمات RAG" />
@@ -308,81 +302,53 @@ const WebsiteManager = ({ onSelectWebsite }) => {
         </Alert>
       )}
 
-      {activeTab === 0 && (
-        <>
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <List sx={{ flex: 1, overflow: 'auto' }}>
-              {websiteList.map((website) => (
-                <ListItem
-                  key={website.id}
-                  secondaryAction={
-                    <IconButton
-                      edge="end"
-                      aria-label="delete"
-                      onClick={() => handleDeleteWebsite(website.id)}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  }
-                  disablePadding
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <List sx={{ flex: 1, overflow: 'auto' }}>
+          {websiteList.map((website) => (
+            <ListItem
+              key={website.id}
+              secondaryAction={
+                <IconButton
+                  edge="end"
+                  aria-label="delete"
+                  onClick={() => handleDeleteWebsite(website.id)}
                 >
-                  <ListItemButton onClick={() => {
-                    setSelectedWebsite(website);
-                    onSelectWebsite(website);
-                  }}>
-                    <Box sx={{ width: '100%' }}>
-                      <ListItemText
-                        primary={website.name || website.url}
-                        secondary={website.url}
+                  <DeleteIcon />
+                </IconButton>
+              }
+              disablePadding
+            >
+              <ListItemButton
+                onClick={() => onSelectWebsite(website)}
+                selected={selectedWebsite && selectedWebsite.id === website.id}
+              >
+                <Box sx={{ width: '100%' }}>
+                  <ListItemText
+                    primary={website.name || website.url}
+                    secondary={website.url}
+                  />
+                  {crawlingStatus[website.id] && (
+                    <Box sx={{ mt: 1 }}>
+                      <LinearProgress
+                        variant={crawlingStatus[website.id] === 'ready' ? 'determinate' : 'indeterminate'}
+                        value={crawlingProgress[website.id] || 0}
+                        color={getStatusColor(crawlingStatus[website.id])}
+                        sx={{ mb: 0.5 }}
                       />
-                      {crawlingStatus[website.id] && (
-                        <Box sx={{ mt: 1 }}>
-                          <LinearProgress
-                            variant={crawlingStatus[website.id] === 'ready' ? 'determinate' : 'indeterminate'}
-                            value={crawlingProgress[website.id] || 0}
-                            color={getStatusColor(crawlingStatus[website.id])}
-                            sx={{ mb: 0.5 }}
-                          />
-                          <Typography variant="caption" color="text.secondary">
-                            {getStatusText(crawlingStatus[website.id], website.id)}
-                          </Typography>
-                        </Box>
-                      )}
+                      <Typography variant="caption" color="text.secondary">
+                        {getStatusText(crawlingStatus[website.id], website.id)}
+                      </Typography>
                     </Box>
-                  </ListItemButton>
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </>
-      )}
-
-      {activeTab === 1 && selectedWebsite && (
-        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-          <WidgetManager website={selectedWebsite} />
-        </Box>
-      )}
-
-      {activeTab === 2 && selectedWebsite && (
-        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-          <ResourceManager website={selectedWebsite} />
-        </Box>
-      )}
-
-      {activeTab === 3 && selectedWebsite && (
-        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-          <RAGSettings website={selectedWebsite} />
-        </Box>
-      )}
-
-      {activeTab === 4 && selectedWebsite && (
-        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-          <ConversationLogs website={selectedWebsite} />
-        </Box>
+                  )}
+                </Box>
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
       )}
 
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>

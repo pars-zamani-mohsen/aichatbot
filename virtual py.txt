@@ -8,6 +8,14 @@ cd /var/www/html/ai/backend
 source venv/bin/activate
 uvicorn app.main:app --reload --host 0.0.0.0 --port 5000
 
+#فرانت
+
+cd /var/www/html/ai/frontend
+npm start
+npm install
+http://localhost:3000/login
+
+
 pkill -f "uvicorn app.main:app"
 ps aux | grep "uvicorn app.main:app"
 sudo kill -9 313922 314012
@@ -24,14 +32,6 @@ curl -X POST "http://localhost:5000/api/websites/crawl" -H "Authorization: Beare
 curl -X GET http://localhost:5000/api/websites/{ID} -H "Authorization: Bearer {TOKEN}"
 سوال از LLM
 curl -X POST "http://localhost:5000/api/chat" -H "Authorization: Bearer {TOKEN}" -H "Content-Type: application/json" -d '{"website_id": 34, "message": "لطفاً در مورد خدمات مهاجرت به کانادا توضیح دهید", "use_rag": true, "use_llm": true}'
-
-
-#فرانت
-
-cd /var/www/html/ai/frontend
-npm start
-npm install
-http://localhost:3000/login
 
 
 

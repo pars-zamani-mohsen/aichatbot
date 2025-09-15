@@ -32,6 +32,56 @@ def verify_website_ownership(website_id: int, user_id: int, db: Session) -> Webs
     
     return website
 
+def validate_crawl_settings(settings: dict) -> dict:
+    """اعتبارسنجی تنظیمات کراولینگ"""
+    validated = {}
+    
+    # اعتبارسنجی max_pages
+    if 'max_pages' in settings:
+        max_pages = settings['max_pages']
+        if not isinstance(max_pages, int) or max_pages < 1 or max_pages > 1000:
+            raise HTTPException(
+                status_code=400, 
+                detail="حداکثر تعداد صفحات باید بین 1 تا 1000 باشد"
+            )
+        validated['max_pages'] = max_pages
+    
+    # اعتبارسنجی max_depth
+    if 'max_depth' in settings:
+        max_depth = settings['max_depth']
+        if not isinstance(max_depth, int) or max_depth < 1 or max_depth > 10:
+            raise HTTPException(
+                status_code=400, 
+                detail="حداکثر عمق باید بین 1 تا 10 باشد"
+            )
+        validated['max_depth'] = max_depth
+    
+    # اعتبارسنجی delay
+    if 'delay' in settings:
+        delay = settings['delay']
+        if not isinstance(delay, (int, float)) or delay < 0.1 or delay > 60:
+            raise HTTPException(
+                status_code=400, 
+                detail="تأخیر باید بین 0.1 تا 60 ثانیه باشد"
+            )
+        validated['delay'] = float(delay)
+    
+    # اعتبارسنجی respect_robots
+    if 'respect_robots' in settings:
+        validated['respect_robots'] = bool(settings['respect_robots'])
+    
+    # اعتبارسنجی user_agent
+    if 'user_agent' in settings:
+        user_agent = settings['user_agent']
+        if not isinstance(user_agent, str) or len(user_agent) > 200:
+            raise HTTPException(
+                status_code=400, 
+                detail="User Agent باید رشته‌ای با حداکثر 200 کاراکتر باشد"
+            )
+        validated['user_agent'] = user_agent
+    
+    return validated
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -356,21 +406,35 @@ async def update_crawl_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """به‌روزرسانی تنظیمات کراولینگ وب‌سایت"""
+    """به‌روزرسانی تنظیمات کراولینگ وب‌سایت (فقط برای ادمین‌ها)"""
     try:
-        # بررسی مالکیت وب‌سایت (جداسازی tenant)
-        website = verify_website_ownership(website_id, current_user.id, db)
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(
+                status_code=403, 
+                detail="تنظیمات کراولینگ فقط برای ادمین‌ها قابل دسترس است"
+            )
+        
+        # بررسی وجود وب‌سایت
+        website = db.query(Website).filter(Website.id == website_id).first()
+        if not website:
+            raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد")
+        
+        # اعتبارسنجی تنظیمات
+        validated_settings = validate_crawl_settings(settings)
         
         # به‌روزرسانی تنظیمات
-        website.crawl_settings = settings
+        website.crawl_settings = validated_settings
         db.commit()
         
         return {
             "website_id": website_id,
-            "crawl_settings": settings,
+            "crawl_settings": validated_settings,
             "message": "تنظیمات کراولینگ با موفقیت به‌روزرسانی شد"
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"خطا در به‌روزرسانی تنظیمات کراولینگ: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -381,10 +445,19 @@ async def get_crawl_settings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """دریافت تنظیمات کراولینگ وب‌سایت"""
+    """دریافت تنظیمات کراولینگ وب‌سایت (فقط برای ادمین‌ها)"""
     try:
-        # بررسی مالکیت وب‌سایت (جداسازی tenant)
-        website = verify_website_ownership(website_id, current_user.id, db)
+        # بررسی نقش ادمین
+        if current_user.role != "admin":
+            raise HTTPException(
+                status_code=403, 
+                detail="تنظیمات کراولینگ فقط برای ادمین‌ها قابل دسترس است"
+            )
+        
+        # بررسی وجود وب‌سایت
+        website = db.query(Website).filter(Website.id == website_id).first()
+        if not website:
+            raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد")
         
         return {
             "website_id": website_id,
@@ -398,6 +471,8 @@ async def get_crawl_settings(
             }
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"خطا در دریافت تنظیمات کراولینگ: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
