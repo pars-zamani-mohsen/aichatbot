@@ -45,7 +45,7 @@ const SourcesManager = ({ website }) => {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [total, setTotal] = useState(0);
-    
+
     // States for export/import
     const [exportDialogOpen, setExportDialogOpen] = useState(false);
     const [importDialogOpen, setImportDialogOpen] = useState(false);

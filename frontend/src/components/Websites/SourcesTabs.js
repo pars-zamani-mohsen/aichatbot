@@ -238,18 +238,59 @@ export const WebsiteUrlTab = ({ website, onSuccess, onError, onLoading }) => {
 
         try {
             onLoading(true);
-            // شبیه‌سازی اضافه کردن URL
+            
+            // اضافه کردن URL به لیست
             const newUrl = {
                 id: Date.now(),
                 url: url.trim(),
-                status: 'pending'
+                status: 'crawling'
             };
 
             setUrls(prev => [...prev, newUrl]);
+            const currentUrl = url.trim();
             setUrl('');
-            onSuccess(`آدرس ${url} اضافه شد`);
+
+            // شروع کراولینگ
+            const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const response = await fetch(`${API_URL}/api/${website.id}/crawl`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                    urls: [currentUrl],
+                    max_pages: 1,
+                    max_depth: 1
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('خطا در شروع کراولینگ');
+            }
+
+            const result = await response.json();
+            
+            // به‌روزرسانی وضعیت URL
+            setUrls(prev => 
+                prev.map(u => 
+                    u.url === currentUrl 
+                        ? { ...u, status: 'success', result }
+                        : u
+                )
+            );
+
+            onSuccess(`آدرس ${currentUrl} با موفقیت کراول شد و به پایگاه دانش اضافه شد`);
         } catch (error) {
-            onError(`خطا در اضافه کردن آدرس: ${error.message}`);
+            // به‌روزرسانی وضعیت URL در صورت خطا
+            setUrls(prev => 
+                prev.map(u => 
+                    u.url === url.trim() 
+                        ? { ...u, status: 'error' }
+                        : u
+                )
+            );
+            onError(`خطا در کراولینگ آدرس: ${error.message}`);
         } finally {
             onLoading(false);
         }
@@ -294,9 +335,25 @@ export const WebsiteUrlTab = ({ website, onSuccess, onError, onLoading }) => {
                         {urls.map((urlItem, index) => (
                             <React.Fragment key={urlItem.id}>
                                 <ListItem>
-                                    <ListItemText primary={urlItem.url} />
+                                    <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+                                        {urlItem.status === 'success' && <CheckCircleIcon color="success" />}
+                                        {urlItem.status === 'error' && <ErrorIcon color="error" />}
+                                        {urlItem.status === 'crawling' && <CircularProgress size={20} />}
+                                    </Box>
+                                    <ListItemText 
+                                        primary={urlItem.url}
+                                        secondary={
+                                            urlItem.status === 'crawling' ? 'در حال کراولینگ...' :
+                                            urlItem.status === 'success' ? 'کراولینگ موفق' :
+                                            urlItem.status === 'error' ? 'خطا در کراولینگ' : ''
+                                        }
+                                    />
                                     <ListItemSecondaryAction>
-                                        <IconButton edge="end" onClick={() => removeUrl(urlItem.id)}>
+                                        <IconButton 
+                                            edge="end" 
+                                            onClick={() => removeUrl(urlItem.id)}
+                                            disabled={urlItem.status === 'crawling'}
+                                        >
                                             <DeleteIcon />
                                         </IconButton>
                                     </ListItemSecondaryAction>
@@ -324,8 +381,33 @@ export const TextTab = ({ website, onSuccess, onError, onLoading }) => {
 
         try {
             onLoading(true);
-            // شبیه‌سازی اضافه کردن متن
-            onSuccess(`متن "${title}" با موفقیت اضافه شد`);
+            
+            // ایجاد URL منحصر به فرد برای متن
+            const uniqueUrl = `https://${website.domain}/manual-text/${Date.now()}`;
+            
+            // ارسال به API برای اضافه کردن صفحه دستی
+            const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const response = await fetch(`${API_URL}/api/${website.id}/pages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                    url: uniqueUrl,
+                    title: title.trim(),
+                    text: text.trim(),
+                    links: []
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'خطا در اضافه کردن متن');
+            }
+
+            const result = await response.json();
+            onSuccess(`متن "${title}" با موفقیت اضافه شد و امبدینگ آن تولید شد`);
             setTitle('');
             setText('');
         } catch (error) {
@@ -395,7 +477,7 @@ export const ExportDialog = ({ open, onClose, onExport }) => {
                             <MenuItem value="json">JSON</MenuItem>
                         </Select>
                     </FormControl>
-                    
+
                     <FormControl fullWidth>
                         <InputLabel>نوع صادرات</InputLabel>
                         <Select value={exportType} onChange={(e) => setExportType(e.target.value)}>
@@ -403,7 +485,7 @@ export const ExportDialog = ({ open, onClose, onExport }) => {
                             <MenuItem value="excel_compatible">سازگار با Excel</MenuItem>
                         </Select>
                     </FormControl>
-                    
+
                     {exportType === 'excel_compatible' && (
                         <TextField
                             fullWidth
@@ -443,7 +525,7 @@ export const ImportDialog = ({ open, onClose, onImport }) => {
         try {
             const text = await file.text();
             let data;
-            
+
             if (format === 'json') {
                 data = JSON.parse(text);
             } else {
@@ -474,7 +556,7 @@ export const ImportDialog = ({ open, onClose, onImport }) => {
                             <MenuItem value="json">JSON</MenuItem>
                         </Select>
                     </FormControl>
-                    
+
                     <input
                         type="file"
                         accept={format === 'json' ? '.json' : '.csv'}
@@ -487,7 +569,7 @@ export const ImportDialog = ({ open, onClose, onImport }) => {
                             انتخاب فایل
                         </Button>
                     </label>
-                    
+
                     {file && (
                         <Typography variant="body2" color="text.secondary">
                             فایل انتخاب شده: {file.name}
@@ -497,9 +579,9 @@ export const ImportDialog = ({ open, onClose, onImport }) => {
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose}>انصراف</Button>
-                <Button 
-                    onClick={handleImport} 
-                    variant="contained" 
+                <Button
+                    onClick={handleImport}
+                    variant="contained"
                     disabled={!file || loading}
                 >
                     {loading ? 'در حال واردات...' : 'واردات'}
