@@ -137,14 +137,23 @@ async def rate_limit_middleware(request: Request, call_next):
     
     if not is_allowed:
         logger.warning(f"Rate limit exceeded for {key} ({limit_type})")
-        return JSONResponse(
+        response = JSONResponse(
             status_code=429,
             content={
                 "error": "Rate limit exceeded",
+                "detail": "تعداد درخواست‌ها بیش از حد مجاز است. لطفاً چند دقیقه صبر کنید و دوباره تلاش کنید.",
                 "retry_after": int(limits["reset_time"] - time.time()),
                 "limits": limits
             }
         )
+        
+        # اضافه کردن CORS headers
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        
+        return response
     
     # اضافه کردن headers به response
     response = await call_next(request)

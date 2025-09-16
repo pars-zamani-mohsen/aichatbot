@@ -48,6 +48,12 @@ export const useApiError = () => {
             return true; // خطا handle شده
         }
 
+        if (error.response?.status === 429 || error.status === 429) {
+            // خطای 429 - Rate Limit
+            alert('تعداد درخواست‌ها بیش از حد مجاز است. لطفاً چند دقیقه صبر کنید و دوباره تلاش کنید.');
+            return true; // خطا handle شده
+        }
+
         // خطاهای دیگر
         console.error('API Error:', error);
         return false; // خطا handle نشده

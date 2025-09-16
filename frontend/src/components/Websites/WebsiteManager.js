@@ -50,9 +50,13 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
   const [websiteToDelete, setWebsiteToDelete] = useState(null);
 
   const getErrorMessage = (err) => {
-
     // اگر خطا یک رشته است، مستقیماً برگردانده شود
     if (typeof err === 'string') return err;
+
+    // بررسی خطای 429 (Rate Limit)
+    if (err.response?.status === 429 || err.status === 429) {
+      return 'تعداد درخواست‌ها بیش از حد مجاز است. لطفاً چند دقیقه صبر کنید و دوباره تلاش کنید.';
+    }
 
     // اگر خطا در response.data.detail است
     if (err.response?.data?.detail) {
@@ -88,6 +92,11 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
 
       // اگر هیچ کدام از موارد بالا نبود، کل شیء را به رشته تبدیل کن
       return JSON.stringify(err.response.data, null, 2);
+    }
+
+    // بررسی Network Error که ممکن است ناشی از rate limit باشد
+    if (err.message === 'Network Error' || err.code === 'ERR_NETWORK') {
+      return 'تعداد درخواست‌ها بیش از حد مجاز است. لطفاً چند دقیقه صبر کنید و دوباره تلاش کنید.';
     }
 
     // اگر هیچ کدام از موارد بالا نبود، پیام خطای پیش‌فرض

@@ -14,7 +14,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
-    
+
     // Debug: بررسی token
     if (token) {
       // بررسی فرمت token
@@ -28,7 +28,7 @@ api.interceptors.request.use(
         console.log(`🔐 Token (Bearer added) to request: ${config.url}`);
       }
       console.log(`   Token length: ${token.length}, Preview: ${token.substring(0, 30)}...`);
-      
+
       // اضافه کردن header اضافی برای debug
       config.headers['X-Token-Length'] = token.length;
       config.headers['X-Token-Preview'] = token.substring(0, 20);
@@ -110,6 +110,14 @@ api.interceptors.response.use(
 
       // reject کردن خطا
       return Promise.reject(new Error('Authentication failed. Please login again.'));
+    }
+
+    // اگر خطای 429 (Too Many Requests) باشد، پیام مناسب نمایش دهیم
+    if (error.response?.status === 429) {
+      const rateLimitError = new Error('تعداد درخواست‌ها بیش از حد مجاز است. لطفاً چند دقیقه صبر کنید و دوباره تلاش کنید.');
+      rateLimitError.status = 429;
+      rateLimitError.response = error.response;
+      return Promise.reject(rateLimitError);
     }
 
     return Promise.reject(error);
