@@ -28,7 +28,10 @@ import {
     Grid,
     Card,
     CardContent,
-    Checkbox
+    Checkbox,
+    Menu,
+    ListItemIcon,
+    ListItemText
 } from '@mui/material';
 import {
     Delete as DeleteIcon,
@@ -39,11 +42,15 @@ import {
     Search as SearchIcon,
     Download as DownloadIcon,
     Upload as UploadIcon,
-    FilterList as FilterIcon
+    FilterList as FilterIcon,
+    ArrowDropDown as ArrowDropDownIcon,
+    Article as ArticleIcon,
+    QuestionAnswer as QuestionAnswerIcon,
+    Description as DescriptionIcon
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { EditPageDialog, AddPageDialog, ExportDialog, ImportDialog, FileUploadDialog } from './ResourceManagerDialogs';
+import { EditPageDialog, AddPageDialog, ExportDialog, ImportDialog, FileUploadDialog, FaqDialog } from './ResourceManagerDialogs';
 
 const ResourceManager = ({ website }) => {
     const { user } = useAuth();
@@ -71,6 +78,10 @@ const ResourceManager = ({ website }) => {
     const [importDialogOpen, setImportDialogOpen] = useState(false);
     const [exportDialogOpen, setExportDialogOpen] = useState(false);
     const [fileUploadDialogOpen, setFileUploadDialogOpen] = useState(false);
+    
+    // Menu states
+    const [addMenuAnchor, setAddMenuAnchor] = useState(null);
+    const [faqDialogOpen, setFaqDialogOpen] = useState(false);
 
     // بررسی نقش ادمین
     const isAdmin = user && user.role === 'admin';
@@ -173,10 +184,6 @@ const ResourceManager = ({ website }) => {
         setEditDialogOpen(true);
     };
 
-    const handleAddPage = () => {
-        setAddDialogOpen(true);
-    };
-
     const handleSearch = () => {
         setPage(0);
         fetchPages();
@@ -259,6 +266,42 @@ const ResourceManager = ({ website }) => {
         }
     };
 
+    // Menu handlers
+    const handleAddMenuClick = (event) => {
+        setAddMenuAnchor(event.currentTarget);
+    };
+
+    const handleAddMenuClose = () => {
+        setAddMenuAnchor(null);
+    };
+
+    const handleAddPage = () => {
+        setAddMenuAnchor(null);
+        setAddDialogOpen(true);
+    };
+
+    const handleAddFAQ = () => {
+        setAddMenuAnchor(null);
+        setFaqDialogOpen(true);
+    };
+
+    const handleAddFile = () => {
+        setAddMenuAnchor(null);
+        setFileUploadDialogOpen(true);
+    };
+
+    const handleFaqSubmit = async (faqData) => {
+        try {
+            setFaqDialogOpen(false);
+            fetchPages();
+            setError(null);
+            console.log('FAQ added successfully:', faqData);
+        } catch (err) {
+            setError('خطا در اضافه کردن سوال و جواب');
+            console.error('FAQ error:', err);
+        }
+    };
+
     const handleUpdatePage = async (pageData) => {
         try {
             await api.put(`/api/${website.id}/pages/${encodeURIComponent(selectedPageForView.url)}`, pageData);
@@ -337,11 +380,49 @@ const ResourceManager = ({ website }) => {
                     مدیریت منابع - {website.name || website.domain}
                 </Typography>
                 <Box display="flex" gap={1}>
-                    <Tooltip title="اضافه کردن صفحه جدید">
-                        <IconButton onClick={handleAddPage} color="primary">
-                            <AddIcon />
-                        </IconButton>
+                    <Tooltip title="اضافه کردن محتوا">
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            startIcon={<AddIcon />}
+                            endIcon={<ArrowDropDownIcon />}
+                            onClick={handleAddMenuClick}
+                        >
+                            اضافه کردن
+                        </Button>
                     </Tooltip>
+                    <Menu
+                        anchorEl={addMenuAnchor}
+                        open={Boolean(addMenuAnchor)}
+                        onClose={handleAddMenuClose}
+                        anchorOrigin={{
+                            vertical: 'bottom',
+                            horizontal: 'left',
+                        }}
+                        transformOrigin={{
+                            vertical: 'top',
+                            horizontal: 'left',
+                        }}
+                    >
+                        <MenuItem onClick={handleAddPage}>
+                            <ListItemIcon>
+                                <ArticleIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText>ایجاد یک صفحه جدید</ListItemText>
+                        </MenuItem>
+                        <MenuItem onClick={handleAddFAQ}>
+                            <ListItemIcon>
+                                <QuestionAnswerIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText>ایجاد یک پرسش و پاسخ جدید</ListItemText>
+                        </MenuItem>
+                        <MenuItem onClick={handleAddFile}>
+                            <ListItemIcon>
+                                <DescriptionIcon fontSize="small" />
+                            </ListItemIcon>
+                            <ListItemText>ایجاد با فایل‌های متنی</ListItemText>
+                        </MenuItem>
+                    </Menu>
                     <Tooltip title="صادرات داده‌ها">
                         <IconButton onClick={() => setExportDialogOpen(true)} color="success">
                             <DownloadIcon />
@@ -349,11 +430,6 @@ const ResourceManager = ({ website }) => {
                     </Tooltip>
                     <Tooltip title="واردات داده‌ها">
                         <IconButton onClick={() => setImportDialogOpen(true)} color="info">
-                            <UploadIcon />
-                        </IconButton>
-                    </Tooltip>
-                    <Tooltip title="آپلود فایل">
-                        <IconButton onClick={() => setFileUploadDialogOpen(true)} color="secondary">
                             <UploadIcon />
                         </IconButton>
                     </Tooltip>
@@ -729,6 +805,14 @@ const ResourceManager = ({ website }) => {
                 open={fileUploadDialogOpen}
                 onClose={() => setFileUploadDialogOpen(false)}
                 onUpload={handleFileUpload}
+                websiteId={website.id}
+            />
+
+            {/* Dialog FAQ */}
+            <FaqDialog
+                open={faqDialogOpen}
+                onClose={() => setFaqDialogOpen(false)}
+                onSubmit={handleFaqSubmit}
                 websiteId={website.id}
             />
         </Box>

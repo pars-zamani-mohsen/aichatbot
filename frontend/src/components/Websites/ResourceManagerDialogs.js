@@ -560,3 +560,144 @@ export const FileUploadDialog = ({ open, onClose, onUpload, websiteId }) => {
         </Dialog>
     );
 };
+
+// Dialog FAQ
+export const FaqDialog = ({ open, onClose, onSubmit, websiteId }) => {
+    const [formData, setFormData] = useState({
+        question: '',
+        answer: ''
+    });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+
+    const handleChange = (field) => (event) => {
+        setFormData(prev => ({
+            ...prev,
+            [field]: event.target.value
+        }));
+    };
+
+    const handleSubmit = async () => {
+        if (!formData.question.trim() || !formData.answer.trim()) {
+            setError('لطفاً سوال و جواب را وارد کنید');
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            // ایجاد URL منحصر به فرد برای FAQ
+            const faqUrl = `https://${websiteId}/faq/${Date.now()}`;
+            
+            const faqData = {
+                url: faqUrl,
+                title: formData.question,
+                text: formData.answer,
+                links: []
+            };
+
+            // ارسال به API
+            const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const response = await fetch(`${API_URL}/api/${websiteId}/pages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify(faqData)
+            });
+
+            if (!response.ok) {
+                let errorMessage = 'خطا در اضافه کردن سوال و جواب';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.detail || errorMessage;
+                } catch (e) {
+                    const errorText = await response.text();
+                    errorMessage = errorText || errorMessage;
+                }
+                throw new Error(errorMessage);
+            }
+
+            const result = await response.json();
+            
+            // فراخوانی callback
+            if (onSubmit) {
+                onSubmit(result);
+            }
+
+            // پاک کردن فرم
+            setFormData({ question: '', answer: '' });
+            onClose();
+
+        } catch (err) {
+            setError(err.message || 'خطا در اضافه کردن سوال و جواب');
+            console.error('FAQ submission error:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleClose = () => {
+        if (!loading) {
+            setFormData({ question: '', answer: '' });
+            setError(null);
+            onClose();
+        }
+    };
+
+    return (
+        <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+            <DialogTitle>ایجاد سوال و جواب جدید</DialogTitle>
+            <DialogContent>
+                <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Alert severity="info">
+                        سوال و جواب شما به عنوان یک صفحه جدید به سیستم اضافه می‌شود و در جستجو قابل دسترسی خواهد بود.
+                    </Alert>
+                    
+                    <TextField
+                        fullWidth
+                        label="سوال"
+                        value={formData.question}
+                        onChange={handleChange('question')}
+                        multiline
+                        rows={2}
+                        placeholder="سوال مشتری را اینجا وارد کنید..."
+                        disabled={loading}
+                    />
+                    
+                    <TextField
+                        fullWidth
+                        label="جواب"
+                        value={formData.answer}
+                        onChange={handleChange('answer')}
+                        multiline
+                        rows={6}
+                        placeholder="جواب کامل را اینجا وارد کنید..."
+                        disabled={loading}
+                    />
+                    
+                    {error && (
+                        <Alert severity="error">
+                            {error}
+                        </Alert>
+                    )}
+                </Box>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={handleClose} disabled={loading}>
+                    انصراف
+                </Button>
+                <Button
+                    onClick={handleSubmit}
+                    variant="contained"
+                    disabled={loading || !formData.question.trim() || !formData.answer.trim()}
+                    startIcon={loading ? <CircularProgress size={20} /> : null}
+                >
+                    {loading ? 'در حال ذخیره...' : 'ذخیره سوال و جواب'}
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+};
