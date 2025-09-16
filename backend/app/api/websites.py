@@ -630,6 +630,27 @@ async def delete_website_page(
         # ذخیره مجدد
         df.to_csv(csv_path, index=False)
         
+        # حذف از ChromaDB
+        try:
+            from ..services.rag import RAGService
+            rag_service = RAGService(collection_name=website.domain)
+            
+            # جستجو برای پیدا کردن document در ChromaDB
+            results = rag_service.search_knowledge_base(page_url, n_results=1)
+            
+            if results['documents'][0]:  # اگر document پیدا شد
+                # پیدا کردن ID document
+                for i, metadata in enumerate(results['metadatas'][0]):
+                    if metadata.get('url') == page_url:
+                        document_id = results['ids'][0][i]
+                        # حذف از ChromaDB
+                        rag_service.delete_document(document_id)
+                        logger.info(f"Document {document_id} deleted from ChromaDB")
+                        break
+            
+        except Exception as e:
+            logger.warning(f"خطا در حذف از ChromaDB: {str(e)}")
+        
         return {
             "website_id": website_id,
             "page_url": page_url,
@@ -704,11 +725,30 @@ async def update_website_page(
                     # به‌روزرسانی ChromaDB
                     from ..services.rag import RAGService
                     rag_service = RAGService(collection_name=website.domain)
-                    rag_service.update_document(
-                        document_id=str(page_index[0]),
-                        text=page_data['text'],
-                        metadata={'url': page_url, 'title': page_data.get('title', '')}
-                    )
+                    
+                    # جستجو برای پیدا کردن document در ChromaDB
+                    results = rag_service.search_knowledge_base(page_url, n_results=1)
+                    
+                    if results['documents'][0]:  # اگر document پیدا شد
+                        # پیدا کردن ID document
+                        for i, metadata in enumerate(results['metadatas'][0]):
+                            if metadata.get('url') == page_url:
+                                document_id = results['ids'][0][i]
+                                # به‌روزرسانی در ChromaDB
+                                rag_service.update_document(
+                                    document_id=document_id,
+                                    text=page_data['text'],
+                                    metadata={'url': page_url, 'title': page_data.get('title', '')}
+                                )
+                                logger.info(f"Document {document_id} updated in ChromaDB")
+                                break
+                    else:
+                        # اگر document پیدا نشد، آن را اضافه کن
+                        rag_service.add_document(
+                            text=page_data['text'],
+                            metadata={'url': page_url, 'title': page_data.get('title', '')}
+                        )
+                        logger.info(f"New document added to ChromaDB for URL: {page_url}")
                     
             except Exception as e:
                 logger.warning(f"خطا در به‌روزرسانی امبدینگ: {str(e)}")
