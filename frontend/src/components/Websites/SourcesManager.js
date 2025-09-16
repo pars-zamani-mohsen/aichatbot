@@ -23,7 +23,11 @@ import {
     InputLabel,
     Select,
     MenuItem,
-    Grid
+    Grid,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions
 } from '@mui/material';
 import {
     CloudUpload as CloudUploadIcon,
@@ -56,6 +60,12 @@ const SourcesManager = ({ website }) => {
     // States for export/import
     const [exportDialogOpen, setExportDialogOpen] = useState(false);
     const [importDialogOpen, setImportDialogOpen] = useState(false);
+    
+    // States for page operations
+    const [viewDialogOpen, setViewDialogOpen] = useState(false);
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [selectedPage, setSelectedPage] = useState(null);
 
     // States for search and filter
     const [searchQuery, setSearchQuery] = useState('');
@@ -230,6 +240,47 @@ const SourcesManager = ({ website }) => {
         }
     };
 
+    // Page operation handlers
+    const handleViewPage = (page) => {
+        setSelectedPage(page);
+        setViewDialogOpen(true);
+    };
+
+    const handleEditPage = (page) => {
+        setSelectedPage(page);
+        setEditDialogOpen(true);
+    };
+
+    const handleDeletePage = (page) => {
+        setSelectedPage(page);
+        setDeleteDialogOpen(true);
+    };
+
+    const confirmDeletePage = async () => {
+        if (!selectedPage) return;
+
+        try {
+            const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const response = await fetch(`${API_URL}/api/${website.id}/pages/${encodeURIComponent(selectedPage.url)}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('خطا در حذف صفحه');
+            }
+
+            setDeleteDialogOpen(false);
+            setSelectedPage(null);
+            setSuccess(`صفحه "${selectedPage.title}" با موفقیت حذف شد`);
+            fetchPages(); // Refresh pages list
+        } catch (error) {
+            setError(`خطا در حذف صفحه: ${error.message}`);
+        }
+    };
+
     // Render pages list component
     const renderPagesList = () => (
         <Box>
@@ -340,17 +391,27 @@ const SourcesManager = ({ website }) => {
                                     <TableCell>{page.links_count || 0}</TableCell>
                                     <TableCell>
                                         <Tooltip title="مشاهده">
-                                            <IconButton size="small">
+                                            <IconButton 
+                                                size="small"
+                                                onClick={() => handleViewPage(page)}
+                                            >
                                                 <ViewIcon />
                                             </IconButton>
                                         </Tooltip>
                                         <Tooltip title="ویرایش">
-                                            <IconButton size="small">
+                                            <IconButton 
+                                                size="small"
+                                                onClick={() => handleEditPage(page)}
+                                            >
                                                 <EditIcon />
                                             </IconButton>
                                         </Tooltip>
                                         <Tooltip title="حذف">
-                                            <IconButton size="small" color="error">
+                                            <IconButton 
+                                                size="small" 
+                                                color="error"
+                                                onClick={() => handleDeletePage(page)}
+                                            >
                                                 <DeleteIcon />
                                             </IconButton>
                                         </Tooltip>
@@ -528,6 +589,160 @@ const SourcesManager = ({ website }) => {
                 onClose={() => setImportDialogOpen(false)}
                 onImport={handleImport}
             />
+
+            {/* View Page Dialog */}
+            <Dialog 
+                open={viewDialogOpen} 
+                onClose={() => setViewDialogOpen(false)}
+                maxWidth="md"
+                fullWidth
+            >
+                <DialogTitle>مشاهده صفحه</DialogTitle>
+                <DialogContent>
+                    {selectedPage && (
+                        <Box>
+                            <Typography variant="h6" gutterBottom>
+                                {selectedPage.title}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                                URL: {selectedPage.url}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                                تعداد لینک‌ها: {selectedPage.links_count || 0}
+                            </Typography>
+                            <Box sx={{ mt: 2 }}>
+                                <Typography variant="subtitle2" gutterBottom>
+                                    محتوا:
+                                </Typography>
+                                <Box 
+                                    sx={{ 
+                                        maxHeight: 400, 
+                                        overflow: 'auto', 
+                                        p: 2, 
+                                        bgcolor: 'grey.50',
+                                        borderRadius: 1,
+                                        border: '1px solid',
+                                        borderColor: 'grey.200'
+                                    }}
+                                >
+                                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                                        {selectedPage.text || 'محتوایی موجود نیست'}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setViewDialogOpen(false)}>
+                        بستن
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Edit Page Dialog */}
+            <Dialog 
+                open={editDialogOpen} 
+                onClose={() => setEditDialogOpen(false)}
+                maxWidth="md"
+                fullWidth
+            >
+                <DialogTitle>ویرایش صفحه</DialogTitle>
+                <DialogContent>
+                    {selectedPage && (
+                        <Box sx={{ mt: 2 }}>
+                            <TextField
+                                fullWidth
+                                label="عنوان"
+                                value={selectedPage.title || ''}
+                                onChange={(e) => setSelectedPage(prev => ({ ...prev, title: e.target.value }))}
+                                sx={{ mb: 2 }}
+                            />
+                            <TextField
+                                fullWidth
+                                label="محتوا"
+                                multiline
+                                rows={8}
+                                value={selectedPage.text || ''}
+                                onChange={(e) => setSelectedPage(prev => ({ ...prev, text: e.target.value }))}
+                            />
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setEditDialogOpen(false)}>
+                        انصراف
+                    </Button>
+                    <Button 
+                        variant="contained"
+                        onClick={async () => {
+                            try {
+                                const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+                                const response = await fetch(`${API_URL}/api/${website.id}/pages/${encodeURIComponent(selectedPage.url)}`, {
+                                    method: 'PUT',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                    },
+                                    body: JSON.stringify({
+                                        title: selectedPage.title,
+                                        text: selectedPage.text
+                                    })
+                                });
+
+                                if (!response.ok) {
+                                    throw new Error('خطا در ویرایش صفحه');
+                                }
+
+                                setEditDialogOpen(false);
+                                setSelectedPage(null);
+                                setSuccess('صفحه با موفقیت ویرایش شد');
+                                fetchPages();
+                            } catch (error) {
+                                setError(`خطا در ویرایش صفحه: ${error.message}`);
+                            }
+                        }}
+                    >
+                        ذخیره
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Delete Page Confirmation Dialog */}
+            <Dialog 
+                open={deleteDialogOpen} 
+                onClose={() => setDeleteDialogOpen(false)}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle sx={{ color: 'error.main' }}>
+                    حذف صفحه
+                </DialogTitle>
+                <DialogContent>
+                    {selectedPage && (
+                        <Box>
+                            <Typography variant="body1" sx={{ mb: 2 }}>
+                                آیا از حذف صفحه <strong>"{selectedPage.title}"</strong> اطمینان دارید؟
+                            </Typography>
+                            <Alert severity="warning">
+                                این عمل غیرقابل بازگشت است و صفحه از پایگاه دانش حذف خواهد شد.
+                            </Alert>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleteDialogOpen(false)}>
+                        انصراف
+                    </Button>
+                    <Button 
+                        variant="contained"
+                        color="error"
+                        onClick={confirmDeletePage}
+                    >
+                        حذف
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };
