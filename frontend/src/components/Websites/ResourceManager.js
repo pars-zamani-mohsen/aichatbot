@@ -28,12 +28,9 @@ import {
     Grid,
     Card,
     CardContent,
-    Divider,
-    Checkbox,
-    FormControlLabel
+    Checkbox
 } from '@mui/material';
 import {
-    Refresh as RefreshIcon,
     Delete as DeleteIcon,
     Visibility as ViewIcon,
     Settings as SettingsIcon,
@@ -55,9 +52,7 @@ const ResourceManager = ({ website }) => {
     const [error, setError] = useState(null);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
-    const [totalPages, setTotalPages] = useState(0);
     const [total, setTotal] = useState(0);
-    const [reCrawlLoading, setReCrawlLoading] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [selectedPage, setSelectedPage] = useState(null);
     const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
@@ -109,7 +104,6 @@ const ResourceManager = ({ website }) => {
 
             setPages(response.data.pages);
             setTotal(response.data.total);
-            setTotalPages(response.data.total_pages);
         } catch (err) {
             setError('خطا در دریافت صفحات');
             console.error('Fetch pages error:', err);
@@ -140,19 +134,6 @@ const ResourceManager = ({ website }) => {
         }
     }, [website, isAdmin, fetchPages, fetchCrawlSettings]);
 
-    const handleReCrawl = async () => {
-        try {
-            setReCrawlLoading(true);
-            await api.post(`/api/${website.id}/re-crawl`);
-            setError(null);
-            // نمایش پیام موفقیت
-        } catch (err) {
-            setError('خطا در شروع کراولینگ مجدد');
-            console.error('Re-crawl error:', err);
-        } finally {
-            setReCrawlLoading(false);
-        }
-    };
 
     const handleDeletePage = async () => {
         try {

@@ -14,8 +14,6 @@ import {
     MenuItem,
     Alert,
     CircularProgress,
-    FormControlLabel,
-    Checkbox,
     LinearProgress
 } from '@mui/material';
 import { CloudUpload } from '@mui/icons-material';
@@ -357,18 +355,18 @@ export const FileUploadDialog = ({ open, onClose, onUpload, websiteId }) => {
             const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain'];
             const fileExtension = selectedFile.name.split('.').pop().toLowerCase();
             const allowedExtensions = ['pdf', 'docx', 'doc', 'txt'];
-            
+
             if (!allowedTypes.includes(selectedFile.type) && !allowedExtensions.includes(fileExtension)) {
                 setError('فرمت فایل پشتیبانی نمی‌شود. فقط PDF، DOC، DOCX و TXT مجاز است.');
                 return;
             }
-            
+
             // بررسی اندازه فایل (10MB)
             if (selectedFile.size > 10 * 1024 * 1024) {
                 setError('اندازه فایل نباید از 10 مگابایت بیشتر باشد.');
                 return;
             }
-            
+
             setFile(selectedFile);
             setError(null);
         }
@@ -416,7 +414,7 @@ export const FileUploadDialog = ({ open, onClose, onUpload, websiteId }) => {
             }
 
             const result = await response.json();
-            
+
             // فراخوانی callback
             if (onUpload) {
                 onUpload(result);
@@ -425,7 +423,7 @@ export const FileUploadDialog = ({ open, onClose, onUpload, websiteId }) => {
             // پاک کردن فرم
             setFile(null);
             setUploadProgress(0);
-            
+
             // بستن dialog
             onClose();
 
@@ -454,7 +452,7 @@ export const FileUploadDialog = ({ open, onClose, onUpload, websiteId }) => {
                     <Alert severity="info">
                         فایل‌های PDF، DOC، DOCX و TXT تا حداکثر 10 مگابایت قابل آپلود هستند.
                     </Alert>
-                    
+
                     <Box
                         sx={{
                             border: '2px dashed #ccc',
@@ -477,7 +475,7 @@ export const FileUploadDialog = ({ open, onClose, onUpload, websiteId }) => {
                             style={{ display: 'none' }}
                             disabled={loading}
                         />
-                        
+
                         <CloudUpload sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
                         <Typography variant="h6" gutterBottom>
                             {file ? file.name : 'فایل را انتخاب کنید'}
@@ -503,9 +501,9 @@ export const FileUploadDialog = ({ open, onClose, onUpload, websiteId }) => {
                             <Typography variant="body2" gutterBottom>
                                 در حال آپلود و پردازش فایل...
                             </Typography>
-                            <LinearProgress 
-                                variant="determinate" 
-                                value={uploadProgress} 
+                            <LinearProgress
+                                variant="determinate"
+                                value={uploadProgress}
                                 sx={{ mt: 1 }}
                             />
                             <Typography variant="caption" color="text.secondary">

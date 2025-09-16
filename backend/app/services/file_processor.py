@@ -32,9 +32,13 @@ class FileProcessor:
                 logger.error(f"File extension {file_ext} not allowed")
                 return False
             
-            # بررسی نوع فایل با magic
-            file_type = magic.from_file(file_path, mime=True)
-            logger.info(f"File type detected: {file_type}")
+            # بررسی نوع فایل با magic (اختیاری)
+            try:
+                file_type = magic.from_file(file_path, mime=True)
+                logger.info(f"File type detected: {file_type}")
+            except Exception as e:
+                logger.warning(f"Could not detect file type with magic: {e}")
+                # ادامه بدون بررسی magic
             
             return True
             
