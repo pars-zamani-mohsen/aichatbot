@@ -589,7 +589,7 @@ export const FaqDialog = ({ open, onClose, onSubmit, websiteId }) => {
         try {
             // ایجاد URL منحصر به فرد برای FAQ
             const faqUrl = `https://${websiteId}/faq/${Date.now()}`;
-            
+
             const faqData = {
                 url: faqUrl,
                 title: formData.question,
@@ -621,7 +621,7 @@ export const FaqDialog = ({ open, onClose, onSubmit, websiteId }) => {
             }
 
             const result = await response.json();
-            
+
             // فراخوانی callback
             if (onSubmit) {
                 onSubmit(result);
@@ -655,7 +655,7 @@ export const FaqDialog = ({ open, onClose, onSubmit, websiteId }) => {
                     <Alert severity="info">
                         سوال و جواب شما به عنوان یک صفحه جدید به سیستم اضافه می‌شود و در جستجو قابل دسترسی خواهد بود.
                     </Alert>
-                    
+
                     <TextField
                         fullWidth
                         label="سوال"
@@ -666,7 +666,7 @@ export const FaqDialog = ({ open, onClose, onSubmit, websiteId }) => {
                         placeholder="سوال مشتری را اینجا وارد کنید..."
                         disabled={loading}
                     />
-                    
+
                     <TextField
                         fullWidth
                         label="جواب"
@@ -677,7 +677,7 @@ export const FaqDialog = ({ open, onClose, onSubmit, websiteId }) => {
                         placeholder="جواب کامل را اینجا وارد کنید..."
                         disabled={loading}
                     />
-                    
+
                     {error && (
                         <Alert severity="error">
                             {error}

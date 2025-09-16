@@ -22,6 +22,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { websites } from '../../services/api';
+import SourcesManager from './SourcesManager';
 
 const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChange }) => {
   const [websiteList, setWebsiteList] = useState([]);

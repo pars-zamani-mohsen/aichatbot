@@ -78,7 +78,7 @@ const ResourceManager = ({ website }) => {
     const [importDialogOpen, setImportDialogOpen] = useState(false);
     const [exportDialogOpen, setExportDialogOpen] = useState(false);
     const [fileUploadDialogOpen, setFileUploadDialogOpen] = useState(false);
-    
+
     // Menu states
     const [addMenuAnchor, setAddMenuAnchor] = useState(null);
     const [faqDialogOpen, setFaqDialogOpen] = useState(false);

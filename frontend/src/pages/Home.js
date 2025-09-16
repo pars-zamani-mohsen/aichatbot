@@ -4,6 +4,7 @@ import WebsiteManager from '../components/Websites/WebsiteManager';
 import ChatWindow from '../components/Chat/ChatWindow';
 import WidgetManager from '../components/Websites/WidgetManager';
 import ResourceManager from '../components/Websites/ResourceManager';
+import SourcesManager from '../components/Websites/SourcesManager';
 import RAGSettings from '../components/Websites/RAGSettings';
 import ConversationLogs from '../components/Websites/ConversationLogs';
 
@@ -49,7 +50,7 @@ const Home = () => {
       case 1:
         return <WidgetManager website={selectedWebsite} />;
       case 2:
-        return <ResourceManager website={selectedWebsite} />;
+        return <SourcesManager website={selectedWebsite} />;
       case 3:
         return <RAGSettings website={selectedWebsite} />;
       case 4:
