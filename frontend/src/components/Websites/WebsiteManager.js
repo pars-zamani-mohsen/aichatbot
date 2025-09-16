@@ -21,6 +21,8 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import WarningIcon from '@mui/icons-material/Warning';
+import CancelIcon from '@mui/icons-material/Cancel';
 import { websites } from '../../services/api';
 import SourcesManager from './SourcesManager';
 
@@ -28,6 +30,7 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
   const [websiteList, setWebsiteList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [newWebsite, setNewWebsite] = useState({
     url: '',
@@ -36,6 +39,8 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
   const [crawlingStatus, setCrawlingStatus] = useState({});
   const [crawlingStartTime, setCrawlingStartTime] = useState({});
   const [crawlingProgress, setCrawlingProgress] = useState({});
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [websiteToDelete, setWebsiteToDelete] = useState(null);
 
   const getErrorMessage = (err) => {
 
@@ -185,20 +190,40 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
     }
   };
 
-  const handleDeleteWebsite = async (id) => {
-    if (!window.confirm('آیا از حذف این وب‌سایت اطمینان دارید؟')) return;
+  const handleDeleteWebsite = (website) => {
+    setWebsiteToDelete(website);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteWebsite = async () => {
+    if (!websiteToDelete) return;
 
     setLoading(true);
     setError('');
+    setSuccess('');
+    setDeleteDialogOpen(false);
+
     try {
-      await websites.delete(id);
-      setWebsiteList(prev => prev.filter(website => website.id !== id));
+      await websites.delete(websiteToDelete.id);
+      setWebsiteList(prev => prev.filter(website => website.id !== websiteToDelete.id));
+      setSuccess(`وب‌سایت "${websiteToDelete.name || websiteToDelete.url}" با موفقیت حذف شد`);
+
+      // پاک کردن پیام موفقیت بعد از 3 ثانیه
+      setTimeout(() => {
+        setSuccess('');
+      }, 3000);
     } catch (err) {
       console.error('Error deleting website:', err.response || err);
       setError(getErrorMessage(err));
     } finally {
       setLoading(false);
+      setWebsiteToDelete(null);
     }
+  };
+
+  const cancelDeleteWebsite = () => {
+    setDeleteDialogOpen(false);
+    setWebsiteToDelete(null);
   };
 
   // تابع برای بررسی وضعیت کراولینگ
@@ -302,6 +327,11 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
           {error}
         </Alert>
       )}
+      {success && (
+        <Alert severity="success" sx={{ m: 2 }}>
+          {success}
+        </Alert>
+      )}
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -316,7 +346,7 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
                 <IconButton
                   edge="end"
                   aria-label="delete"
-                  onClick={() => handleDeleteWebsite(website.id)}
+                  onClick={() => handleDeleteWebsite(website)}
                 >
                   <DeleteIcon />
                 </IconButton>
@@ -385,6 +415,82 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
             disabled={!newWebsite.url || loading}
           >
             {loading ? 'در حال افزودن...' : 'افزودن'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={cancelDeleteWebsite}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          color: 'error.main',
+          pb: 1
+        }}>
+          <WarningIcon sx={{ fontSize: 28 }} />
+          <Typography variant="h6" component="div">
+            حذف وب‌سایت
+          </Typography>
+        </DialogTitle>
+
+        <DialogContent sx={{ pt: 2 }}>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="body1" sx={{ mb: 2, fontWeight: 'medium' }}>
+              آیا از حذف وب‌سایت <strong>"{websiteToDelete?.name || websiteToDelete?.url}"</strong> اطمینان دارید؟
+            </Typography>
+
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                ⚠️ این عمل غیرقابل بازگشت است!
+              </Typography>
+            </Alert>
+
+            <Box sx={{
+              bgcolor: 'grey.50',
+              p: 2,
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'grey.200'
+            }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1, fontWeight: 'medium' }}>
+                موارد زیر به طور کامل حذف خواهند شد:
+              </Typography>
+              <Box component="ul" sx={{ m: 0, pl: 2, color: 'text.secondary' }}>
+                <li>تمام صفحات کراول شده و داده‌های CSV</li>
+                <li>تمام امبدینگ‌ها و اطلاعات ChromaDB</li>
+                <li>تمام چت‌ها و تاریخچه مکالمات</li>
+                <li>تمام پیام‌های ذخیره شده</li>
+                <li>تنظیمات RAG و پیکربندی‌های شخصی</li>
+                <li>فایل‌های آپلود شده و منابع متنی</li>
+              </Box>
+            </Box>
+          </Box>
+        </DialogContent>
+
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button
+            onClick={cancelDeleteWebsite}
+            startIcon={<CancelIcon />}
+            variant="outlined"
+            sx={{ minWidth: 120 }}
+          >
+            انصراف
+          </Button>
+          <Button
+            onClick={confirmDeleteWebsite}
+            startIcon={<DeleteIcon />}
+            variant="contained"
+            color="error"
+            sx={{ minWidth: 120 }}
+            disabled={loading}
+          >
+            {loading ? 'در حال حذف...' : 'حذف قطعی'}
           </Button>
         </DialogActions>
       </Dialog>
