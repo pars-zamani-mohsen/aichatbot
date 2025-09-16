@@ -18,10 +18,17 @@ class RAGService:
         db_path = Path(settings.KNOWLEDGE_BASE_DIR) / collection_name
         logger.info(f"استفاده از مسیر دیتابیس: {db_path}")
         self.chroma_client = chromadb.PersistentClient(path=str(db_path))
-        self.collection = self.chroma_client.get_collection(name=collection_name)
+        
+        # ایجاد یا دریافت collection
+        try:
+            self.collection = self.chroma_client.get_collection(name=collection_name)
+        except ValueError:
+            # اگر collection وجود نداشت، آن را ایجاد کن
+            logger.info(f"Creating new collection: {collection_name}")
+            self.collection = self.chroma_client.create_collection(name=collection_name)
         
         # تنظیمات مدل امبدینگ
-        self.embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
+        self.embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL_NAME)
         
         # تنظیمات RAG
         self.rag_settings = rag_settings or {}

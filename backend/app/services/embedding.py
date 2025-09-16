@@ -40,7 +40,7 @@ class EmbeddingService:
         self.model_name = model_name or settings.EMBEDDING_MODEL_NAME
         self.chunk_size = chunk_size or int(settings.CHUNK_SIZE)
         self.chunk_overlap = chunk_overlap or int(settings.CHUNK_OVERLAP)
-        self.db_directory = Path(db_directory or settings.DB_DIRECTORY)
+        self.db_directory = Path(db_directory or settings.KNOWLEDGE_BASE_DIR)
         self.collection_name = collection_name or settings.COLLECTION_NAME
         
         # ایجاد دایرکتوری دیتابیس
@@ -211,7 +211,7 @@ class EmbeddingService:
             total_time = time.time() - start_time
             logger.info(f"Total processing completed in {total_time:.2f} seconds")
             if settings.DEBUG_MODE:
-            logger.info(f"Average time per chunk: {total_time/len(chunks):.2f} seconds")
+                logger.info(f"Average time per chunk: {total_time/len(chunks):.2f} seconds")
             
         except Exception as e:
             logger.error(f"Error processing text: {str(e)}")

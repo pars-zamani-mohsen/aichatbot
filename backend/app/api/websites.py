@@ -804,8 +804,33 @@ async def add_manual_page(
         df.to_csv(csv_path, index=False)
         logger.info("CSV file saved successfully")
         
-        # تولید امبدینگ برای صفحه جدید (موقتاً غیرفعال)
-        logger.info("Skipping embedding generation for now")
+        # تولید امبدینگ برای صفحه جدید
+        try:
+            from app.services.rag import RAGService
+            from app.services.embedding import EmbeddingService
+            
+            # ایجاد RAG service برای این وب‌سایت
+            rag_service = RAGService(collection_name=website.domain)
+            
+            # تولید امبدینگ و اضافه کردن به ChromaDB
+            success = rag_service.add_document(
+                text=page_data['text'],
+                metadata={
+                    'url': page_data['url'],
+                    'title': page_data['title'],
+                    'website_id': website_id,
+                    'source': 'manual'
+                }
+            )
+            
+            if success:
+                logger.info("Embedding generated and added to ChromaDB successfully")
+            else:
+                logger.warning("Failed to generate embedding, but page was saved to CSV")
+                
+        except Exception as e:
+            logger.error(f"Error generating embedding: {str(e)}")
+            # صفحه در CSV ذخیره شده، اما embedding تولید نشده
         
         return {
             "website_id": website_id,
