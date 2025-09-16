@@ -763,6 +763,156 @@ async def re_crawl_website(
         logger.error(f"خطا در شروع کراولینگ مجدد: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/{website_id}/pages/{page_url:path}/recrawl")
+async def recrawl_single_page(
+    website_id: int,
+    page_url: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """کراول مجدد یک صفحه خاص"""
+    try:
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # خواندن فایل CSV
+        base_dir = Path(__file__).parent.parent.parent
+        csv_path = base_dir / "processed_data" / website.domain / "processed_data.csv"
+        
+        if not csv_path.exists():
+            raise HTTPException(status_code=404, detail="فایل داده یافت نشد")
+        
+        # خواندن داده‌ها
+        if pd is None:
+            raise HTTPException(status_code=500, detail="pandas در دسترس نیست")
+        
+        df = pd.read_csv(csv_path)
+        
+        # پیدا کردن صفحه
+        page_index = df[df['url'] == page_url].index
+        if len(page_index) == 0:
+            raise HTTPException(status_code=404, detail="صفحه یافت نشد")
+        
+        # بررسی نوع منبع
+        page_source_type = df.at[page_index[0], 'source_type']
+        if page_source_type != 'website':
+            raise HTTPException(status_code=400, detail="فقط صفحات وب‌سایت قابل کراول مجدد هستند")
+        
+        # کراول مجدد صفحه با استفاده از aiohttp مستقیم
+        import aiohttp
+        import asyncio
+        import ssl
+        from bs4 import BeautifulSoup
+        from urllib.parse import urljoin
+        
+        # Decode URL if needed
+        import urllib.parse
+        decoded_url = urllib.parse.unquote(page_url)
+        logger.info(f"Recrawling URL: {decoded_url}")
+        
+        # کراول مستقیم صفحه
+        try:
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            connector = aiohttp.TCPConnector(ssl=ssl_context)
+            
+            timeout = aiohttp.ClientTimeout(total=30)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            
+            async with aiohttp.ClientSession(connector=connector) as session:
+                async with session.get(decoded_url, timeout=timeout, headers=headers) as response:
+                    if response.status != 200:
+                        raise HTTPException(status_code=400, detail=f"خطا در دریافت صفحه: کد {response.status}")
+                    
+                    html = await response.text()
+                    soup = BeautifulSoup(html, 'html.parser')
+                    
+                    # استخراج عنوان
+                    title = soup.title.string if soup.title else ""
+                    
+                    # استخراج متن
+                    for script in soup(["script", "style"]):
+                        script.decompose()
+                    text = soup.get_text(separator=' ', strip=True)
+                    lines = (line.strip() for line in text.splitlines())
+                    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                    text = ' '.join(chunk for chunk in chunks if chunk)
+                    
+                    # استخراج لینک‌ها
+                    links = []
+                    for link in soup.find_all('a', href=True):
+                        href = link['href'].strip()
+                        if not href or href.startswith('#'):
+                            continue
+                        try:
+                            absolute_url = urljoin(decoded_url, href)
+                            if absolute_url not in links:
+                                links.append(absolute_url)
+                        except Exception:
+                            continue
+                    
+                    # به‌روزرسانی داده‌های صفحه
+                    df.at[page_index[0], 'title'] = title
+                    df.at[page_index[0], 'text'] = text
+                    df.at[page_index[0], 'links'] = json.dumps(links)
+                    
+                    # ذخیره مجدد
+                    df.to_csv(csv_path, index=False)
+                    
+                    # تولید امبدینگ جدید
+                    try:
+                        from ..services.embedding import EmbeddingService
+                        embedding_service = EmbeddingService()
+                        
+                        # تولید امبدینگ برای صفحه به‌روزرسانی شده
+                        new_embeddings = []
+                        new_embeddings.append({
+                            'url': decoded_url,
+                            'title': title,
+                            'text': text,
+                            'source_type': 'website'
+                        })
+                        
+                        # تولید امبدینگ‌ها
+                        embeddings = embedding_service.generate_embeddings(new_embeddings)
+                        
+                        # ذخیره در ChromaDB
+                        from ..services.rag import RAGService
+                        rag_service = RAGService()
+                        rag_service.update_document(
+                            decoded_url,
+                            text,
+                            {
+                                'title': title,
+                                'url': decoded_url,
+                                'source_type': 'website'
+                            }
+                        )
+                        
+                    except Exception as embed_error:
+                        logger.warning(f"خطا در تولید امبدینگ: {embed_error}")
+                    
+                    return {
+                        "message": "صفحه با موفقیت کراول مجدد شد",
+                        "url": page_url,
+                        "title": title
+                    }
+                    
+        except Exception as crawl_error:
+            logger.error(f"خطا در کراول مستقیم: {crawl_error}")
+            raise HTTPException(status_code=500, detail=f"خطا در کراول مجدد صفحه: {str(crawl_error)}")
+        
+    except Exception as e:
+        logger.error(f"خطا در کراول مجدد صفحه: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.delete("/{website_id}/pages/{page_url:path}")
 async def delete_website_page(
     website_id: int,

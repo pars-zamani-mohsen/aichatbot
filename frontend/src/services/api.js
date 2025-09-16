@@ -410,6 +410,20 @@ export const websites = {
       throw error;
     }
   },
+
+  recrawlPage: async (websiteId, pageUrl) => {
+    try {
+      const numericId = parseInt(websiteId, 10);
+      if (isNaN(numericId)) {
+        throw new Error('شناسه وب‌سایت نامعتبر است');
+      }
+      const response = await api.post(`/api/${numericId}/pages/${encodeURIComponent(pageUrl)}/recrawl`);
+      return response.data;
+    } catch (error) {
+      console.error('Error in recrawlPage:', error);
+      throw error;
+    }
+  },
 };
 
 export const chats = {

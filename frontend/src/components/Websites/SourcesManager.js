@@ -39,7 +39,8 @@ import {
     Visibility as ViewIcon,
     Download as DownloadIcon,
     Upload as UploadIcon,
-    Search as SearchIcon
+    Search as SearchIcon,
+    Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { FileUploadTab, WebsiteUrlTab, TextTab, ExportDialog, ImportDialog } from './SourcesTabs';
@@ -146,6 +147,27 @@ const SourcesManager = ({ website }) => {
             setPagesLoading(false);
         }
     }, [website?.id, page, rowsPerPage, searchQuery, filterBy, sortBy, sortOrder]);
+
+    const handleRecrawlPage = useCallback(async (page) => {
+        if (!website?.id) return;
+
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        try {
+            const { websites } = await import('../../services/api');
+            const result = await websites.recrawlPage(website.id, page.url);
+            setSuccess(result.message || 'صفحه با موفقیت کراول مجدد شد');
+            // Refresh pages list
+            fetchPages();
+        } catch (err) {
+            console.error('Error recrawling page:', err);
+            setError(err.response?.data?.detail || 'خطا در کراول مجدد صفحه');
+        } finally {
+            setLoading(false);
+        }
+    }, [website?.id, fetchPages]);
 
     // Load pages on component mount and when website changes
     useEffect(() => {
@@ -427,6 +449,17 @@ const SourcesManager = ({ website }) => {
                                                 <EditIcon />
                                             </IconButton>
                                         </Tooltip>
+                                        {page.source_type === 'website' && (
+                                            <Tooltip title="کراول مجدد">
+                                                <IconButton
+                                                    size="small"
+                                                    color="primary"
+                                                    onClick={() => handleRecrawlPage(page)}
+                                                >
+                                                    <RefreshIcon />
+                                                </IconButton>
+                                            </Tooltip>
+                                        )}
                                         <Tooltip title="حذف">
                                             <IconButton
                                                 size="small"
