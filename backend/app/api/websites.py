@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from ..services.pipeline import WebCrawlerPipeline, EmbeddingPipeline
 from ..services.domain_verification import DomainVerificationService
 from ..services.file_processor import FileProcessor
-from ..database.models import Website, Chat
+from ..database.models import Website, Chat, Message
 from ..database.database import get_db
 from . import schemas
 import logging
@@ -240,16 +240,56 @@ async def delete_website(
         # بررسی مالکیت وب‌سایت (جداسازی tenant)
         website = verify_website_ownership(website_id, current_user.id, db)
         
+        # پیدا کردن تمام چت‌های مربوط به این وب‌سایت
+        chats = db.query(Chat).filter(Chat.website_id == website_id).all()
+        
+        # حذف تمام پیام‌های مربوط به این چت‌ها
+        for chat in chats:
+            db.query(Message).filter(Message.chat_id == chat.id).delete()
+        
         # حذف چت‌های مربوطه
         db.query(Chat).filter(Chat.website_id == website_id).delete()
+        
+        # حذف فایل‌های مربوط به وب‌سایت از سیستم فایل
+        try:
+            import shutil
+            from pathlib import Path
+            
+            base_dir = Path(__file__).parent.parent.parent
+            website_data_dir = base_dir / "processed_data" / website.domain
+            
+            if website_data_dir.exists():
+                shutil.rmtree(website_data_dir)
+                logger.info(f"Directory {website_data_dir} deleted successfully")
+                
+        except Exception as file_error:
+            logger.warning(f"خطا در حذف فایل‌های وب‌سایت: {file_error}")
+        
+        # حذف collection از ChromaDB
+        try:
+            from ..services.rag import RAGService
+            rag_service = RAGService()
+            if hasattr(rag_service, 'collection') and rag_service.collection:
+                # حذف collection اگر وجود دارد
+                import chromadb
+                client = chromadb.PersistentClient(path=rag_service.vector_db_path)
+                try:
+                    client.delete_collection(name=website.collection_name or f"website_{website_id}")
+                    logger.info(f"ChromaDB collection {website.collection_name} deleted successfully")
+                except Exception as chroma_error:
+                    logger.warning(f"خطا در حذف ChromaDB collection: {chroma_error}")
+        except Exception as rag_error:
+            logger.warning(f"خطا در حذف RAG data: {rag_error}")
         
         # حذف وب‌سایت
         db.delete(website)
         db.commit()
         
+        logger.info(f"Website {website_id} deleted successfully by user {current_user.id}")
         return {"message": "وب‌سایت با موفقیت حذف شد"}
         
     except Exception as e:
+        db.rollback()
         logger.error(f"خطا در حذف وب‌سایت: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
