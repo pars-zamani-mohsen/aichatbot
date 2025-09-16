@@ -313,7 +313,8 @@ class WebCrawlerPipeline:
                         'url': url,
                         'title': title,
                         'text': text,
-                        'links': links
+                        'links': links,
+                        'source_type': 'website'  # Website crawling
                     }
                     
         except Exception as e:

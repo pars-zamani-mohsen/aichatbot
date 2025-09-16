@@ -109,6 +109,28 @@ def get_links_count(links_data) -> int:
     except Exception:
         return 0
 
+def clean_dataframe_for_json(df):
+    """تمیز کردن DataFrame برای تبدیل به JSON"""
+    import numpy as np
+    
+    # کپی DataFrame
+    df_clean = df.copy()
+    
+    # جایگزینی NaN با None
+    df_clean = df_clean.replace({np.nan: None})
+    
+    # جایگزینی infinite values با None
+    df_clean = df_clean.replace({np.inf: None, -np.inf: None})
+    
+    # تبدیل تمام ستون‌ها به string برای اطمینان
+    for col in df_clean.columns:
+        df_clean[col] = df_clean[col].astype(str)
+        # جایگزینی 'None' با None
+        df_clean[col] = df_clean[col].replace('None', None)
+        df_clean[col] = df_clean[col].replace('nan', None)
+    
+    return df_clean
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -638,6 +660,9 @@ async def get_website_pages(
         
         df = pd.read_csv(csv_path)
         
+        # تمیز کردن DataFrame برای جلوگیری از خطای JSON
+        df = clean_dataframe_for_json(df)
+        
         # اعمال فیلتر و جستجو
         if query:
             if filter_by == "title":
@@ -680,7 +705,8 @@ async def get_website_pages(
                 "title": row.get('title', ''),
                 "text": row.get('text', ''),  # کل متن برای ویرایش
                 "text_preview": row.get('text', '')[:200] + "..." if len(str(row.get('text', ''))) > 200 else row.get('text', ''),
-                "links_count": get_links_count(row.get('links', []))
+                "links_count": get_links_count(row.get('links', [])),
+                "source_type": row.get('source_type', 'unknown')  # نوع منبع
             })
         
         return {
@@ -939,7 +965,7 @@ async def add_manual_page(
             df = pd.read_csv(csv_path)
             logger.info(f"Existing CSV loaded with {len(df)} rows")
         else:
-            df = pd.DataFrame(columns=['url', 'title', 'text', 'links'])
+            df = pd.DataFrame(columns=['url', 'title', 'text', 'links', 'source_type'])
             logger.info("New DataFrame created")
         
         # بررسی تکراری نبودن URL (فقط در ستون url، نه در links)
@@ -965,7 +991,8 @@ async def add_manual_page(
             'url': page_data['url'],
             'title': page_data['title'],
             'text': page_data['text'],
-            'links': links_str
+            'links': links_str,
+            'source_type': 'text'  # Manual text addition
         }
         
         logger.info(f"New page data: {new_page}")
@@ -1086,7 +1113,8 @@ async def search_website_pages(
                 "title": row.get('title', ''),
                 "text": row.get('text', ''),  # کل متن برای ویرایش
                 "text_preview": row.get('text', '')[:200] + "..." if len(str(row.get('text', ''))) > 200 else row.get('text', ''),
-                "links_count": get_links_count(row.get('links', []))
+                "links_count": get_links_count(row.get('links', [])),
+                "source_type": row.get('source_type', 'unknown')  # نوع منبع
             })
         
         return {
@@ -1132,6 +1160,9 @@ async def export_website_data(
             raise HTTPException(status_code=500, detail="pandas در دسترس نیست")
         
         df = pd.read_csv(csv_path)
+        
+        # تمیز کردن DataFrame برای جلوگیری از خطای JSON
+        df = clean_dataframe_for_json(df)
         
         # تقسیم متن‌های طولانی برای سازگاری با Excel
         if export_type == "excel_compatible":
@@ -1222,6 +1253,13 @@ async def import_website_data(
         for col in required_columns:
             if col not in df_import.columns:
                 raise HTTPException(status_code=400, detail=f"ستون {col} الزامی است")
+        
+        # اضافه کردن source_type اگر وجود ندارد
+        if 'source_type' not in df_import.columns:
+            df_import['source_type'] = 'import'  # Imported data
+        
+        # تمیز کردن DataFrame برای جلوگیری از خطای JSON
+        df_import = clean_dataframe_for_json(df_import)
         
         # خواندن داده‌های موجود
         if csv_path.exists():
@@ -1337,7 +1375,7 @@ async def upload_file(
         if csv_path.exists():
             df = pd.read_csv(csv_path)
         else:
-            df = pd.DataFrame(columns=['url', 'title', 'text', 'links'])
+            df = pd.DataFrame(columns=['url', 'title', 'text', 'links', 'source_type'])
         
         # اضافه کردن chunks به DataFrame
         new_rows = []
@@ -1349,7 +1387,8 @@ async def upload_file(
                 'url': chunk_url,
                 'title': f"{file.filename} - بخش {i+1}",
                 'text': chunk,
-                'links': json.dumps([])  # فایل‌ها لینک ندارند
+                'links': json.dumps([]),  # فایل‌ها لینک ندارند
+                'source_type': 'file'  # File upload
             }
             new_rows.append(new_row)
         

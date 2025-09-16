@@ -27,7 +27,8 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
-    DialogActions
+    DialogActions,
+    Chip
 } from '@mui/material';
 import {
     CloudUpload as CloudUploadIcon,
@@ -60,7 +61,7 @@ const SourcesManager = ({ website }) => {
     // States for export/import
     const [exportDialogOpen, setExportDialogOpen] = useState(false);
     const [importDialogOpen, setImportDialogOpen] = useState(false);
-    
+
     // States for page operations
     const [viewDialogOpen, setViewDialogOpen] = useState(false);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -375,6 +376,7 @@ const SourcesManager = ({ website }) => {
                             <TableRow>
                                 <TableCell>عنوان</TableCell>
                                 <TableCell>URL</TableCell>
+                                <TableCell>نوع منبع</TableCell>
                                 <TableCell>تعداد لینک‌ها</TableCell>
                                 <TableCell>عملیات</TableCell>
                             </TableRow>
@@ -388,10 +390,29 @@ const SourcesManager = ({ website }) => {
                                             {page.url}
                                         </Typography>
                                     </TableCell>
+                                    <TableCell>
+                                        <Chip
+                                            label={
+                                                page.source_type === 'website' ? 'وب‌سایت' :
+                                                    page.source_type === 'file' ? 'فایل' :
+                                                        page.source_type === 'text' ? 'متن' :
+                                                            page.source_type === 'import' ? 'واردات' :
+                                                                'نامشخص'
+                                            }
+                                            color={
+                                                page.source_type === 'website' ? 'primary' :
+                                                    page.source_type === 'file' ? 'secondary' :
+                                                        page.source_type === 'text' ? 'success' :
+                                                            page.source_type === 'import' ? 'warning' :
+                                                                'default'
+                                            }
+                                            size="small"
+                                        />
+                                    </TableCell>
                                     <TableCell>{page.links_count || 0}</TableCell>
                                     <TableCell>
                                         <Tooltip title="مشاهده">
-                                            <IconButton 
+                                            <IconButton
                                                 size="small"
                                                 onClick={() => handleViewPage(page)}
                                             >
@@ -399,7 +420,7 @@ const SourcesManager = ({ website }) => {
                                             </IconButton>
                                         </Tooltip>
                                         <Tooltip title="ویرایش">
-                                            <IconButton 
+                                            <IconButton
                                                 size="small"
                                                 onClick={() => handleEditPage(page)}
                                             >
@@ -407,8 +428,8 @@ const SourcesManager = ({ website }) => {
                                             </IconButton>
                                         </Tooltip>
                                         <Tooltip title="حذف">
-                                            <IconButton 
-                                                size="small" 
+                                            <IconButton
+                                                size="small"
                                                 color="error"
                                                 onClick={() => handleDeletePage(page)}
                                             >
@@ -591,8 +612,8 @@ const SourcesManager = ({ website }) => {
             />
 
             {/* View Page Dialog */}
-            <Dialog 
-                open={viewDialogOpen} 
+            <Dialog
+                open={viewDialogOpen}
                 onClose={() => setViewDialogOpen(false)}
                 maxWidth="md"
                 fullWidth
@@ -614,11 +635,11 @@ const SourcesManager = ({ website }) => {
                                 <Typography variant="subtitle2" gutterBottom>
                                     محتوا:
                                 </Typography>
-                                <Box 
-                                    sx={{ 
-                                        maxHeight: 400, 
-                                        overflow: 'auto', 
-                                        p: 2, 
+                                <Box
+                                    sx={{
+                                        maxHeight: 400,
+                                        overflow: 'auto',
+                                        p: 2,
                                         bgcolor: 'grey.50',
                                         borderRadius: 1,
                                         border: '1px solid',
@@ -641,8 +662,8 @@ const SourcesManager = ({ website }) => {
             </Dialog>
 
             {/* Edit Page Dialog */}
-            <Dialog 
-                open={editDialogOpen} 
+            <Dialog
+                open={editDialogOpen}
                 onClose={() => setEditDialogOpen(false)}
                 maxWidth="md"
                 fullWidth
@@ -673,7 +694,7 @@ const SourcesManager = ({ website }) => {
                     <Button onClick={() => setEditDialogOpen(false)}>
                         انصراف
                     </Button>
-                    <Button 
+                    <Button
                         variant="contained"
                         onClick={async () => {
                             try {
@@ -709,8 +730,8 @@ const SourcesManager = ({ website }) => {
             </Dialog>
 
             {/* Delete Page Confirmation Dialog */}
-            <Dialog 
-                open={deleteDialogOpen} 
+            <Dialog
+                open={deleteDialogOpen}
                 onClose={() => setDeleteDialogOpen(false)}
                 maxWidth="sm"
                 fullWidth
@@ -734,7 +755,7 @@ const SourcesManager = ({ website }) => {
                     <Button onClick={() => setDeleteDialogOpen(false)}>
                         انصراف
                     </Button>
-                    <Button 
+                    <Button
                         variant="contained"
                         color="error"
                         onClick={confirmDeletePage}
