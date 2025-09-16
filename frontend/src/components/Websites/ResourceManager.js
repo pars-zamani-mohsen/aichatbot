@@ -46,7 +46,7 @@ import {
 } from '@mui/icons-material';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import { EditPageDialog, AddPageDialog, ExportDialog, ImportDialog } from './ResourceManagerDialogs';
+import { EditPageDialog, AddPageDialog, ExportDialog, ImportDialog, FileUploadDialog } from './ResourceManagerDialogs';
 
 const ResourceManager = ({ website }) => {
     const { user } = useAuth();
@@ -75,6 +75,7 @@ const ResourceManager = ({ website }) => {
     const [selectedPages, setSelectedPages] = useState([]);
     const [importDialogOpen, setImportDialogOpen] = useState(false);
     const [exportDialogOpen, setExportDialogOpen] = useState(false);
+    const [fileUploadDialogOpen, setFileUploadDialogOpen] = useState(false);
 
     // بررسی نقش ادمین
     const isAdmin = user && user.role === 'admin';
@@ -264,6 +265,19 @@ const ResourceManager = ({ website }) => {
         }
     };
 
+    const handleFileUpload = async (result) => {
+        try {
+            setFileUploadDialogOpen(false);
+            fetchPages();
+            setError(null);
+            // نمایش پیام موفقیت
+            console.log('File uploaded successfully:', result);
+        } catch (err) {
+            setError('خطا در آپلود فایل');
+            console.error('File upload error:', err);
+        }
+    };
+
     const handleUpdatePage = async (pageData) => {
         try {
             await api.put(`/api/${website.id}/pages/${encodeURIComponent(selectedPageForView.url)}`, pageData);
@@ -354,6 +368,11 @@ const ResourceManager = ({ website }) => {
                     </Tooltip>
                     <Tooltip title="واردات داده‌ها">
                         <IconButton onClick={() => setImportDialogOpen(true)} color="info">
+                            <UploadIcon />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title="آپلود فایل">
+                        <IconButton onClick={() => setFileUploadDialogOpen(true)} color="secondary">
                             <UploadIcon />
                         </IconButton>
                     </Tooltip>
@@ -722,6 +741,14 @@ const ResourceManager = ({ website }) => {
                 open={importDialogOpen}
                 onClose={() => setImportDialogOpen(false)}
                 onImport={handleImport}
+            />
+
+            {/* Dialog آپلود فایل */}
+            <FileUploadDialog
+                open={fileUploadDialogOpen}
+                onClose={() => setFileUploadDialogOpen(false)}
+                onUpload={handleFileUpload}
+                websiteId={website.id}
             />
         </Box>
     );

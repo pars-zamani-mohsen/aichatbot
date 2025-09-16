@@ -15,8 +15,10 @@ import {
     Alert,
     CircularProgress,
     FormControlLabel,
-    Checkbox
+    Checkbox,
+    LinearProgress
 } from '@mui/material';
+import { CloudUpload } from '@mui/icons-material';
 
 // Dialog ویرایش صفحه
 export const EditPageDialog = ({ open, onClose, page, onSave }) => {
@@ -335,6 +337,201 @@ export const ImportDialog = ({ open, onClose, onImport }) => {
                     startIcon={loading ? <CircularProgress size={20} /> : null}
                 >
                     واردات
+                </Button>
+            </DialogActions>
+        </Dialog>
+    );
+};
+
+// Dialog آپلود فایل
+export const FileUploadDialog = ({ open, onClose, onUpload, websiteId }) => {
+    const [file, setFile] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [uploadProgress, setUploadProgress] = useState(0);
+
+    const handleFileChange = (event) => {
+        const selectedFile = event.target.files[0];
+        if (selectedFile) {
+            // بررسی نوع فایل
+            const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain'];
+            const fileExtension = selectedFile.name.split('.').pop().toLowerCase();
+            const allowedExtensions = ['pdf', 'docx', 'doc', 'txt'];
+            
+            if (!allowedTypes.includes(selectedFile.type) && !allowedExtensions.includes(fileExtension)) {
+                setError('فرمت فایل پشتیبانی نمی‌شود. فقط PDF، DOC، DOCX و TXT مجاز است.');
+                return;
+            }
+            
+            // بررسی اندازه فایل (10MB)
+            if (selectedFile.size > 10 * 1024 * 1024) {
+                setError('اندازه فایل نباید از 10 مگابایت بیشتر باشد.');
+                return;
+            }
+            
+            setFile(selectedFile);
+            setError(null);
+        }
+    };
+
+    const handleUpload = async () => {
+        if (!file) {
+            setError('لطفاً فایلی انتخاب کنید');
+            return;
+        }
+
+        try {
+            setLoading(true);
+            setError(null);
+            setUploadProgress(0);
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // شبیه‌سازی progress
+            const progressInterval = setInterval(() => {
+                setUploadProgress(prev => {
+                    if (prev >= 90) {
+                        clearInterval(progressInterval);
+                        return 90;
+                    }
+                    return prev + 10;
+                });
+            }, 200);
+
+            const response = await fetch(`/api/${websiteId}/upload`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: formData
+            });
+
+            clearInterval(progressInterval);
+            setUploadProgress(100);
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'خطا در آپلود فایل');
+            }
+
+            const result = await response.json();
+            
+            // فراخوانی callback
+            if (onUpload) {
+                onUpload(result);
+            }
+
+            // پاک کردن فرم
+            setFile(null);
+            setUploadProgress(0);
+            
+            // بستن dialog
+            onClose();
+
+        } catch (err) {
+            console.error('Upload error:', err);
+            setError(err.message || 'خطا در آپلود فایل');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleClose = () => {
+        if (!loading) {
+            setFile(null);
+            setError(null);
+            setUploadProgress(0);
+            onClose();
+        }
+    };
+
+    return (
+        <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+            <DialogTitle>آپلود فایل</DialogTitle>
+            <DialogContent>
+                <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Alert severity="info">
+                        فایل‌های PDF، DOC، DOCX و TXT تا حداکثر 10 مگابایت قابل آپلود هستند.
+                    </Alert>
+                    
+                    <Box
+                        sx={{
+                            border: '2px dashed #ccc',
+                            borderRadius: 2,
+                            p: 3,
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                            '&:hover': {
+                                borderColor: 'primary.main',
+                                backgroundColor: 'action.hover'
+                            }
+                        }}
+                        onClick={() => document.getElementById('file-input').click()}
+                    >
+                        <input
+                            id="file-input"
+                            type="file"
+                            accept=".pdf,.doc,.docx,.txt"
+                            onChange={handleFileChange}
+                            style={{ display: 'none' }}
+                            disabled={loading}
+                        />
+                        
+                        <CloudUpload sx={{ fontSize: 48, color: 'text.secondary', mb: 1 }} />
+                        <Typography variant="h6" gutterBottom>
+                            {file ? file.name : 'فایل را انتخاب کنید'}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            کلیک کنید یا فایل را اینجا بکشید
+                        </Typography>
+                    </Box>
+
+                    {file && (
+                        <Box sx={{ mt: 2 }}>
+                            <Typography variant="body2" color="text.secondary">
+                                نام فایل: {file.name}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                اندازه: {(file.size / 1024 / 1024).toFixed(2)} مگابایت
+                            </Typography>
+                        </Box>
+                    )}
+
+                    {loading && (
+                        <Box sx={{ mt: 2 }}>
+                            <Typography variant="body2" gutterBottom>
+                                در حال آپلود و پردازش فایل...
+                            </Typography>
+                            <LinearProgress 
+                                variant="determinate" 
+                                value={uploadProgress} 
+                                sx={{ mt: 1 }}
+                            />
+                            <Typography variant="caption" color="text.secondary">
+                                {uploadProgress}%
+                            </Typography>
+                        </Box>
+                    )}
+
+                    {error && (
+                        <Alert severity="error">
+                            {error}
+                        </Alert>
+                    )}
+                </Box>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={handleClose} disabled={loading}>
+                    انصراف
+                </Button>
+                <Button
+                    onClick={handleUpload}
+                    variant="contained"
+                    disabled={loading || !file}
+                    startIcon={loading ? <CircularProgress size={20} /> : <CloudUpload />}
+                >
+                    آپلود و پردازش
                 </Button>
             </DialogActions>
         </Dialog>

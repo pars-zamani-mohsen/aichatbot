@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, UploadFile, File
 from typing import List
 from sqlalchemy.orm import Session
 from ..services.pipeline import WebCrawlerPipeline, EmbeddingPipeline
 from ..services.domain_verification import DomainVerificationService
+from ..services.file_processor import FileProcessor
 from ..database.models import Website, Chat
 from ..database.database import get_db
 from . import schemas
@@ -1140,6 +1141,139 @@ async def import_website_data(
     except Exception as e:
         logger.error(f"خطا در واردات داده‌ها: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{website_id}/upload")
+async def upload_file(
+    website_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """آپلود و پردازش فایل برای اضافه کردن به پایگاه دانش"""
+    try:
+        logger.info(f"File upload request for website {website_id}, file: {file.filename}")
+        
+        # بررسی مالکیت وب‌سایت (جداسازی tenant)
+        website = verify_website_ownership(website_id, current_user.id, db)
+        logger.info(f"Website found: {website.domain}")
+        
+        # بررسی فایل
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="نام فایل الزامی است")
+        
+        # ایجاد پوشه uploads اگر وجود ندارد
+        base_dir = Path(__file__).parent.parent.parent
+        upload_dir = base_dir / "uploads" / website.domain
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # ذخیره فایل موقت
+        file_path = upload_dir / file.filename
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        logger.info(f"File saved to: {file_path}")
+        
+        # پردازش فایل
+        file_processor = FileProcessor()
+        try:
+            result = file_processor.process_file(
+                str(file_path), 
+                file.filename,
+                metadata={
+                    'website_id': website_id,
+                    'uploaded_by': current_user.email,
+                    'upload_date': datetime.now().isoformat(),
+                    'source': 'file_upload'
+                }
+            )
+        except Exception as e:
+            # حذف فایل موقت در صورت خطا
+            if file_path.exists():
+                file_path.unlink()
+            raise HTTPException(status_code=400, detail=f"خطا در پردازش فایل: {str(e)}")
+        
+        # اضافه کردن به CSV
+        csv_path = base_dir / "processed_data" / website.domain / "processed_data.csv"
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        if pd is None:
+            raise HTTPException(status_code=500, detail="pandas در دسترس نیست")
+        
+        # خواندن یا ایجاد DataFrame
+        if csv_path.exists():
+            df = pd.read_csv(csv_path)
+        else:
+            df = pd.DataFrame(columns=['url', 'title', 'text', 'links'])
+        
+        # اضافه کردن chunks به DataFrame
+        new_rows = []
+        for i, chunk in enumerate(result['chunks']):
+            # ایجاد URL منحصر به فرد برای هر chunk
+            chunk_url = f"file://{website.domain}/{file.filename}#chunk_{i+1}"
+            
+            new_row = {
+                'url': chunk_url,
+                'title': f"{file.filename} - بخش {i+1}",
+                'text': chunk,
+                'links': json.dumps([])  # فایل‌ها لینک ندارند
+            }
+            new_rows.append(new_row)
+        
+        # اضافه کردن ردیف‌های جدید
+        if new_rows:
+            df_new = pd.DataFrame(new_rows)
+            df = pd.concat([df, df_new], ignore_index=True)
+            df.to_csv(csv_path, index=False)
+        
+        # تولید embedding و اضافه کردن به ChromaDB
+        try:
+            from ..services.rag import RAGService
+            rag_service = RAGService(collection_name=website.domain)
+            
+            for i, chunk in enumerate(result['chunks']):
+                chunk_url = f"file://{website.domain}/{file.filename}#chunk_{i+1}"
+                
+                success = rag_service.add_document(
+                    text=chunk,
+                    metadata={
+                        'url': chunk_url,
+                        'title': f"{file.filename} - بخش {i+1}",
+                        'filename': file.filename,
+                        'chunk_index': i,
+                        'website_id': website_id,
+                        'uploaded_by': current_user.email,
+                        'upload_date': datetime.now().isoformat(),
+                        'source': 'file_upload'
+                    }
+                )
+                
+                if not success:
+                    logger.warning(f"Failed to add chunk {i+1} to ChromaDB")
+            
+            logger.info(f"All chunks added to ChromaDB successfully")
+            
+        except Exception as e:
+            logger.warning(f"خطا در تولید embedding: {str(e)}")
+        
+        # حذف فایل موقت
+        if file_path.exists():
+            file_path.unlink()
+        
+        return {
+            "website_id": website_id,
+            "filename": file.filename,
+            "message": "فایل با موفقیت پردازش و اضافه شد",
+            "total_chunks": len(result['chunks']),
+            "total_characters": result['metadata']['total_characters'],
+            "file_type": result['metadata']['file_type']
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در آپلود فایل: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"خطا در آپلود فایل: {str(e)}")
 
 @router.put("/{website_id}/rag-settings")
 async def update_rag_settings(
