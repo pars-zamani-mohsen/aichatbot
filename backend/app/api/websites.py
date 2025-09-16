@@ -256,11 +256,20 @@ async def delete_website(
             from pathlib import Path
             
             base_dir = Path(__file__).parent.parent.parent
-            website_data_dir = base_dir / "processed_data" / website.domain
             
-            if website_data_dir.exists():
-                shutil.rmtree(website_data_dir)
-                logger.info(f"Directory {website_data_dir} deleted successfully")
+            # حذف پوشه‌های مختلف مربوط به وب‌سایت
+            directories_to_delete = [
+                base_dir / "processed_data" / website.domain,  # داده‌های کراول شده
+                base_dir / "uploads" / website.domain,         # فایل‌های آپلود شده
+                base_dir / "knowledge_base" / website.domain   # پایگاه دانش
+            ]
+            
+            for directory in directories_to_delete:
+                if directory.exists():
+                    shutil.rmtree(directory)
+                    logger.info(f"Directory {directory} deleted successfully")
+                else:
+                    logger.info(f"Directory {directory} does not exist, skipping")
                 
         except Exception as file_error:
             logger.warning(f"خطا در حذف فایل‌های وب‌سایت: {file_error}")
