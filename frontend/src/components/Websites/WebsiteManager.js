@@ -16,8 +16,6 @@ import {
   Alert,
   IconButton,
   LinearProgress,
-  Tabs,
-  Tab,
   FormControl,
   InputLabel,
   Select,
@@ -31,7 +29,7 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import { websites } from '../../services/api';
 import SourcesManager from './SourcesManager';
 
-const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChange }) => {
+const WebsiteManager = ({ onSelectWebsite, selectedWebsite }) => {
   const [websiteList, setWebsiteList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -328,15 +326,6 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
         </Button>
       </Box>
 
-      {selectedWebsite && (
-        <Tabs value={activeTab} onChange={(e, newValue) => onTabChange(newValue)}>
-          <Tab label="مدیریت ویجت" />
-          <Tab label="مدیریت منابع" />
-          <Tab label="تنظیمات RAG" />
-          <Tab label="لاگ مکالمات" />
-          <Tab label="چت" />
-        </Tabs>
-      )}
 
       {error && (
         <Alert severity="error" sx={{ m: 2, whiteSpace: 'pre-line' }}>
