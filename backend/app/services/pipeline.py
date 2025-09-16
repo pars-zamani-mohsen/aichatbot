@@ -59,6 +59,21 @@ class WebCrawlerPipeline:
             logger.info(f"Output directory created at: {self.output_dir}")
             logger.info(f"Crawl settings: max_pages={self.max_pages}, max_depth={self.max_depth}, delay={self.delay}")
         
+        # بارگذاری URL های موجود از CSV
+        self._load_existing_urls()
+    
+    def _load_existing_urls(self):
+        """بارگذاری URL های موجود از CSV"""
+        csv_path = self.output_dir / "processed_data.csv"
+        if csv_path.exists():
+            try:
+                df = pd.read_csv(csv_path)
+                existing_urls = set(df['url'].tolist())
+                self.visited_urls.update(existing_urls)
+                logger.info(f"بارگذاری {len(existing_urls)} URL موجود از CSV")
+            except Exception as e:
+                logger.warning(f"خطا در بارگذاری URL های موجود: {e}")
+        
     def is_valid_url(self, url: str) -> bool:
         """بررسی معتبر بودن URL"""
         try:
@@ -79,6 +94,17 @@ class WebCrawlerPipeline:
         # بررسی robots.txt
         if not self.is_allowed_by_robots(url):
             return False
+        
+        # بررسی اینکه آیا URL قبلاً کراول شده یا نه
+        csv_path = self.output_dir / "processed_data.csv"
+        if csv_path.exists():
+            try:
+                df = pd.read_csv(csv_path)
+                if url in df['url'].values:
+                    logger.info(f"URL {url} قبلاً کراول شده است، نادیده گرفته می‌شود")
+                    return False
+            except Exception as e:
+                logger.warning(f"خطا در خواندن CSV برای بررسی URL: {e}")
             
         # حذف URL‌های با پسوندهای خاص
         excluded_extensions = [
@@ -317,9 +343,23 @@ class WebCrawlerPipeline:
             
             # ذخیره داده‌ها
             if self.data:
-                df = pd.DataFrame(self.data)
-                df.to_csv(self.output_dir / "processed_data.csv", index=False)
-                logger.info(f"تعداد صفحات کراول شده: {len(self.data)}")
+                df_new = pd.DataFrame(self.data)
+                csv_path = self.output_dir / "processed_data.csv"
+                
+                # اگر فایل CSV موجود است، داده‌های جدید را به آن اضافه کن
+                if csv_path.exists():
+                    df_existing = pd.read_csv(csv_path)
+                    # حذف ردیف‌های تکراری بر اساس URL
+                    df_combined = pd.concat([df_existing, df_new], ignore_index=True)
+                    df_combined = df_combined.drop_duplicates(subset=['url'], keep='last')
+                    df_combined.to_csv(csv_path, index=False)
+                    logger.info(f"تعداد صفحات جدید کراول شده: {len(self.data)}")
+                    logger.info(f"تعداد کل صفحات: {len(df_combined)}")
+                else:
+                    # اگر فایل وجود ندارد، فایل جدید ایجاد کن
+                    df_new.to_csv(csv_path, index=False)
+                    logger.info(f"فایل جدید ایجاد شد با {len(self.data)} صفحه")
+                
                 return True
                 
             return False
@@ -436,7 +476,7 @@ class EmbeddingPipeline:
             logger.info("تولید امبدینگ با موفقیت انجام شد")
         return embeddings
         
-    def run(self) -> bool:
+    def run(self, new_urls_only: bool = True) -> bool:
         """اجرای فرآیند تولید امبدینگ و ایجاد knowledge base"""
         try:
             # خواندن داده‌ها
@@ -451,22 +491,61 @@ class EmbeddingPipeline:
             if settings.DEBUG_MODE:
                 logger.info(f"تعداد رکوردهای خوانده شده: {len(df)}")
             
+            # اگر فقط برای URL های جدید امبدینگ تولید کنیم
+            if new_urls_only:
+                # خواندن metadata موجود برای پیدا کردن URL های قبلی
+                metadata_path = self.data_dir / "metadata.json"
+                existing_urls = set()
+                if metadata_path.exists():
+                    with open(metadata_path, 'r', encoding='utf-8') as f:
+                        existing_metadata = json.load(f)
+                        existing_urls = {meta['url'] for meta in existing_metadata}
+                
+                # فیلتر کردن فقط ردیف‌های جدید
+                df_new = df[~df['url'].isin(existing_urls)]
+                if len(df_new) == 0:
+                    logger.info("هیچ URL جدیدی برای تولید امبدینگ یافت نشد")
+                    return True
+                
+                logger.info(f"تولید امبدینگ برای {len(df_new)} URL جدید")
+                texts = df_new['text'].tolist()
+                df_to_process = df_new
+            else:
+                # تولید امبدینگ برای همه ردیف‌ها
+                texts = df['text'].tolist()
+                df_to_process = df
+            
             # تولید امبدینگ برای متن‌ها
-            texts = df['text'].tolist()
             embeddings = self.generate_embeddings(texts)
             
             # ذخیره امبدینگ‌ها به صورت JSON (لیست لیست‌ها)
             if settings.DEBUG_MODE:
                 logger.info("در حال ذخیره امبدینگ‌ها به صورت JSON...")
             embeddings_list = embeddings.tolist()
-            with open(self.data_dir / "embeddings.json", 'w', encoding='utf-8') as f:
-                json.dump(embeddings_list, f)
+            
+            # اگر فایل embeddings موجود است، آن را به‌روزرسانی کن
+            embeddings_path = self.data_dir / "embeddings.json"
+            if embeddings_path.exists():
+                # خواندن امبدینگ‌های موجود
+                with open(embeddings_path, 'r', encoding='utf-8') as f:
+                    existing_embeddings = json.load(f)
+                
+                # اضافه کردن امبدینگ‌های جدید
+                existing_embeddings.extend(embeddings_list)
+                
+                # حذف تکراری‌ها بر اساس URL
+                # این کار پیچیده است، پس فعلاً همه را نگه می‌داریم
+                with open(embeddings_path, 'w', encoding='utf-8') as f:
+                    json.dump(existing_embeddings, f)
+            else:
+                with open(embeddings_path, 'w', encoding='utf-8') as f:
+                    json.dump(embeddings_list, f)
 
             # ذخیره metadata هر سند (url, title, chunk_id, ...)
             if settings.DEBUG_MODE:
                 logger.info("در حال ذخیره متادیتا...")
             metadata_list = []
-            for i, row in df.iterrows():
+            for i, row in df_to_process.iterrows():
                 meta = {
                     'url': row.get('url', ''),
                     'title': row.get('title', ''),
@@ -474,8 +553,18 @@ class EmbeddingPipeline:
                     'timestamp': row.get('timestamp', time.strftime('%Y-%m-%d %H:%M:%S'))
                 }
                 metadata_list.append(meta)
-            with open(self.data_dir / "metadata.json", 'w', encoding='utf-8') as f:
-                json.dump(metadata_list, f, ensure_ascii=False, indent=2)
+            
+            # اگر فایل metadata موجود است، آن را به‌روزرسانی کن
+            metadata_path = self.data_dir / "metadata.json"
+            if metadata_path.exists():
+                with open(metadata_path, 'r', encoding='utf-8') as f:
+                    existing_metadata = json.load(f)
+                existing_metadata.extend(metadata_list)
+                with open(metadata_path, 'w', encoding='utf-8') as f:
+                    json.dump(existing_metadata, f, ensure_ascii=False, indent=2)
+            else:
+                with open(metadata_path, 'w', encoding='utf-8') as f:
+                    json.dump(metadata_list, f, ensure_ascii=False, indent=2)
 
             # ذخیره اطلاعات مدل (اختیاری)
             model_info = {

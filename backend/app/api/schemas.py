@@ -66,6 +66,11 @@ class WebsiteBase(BaseModel):
 class WebsiteCreate(WebsiteBase):
     pass
 
+class CrawlRequest(BaseModel):
+    urls: List[str]
+    max_pages: Optional[int] = 1
+    max_depth: Optional[int] = 1
+
 class Website(WebsiteBase):
     id: int
     domain: str

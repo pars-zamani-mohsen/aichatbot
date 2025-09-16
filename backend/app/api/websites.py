@@ -312,6 +312,53 @@ async def list_websites(
     """دریافت لیست همه وب‌سایت‌ها"""
     return db.query(Website).filter(Website.owner_id == current_user.id).all()
 
+@router.post("/{website_id}/crawl")
+async def crawl_specific_urls(
+    website_id: int,
+    crawl_request: schemas.CrawlRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """کراول کردن URL های خاص برای یک وب‌سایت"""
+    try:
+        # بررسی مالکیت وب‌سایت
+        website = verify_website_ownership(website_id, current_user.id, db)
+        
+        # اعتبارسنجی درخواست
+        if not crawl_request.urls or len(crawl_request.urls) == 0:
+            raise HTTPException(status_code=400, detail="حداقل یک URL باید وارد شود")
+        
+        # شروع کراولینگ برای هر URL
+        from app.services.crawler_queue import crawler_queue
+        
+        tasks = []
+        for url in crawl_request.urls:
+            task = crawler_queue.add_crawl_task(
+                website_id=website_id,
+                url=url,
+                domain=website.domain,
+                owner_id=current_user.id,
+                priority=1,
+                max_pages=crawl_request.max_pages or 1,
+                max_depth=crawl_request.max_depth or 1
+            )
+            tasks.append(task)
+        
+        logger.info(f"Added {len(tasks)} crawl tasks for website {website_id}")
+        
+        return {
+            "message": f"کراولینگ {len(crawl_request.urls)} URL شروع شد",
+            "website_id": website_id,
+            "tasks_count": len(tasks)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در شروع کراول URL های خاص: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/{website_id}/generate-widget-key")
 async def generate_widget_key(
     website_id: int,
@@ -509,6 +556,10 @@ async def get_website_pages(
     website_id: int,
     page: int = 1,
     limit: int = 20,
+    query: str = "",
+    filter_by: str = "all",
+    sort_by: str = "title",
+    sort_order: str = "asc",
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -535,6 +586,35 @@ async def get_website_pages(
             raise HTTPException(status_code=500, detail="pandas در دسترس نیست")
         
         df = pd.read_csv(csv_path)
+        
+        # اعمال فیلتر و جستجو
+        if query:
+            if filter_by == "title":
+                df = df[df['title'].str.contains(query, case=False, na=False)]
+            elif filter_by == "text":
+                df = df[df['text'].str.contains(query, case=False, na=False)]
+            elif filter_by == "url":
+                df = df[df['url'].str.contains(query, case=False, na=False)]
+            else:  # all
+                df = df[
+                    df['title'].str.contains(query, case=False, na=False) |
+                    df['text'].str.contains(query, case=False, na=False) |
+                    df['url'].str.contains(query, case=False, na=False)
+                ]
+        
+        # مرتب‌سازی
+        if sort_by == "title":
+            df = df.sort_values('title', ascending=(sort_order == 'asc'))
+        elif sort_by == "url":
+            df = df.sort_values('url', ascending=(sort_order == 'asc'))
+        elif sort_by == "links_count":
+            df['links_count'] = df['links'].apply(get_links_count)
+            df = df.sort_values('links_count', ascending=(sort_order == 'asc'))
+        elif sort_by == "created_at":
+            # اگر ستون created_at وجود دارد
+            if 'created_at' in df.columns:
+                df = df.sort_values('created_at', ascending=(sort_order == 'asc'))
+        
         total_pages = len(df)
         
         # صفحه‌بندی

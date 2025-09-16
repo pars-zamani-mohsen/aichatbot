@@ -27,6 +27,8 @@ class CrawlTask:
     domain: str
     owner_id: int
     priority: int = 1  # 1=normal, 2=high, 3=urgent
+    max_pages: int = 1
+    max_depth: int = 1
     created_at: datetime = None
     started_at: datetime = None
     completed_at: datetime = None
@@ -72,14 +74,16 @@ class CrawlerQueue:
             self.worker_thread.join()
             logger.info("Crawler queue worker stopped")
     
-    def add_crawl_task(self, website_id: int, url: str, domain: str, owner_id: int, priority: int = 1) -> CrawlTask:
+    def add_crawl_task(self, website_id: int, url: str, domain: str, owner_id: int, priority: int = 1, max_pages: int = 1, max_depth: int = 1) -> CrawlTask:
         """اضافه کردن وظیفه کراولینگ به صف"""
         task = CrawlTask(
             website_id=website_id,
             url=url,
             domain=domain,
             owner_id=owner_id,
-            priority=priority
+            priority=priority,
+            max_pages=max_pages,
+            max_depth=max_depth
         )
         
         with self.lock:
@@ -138,7 +142,8 @@ class CrawlerQueue:
             
             # اجرای کراولینگ
             crawler = WebCrawlerPipeline(task.url, {
-                'max_pages': 100,
+                'max_pages': task.max_pages,
+                'max_depth': task.max_depth,
                 'delay': 1,
                 'respect_robots': True
             })
@@ -148,9 +153,9 @@ class CrawlerQueue:
             if not asyncio.run(crawler.run_async()):
                 raise Exception("Crawling failed")
             
-            # اجرای امبدینگ
+            # اجرای امبدینگ (فقط برای URL های جدید)
             embedder = EmbeddingPipeline(task.domain)
-            if not embedder.run():
+            if not embedder.run(new_urls_only=True):
                 raise Exception("Embedding failed")
             
             # تکمیل موفق

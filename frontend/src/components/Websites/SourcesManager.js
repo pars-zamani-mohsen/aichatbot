@@ -17,7 +17,13 @@ import {
     TableRow,
     TablePagination,
     IconButton,
-    Tooltip
+    Tooltip,
+    TextField,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem,
+    Grid
 } from '@mui/material';
 import {
     CloudUpload as CloudUploadIcon,
@@ -27,7 +33,8 @@ import {
     Edit as EditIcon,
     Visibility as ViewIcon,
     Download as DownloadIcon,
-    Upload as UploadIcon
+    Upload as UploadIcon,
+    Search as SearchIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { FileUploadTab, WebsiteUrlTab, TextTab, ExportDialog, ImportDialog } from './SourcesTabs';
@@ -49,6 +56,12 @@ const SourcesManager = ({ website }) => {
     // States for export/import
     const [exportDialogOpen, setExportDialogOpen] = useState(false);
     const [importDialogOpen, setImportDialogOpen] = useState(false);
+
+    // States for search and filter
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterBy, setFilterBy] = useState('all');
+    const [sortBy, setSortBy] = useState('title');
+    const [sortOrder, setSortOrder] = useState('asc');
 
     const handleTabChange = (event, newValue) => {
         setActiveTab(newValue);
@@ -85,7 +98,24 @@ const SourcesManager = ({ website }) => {
         try {
             setPagesLoading(true);
             const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-            const response = await fetch(`${API_URL}/api/${website.id}/pages?page=${page + 1}&limit=${rowsPerPage}`, {
+
+            let url = `${API_URL}/api/${website.id}/pages?page=${page + 1}&limit=${rowsPerPage}`;
+
+            // Add search and filter parameters
+            if (searchQuery) {
+                url += `&query=${encodeURIComponent(searchQuery)}`;
+            }
+            if (filterBy !== 'all') {
+                url += `&filter_by=${filterBy}`;
+            }
+            if (sortBy) {
+                url += `&sort_by=${sortBy}`;
+            }
+            if (sortOrder) {
+                url += `&sort_order=${sortOrder}`;
+            }
+
+            const response = await fetch(url, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
@@ -104,12 +134,33 @@ const SourcesManager = ({ website }) => {
         } finally {
             setPagesLoading(false);
         }
-    }, [website?.id, page, rowsPerPage]);
+    }, [website?.id, page, rowsPerPage, searchQuery, filterBy, sortBy, sortOrder]);
 
     // Load pages on component mount and when website changes
     useEffect(() => {
         fetchPages();
     }, [fetchPages]);
+
+    // Search and filter handlers
+    const handleSearch = () => {
+        setPage(0); // Reset to first page when searching
+        fetchPages();
+    };
+
+    const handleFilterChange = (newFilter) => {
+        setFilterBy(newFilter);
+        setPage(0); // Reset to first page when filtering
+    };
+
+    const handleSortChange = (newSort) => {
+        setSortBy(newSort);
+        setPage(0); // Reset to first page when sorting
+    };
+
+    const handleSortOrderChange = (newOrder) => {
+        setSortOrder(newOrder);
+        setPage(0); // Reset to first page when changing sort order
+    };
 
     // Export handler
     const handleExport = async (format, exportType = 'full', maxTextLength = 1000) => {
@@ -199,6 +250,68 @@ const SourcesManager = ({ website }) => {
                     </Tooltip>
                 </Box>
             </Box>
+
+            {/* Search and Filter Section */}
+            <Paper sx={{ p: 2, mb: 3 }}>
+                <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={12} md={4}>
+                        <TextField
+                            fullWidth
+                            label="جستجو"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            InputProps={{
+                                endAdornment: (
+                                    <IconButton onClick={handleSearch}>
+                                        <SearchIcon />
+                                    </IconButton>
+                                )
+                            }}
+                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                        />
+                    </Grid>
+                    <Grid item xs={12} md={2}>
+                        <FormControl fullWidth>
+                            <InputLabel>فیلتر بر اساس</InputLabel>
+                            <Select
+                                value={filterBy}
+                                onChange={(e) => handleFilterChange(e.target.value)}
+                            >
+                                <MenuItem value="all">همه</MenuItem>
+                                <MenuItem value="title">عنوان</MenuItem>
+                                <MenuItem value="text">محتوا</MenuItem>
+                                <MenuItem value="url">URL</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={2}>
+                        <FormControl fullWidth>
+                            <InputLabel>مرتب‌سازی بر اساس</InputLabel>
+                            <Select
+                                value={sortBy}
+                                onChange={(e) => handleSortChange(e.target.value)}
+                            >
+                                <MenuItem value="title">عنوان</MenuItem>
+                                <MenuItem value="url">URL</MenuItem>
+                                <MenuItem value="links_count">تعداد لینک‌ها</MenuItem>
+                                <MenuItem value="created_at">تاریخ ایجاد</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={2}>
+                        <FormControl fullWidth>
+                            <InputLabel>ترتیب</InputLabel>
+                            <Select
+                                value={sortOrder}
+                                onChange={(e) => handleSortOrderChange(e.target.value)}
+                            >
+                                <MenuItem value="asc">صعودی</MenuItem>
+                                <MenuItem value="desc">نزولی</MenuItem>
+                            </Select>
+                        </FormControl>
+                    </Grid>
+                </Grid>
+            </Paper>
 
             {pagesLoading ? (
                 <Box display="flex" justifyContent="center" alignItems="center" sx={{ py: 4 }}>
