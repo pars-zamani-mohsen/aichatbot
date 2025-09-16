@@ -218,7 +218,7 @@ export const ExportDialog = ({ open, onClose, onExport }) => {
                             <MenuItem value="excel_compatible">سازگار با Excel (متن‌های کوتاه شده)</MenuItem>
                         </Select>
                     </FormControl>
-                    
+
                     {exportType === "excel_compatible" && (
                         <TextField
                             label="حداکثر طول متن در هر سلول"
@@ -229,7 +229,7 @@ export const ExportDialog = ({ open, onClose, onExport }) => {
                             helperText="متن‌های طولانی‌تر از این مقدار کوتاه می‌شوند - قابل واردات مجدد نیست"
                         />
                     )}
-                    
+
                     {exportType === "full" && (
                         <Alert severity="info">
                             صادرات کامل شامل تمام داده‌ها است و قابل واردات مجدد می‌باشد

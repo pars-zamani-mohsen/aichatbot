@@ -735,21 +735,29 @@ async def add_manual_page(
 ):
     """اضافه کردن صفحه جدید به صورت دستی"""
     try:
+        logger.info(f"Adding manual page for website {website_id}, data: {page_data}")
+        
         # بررسی مالکیت وب‌سایت (جداسازی tenant)
         website = verify_website_ownership(website_id, current_user.id, db)
+        logger.info(f"Website found: {website.domain}")
         
         # اعتبارسنجی داده‌ها
         required_fields = ['url', 'title', 'text']
         for field in required_fields:
             if field not in page_data or not page_data[field]:
+                logger.error(f"Missing required field: {field}")
                 raise HTTPException(status_code=400, detail=f"فیلد {field} الزامی است")
+        
+        logger.info("All required fields validated successfully")
         
         # خواندن فایل CSV
         base_dir = Path(__file__).parent.parent.parent
         csv_path = base_dir / "processed_data" / website.domain / "processed_data.csv"
+        logger.info(f"CSV path: {csv_path}")
         
         # ایجاد پوشه اگر وجود ندارد
         csv_path.parent.mkdir(parents=True, exist_ok=True)
+        logger.info("Directory created/verified")
         
         if pd is None:
             raise HTTPException(status_code=500, detail="pandas در دسترس نیست")
@@ -757,54 +765,47 @@ async def add_manual_page(
         # خواندن یا ایجاد DataFrame
         if csv_path.exists():
             df = pd.read_csv(csv_path)
+            logger.info(f"Existing CSV loaded with {len(df)} rows")
         else:
             df = pd.DataFrame(columns=['url', 'title', 'text', 'links'])
+            logger.info("New DataFrame created")
         
-        # بررسی تکراری نبودن URL
+        # بررسی تکراری نبودن URL (فقط در ستون url، نه در links)
         if page_data['url'] in df['url'].values:
-            raise HTTPException(status_code=400, detail="این URL قبلاً اضافه شده است")
+            logger.error(f"URL already exists in main URLs: {page_data['url']}")
+            raise HTTPException(status_code=400, detail="این URL قبلاً به عنوان صفحه اصلی اضافه شده است")
+        
+        # بررسی تکراری نبودن در links (اختیاری - می‌تواند حذف شود)
+        # for idx, row in df.iterrows():
+        #     if row['links'] and page_data['url'] in row['links']:
+        #         logger.warning(f"URL exists in links of row {idx}, but allowing addition")
+        
+        logger.info("URL validation passed")
         
         # اضافه کردن صفحه جدید
+        links_data = page_data.get('links', [])
+        if isinstance(links_data, list):
+            links_str = json.dumps(links_data)
+        else:
+            links_str = json.dumps([])
+            
         new_page = {
             'url': page_data['url'],
             'title': page_data['title'],
             'text': page_data['text'],
-            'links': page_data.get('links', [])
+            'links': links_str
         }
         
-        df = pd.concat([df, pd.DataFrame([new_page])], ignore_index=True)
-        df.to_csv(csv_path, index=False)
+        logger.info(f"New page data: {new_page}")
         
-        # تولید امبدینگ برای صفحه جدید
-        try:
-            from ..services.embedding import EmbeddingService
-            embedding_service = EmbeddingService()
-            
-            # خواندن امبدینگ‌های موجود
-            embeddings_path = base_dir / "processed_data" / website.domain / "embeddings.json"
-            embeddings = []
-            if embeddings_path.exists():
-                with open(embeddings_path, 'r') as f:
-                    embeddings = json.load(f)
-            
-            # تولید امبدینگ جدید
-            new_embedding = embedding_service.generate_embedding(page_data['text'])
-            embeddings.append(new_embedding.tolist())
-            
-            # ذخیره امبدینگ‌ها
-            with open(embeddings_path, 'w') as f:
-                json.dump(embeddings, f)
-            
-            # اضافه کردن به ChromaDB
-            from ..services.rag import RAGService
-            rag_service = RAGService(collection_name=website.domain)
-            rag_service.add_document(
-                text=page_data['text'],
-                metadata={'url': page_data['url'], 'title': page_data['title']}
-            )
-            
-        except Exception as e:
-            logger.warning(f"خطا در تولید امبدینگ: {str(e)}")
+        df = pd.concat([df, pd.DataFrame([new_page])], ignore_index=True)
+        logger.info(f"DataFrame updated, new length: {len(df)}")
+        
+        df.to_csv(csv_path, index=False)
+        logger.info("CSV file saved successfully")
+        
+        # تولید امبدینگ برای صفحه جدید (موقتاً غیرفعال)
+        logger.info("Skipping embedding generation for now")
         
         return {
             "website_id": website_id,
@@ -816,8 +817,8 @@ async def add_manual_page(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"خطا در اضافه کردن صفحه: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"خطا در اضافه کردن صفحه: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"خطا در اضافه کردن صفحه: {str(e)}")
 
 @router.get("/{website_id}/pages/search")
 async def search_website_pages(
