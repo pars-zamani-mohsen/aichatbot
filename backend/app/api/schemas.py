@@ -64,7 +64,8 @@ class WebsiteBase(BaseModel):
     name: Optional[str] = None
 
 class WebsiteCreate(WebsiteBase):
-    pass
+    max_pages: Optional[int] = 50  # کراول کامل سایت
+    max_depth: Optional[int] = 3   # عمق 3 سطح
 
 class CrawlRequest(BaseModel):
     urls: List[str]

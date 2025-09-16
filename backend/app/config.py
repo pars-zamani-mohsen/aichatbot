@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
     RATE_LIMIT_PER_HOUR: int = int(os.getenv("RATE_LIMIT_PER_HOUR", "1000"))
     RATE_LIMIT_CHAT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_CHAT_PER_MINUTE", "10"))
-    RATE_LIMIT_CRAWL_PER_HOUR: int = int(os.getenv("RATE_LIMIT_CRAWL_PER_HOUR", "2"))
+    RATE_LIMIT_CRAWL_PER_HOUR: int = int(os.getenv("RATE_LIMIT_CRAWL_PER_HOUR", "10"))
     RATE_LIMIT_WIDGET_PER_HOUR: int = int(os.getenv("RATE_LIMIT_WIDGET_PER_HOUR", "50"))
     
     # تنظیمات File Upload Security

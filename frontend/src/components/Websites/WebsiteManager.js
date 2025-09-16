@@ -17,7 +17,12 @@ import {
   IconButton,
   LinearProgress,
   Tabs,
-  Tab
+  Tab,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Grid
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -34,7 +39,9 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
   const [openDialog, setOpenDialog] = useState(false);
   const [newWebsite, setNewWebsite] = useState({
     url: '',
-    name: ''
+    name: '',
+    max_pages: 50,
+    max_depth: 3
   });
   const [crawlingStatus, setCrawlingStatus] = useState({});
   const [crawlingStartTime, setCrawlingStartTime] = useState({});
@@ -169,7 +176,7 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
       const data = await websites.create(newWebsite);
       setWebsiteList(prev => [...prev, data]);
       setOpenDialog(false);
-      setNewWebsite({ url: '', name: '' });
+      setNewWebsite({ url: '', name: '', max_pages: 50, max_depth: 3 });
 
       // شروع بررسی وضعیت کراولینگ
       const startTime = Date.now();
@@ -385,27 +392,67 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
         <DialogTitle>افزودن وب‌سایت جدید</DialogTitle>
         <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="آدرس وب‌سایت"
-            type="url"
-            fullWidth
-            variant="outlined"
-            value={newWebsite.url}
-            onChange={(e) => setNewWebsite(prev => ({ ...prev, url: e.target.value }))}
-            dir="rtl"
-          />
-          <TextField
-            margin="dense"
-            label="نام وب‌سایت (اختیاری)"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={newWebsite.name}
-            onChange={(e) => setNewWebsite(prev => ({ ...prev, name: e.target.value }))}
-            dir="rtl"
-          />
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <TextField
+                autoFocus
+                margin="dense"
+                label="آدرس وب‌سایت"
+                type="url"
+                fullWidth
+                variant="outlined"
+                value={newWebsite.url}
+                onChange={(e) => setNewWebsite(prev => ({ ...prev, url: e.target.value }))}
+                dir="rtl"
+                placeholder="https://example.com"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                margin="dense"
+                label="نام وب‌سایت (اختیاری)"
+                type="text"
+                fullWidth
+                variant="outlined"
+                value={newWebsite.name}
+                onChange={(e) => setNewWebsite(prev => ({ ...prev, name: e.target.value }))}
+                dir="rtl"
+                placeholder="نام دلخواه برای وب‌سایت"
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth margin="dense">
+                <InputLabel>حداکثر صفحات</InputLabel>
+                <Select
+                  value={newWebsite.max_pages}
+                  onChange={(e) => setNewWebsite(prev => ({ ...prev, max_pages: e.target.value }))}
+                  label="حداکثر صفحات"
+                >
+                  <MenuItem value={10}>10 صفحه</MenuItem>
+                  <MenuItem value={25}>25 صفحه</MenuItem>
+                  <MenuItem value={50}>50 صفحه</MenuItem>
+                  <MenuItem value={100}>100 صفحه</MenuItem>
+                  <MenuItem value={200}>200 صفحه</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+              <FormControl fullWidth margin="dense">
+                <InputLabel>حداکثر عمق</InputLabel>
+                <Select
+                  value={newWebsite.max_depth}
+                  onChange={(e) => setNewWebsite(prev => ({ ...prev, max_depth: e.target.value }))}
+                  label="حداکثر عمق"
+                >
+                  <MenuItem value={1}>1 سطح (فقط صفحه اصلی)</MenuItem>
+                  <MenuItem value={2}>2 سطح</MenuItem>
+                  <MenuItem value={3}>3 سطح</MenuItem>
+                  <MenuItem value={4}>4 سطح</MenuItem>
+                  <MenuItem value={5}>5 سطح</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+          </Grid>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenDialog(false)}>انصراف</Button>

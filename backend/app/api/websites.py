@@ -218,7 +218,9 @@ async def crawl_website(
             url=str(website.url),
             domain=website_record.domain,
             owner_id=current_user.id,
-            priority=1
+            priority=1,
+            max_pages=website.max_pages or 50,  # کراول کامل سایت
+            max_depth=website.max_depth or 3    # عمق 3 سطح
         )
         
         logger.info(f"Added crawl task to queue: {task.website_id}")
