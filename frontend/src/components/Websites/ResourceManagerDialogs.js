@@ -42,7 +42,10 @@ export const EditPageDialog = ({ open, onClose, page, onSave }) => {
             setError(null);
             await onSave(formData);
         } catch (err) {
-            setError('خطا در ذخیره تغییرات');
+            console.error('Edit page error:', err);
+            // نمایش پیام خطای دقیق از backend
+            const errorMessage = err.response?.data?.detail || err.message || 'خطا در ذخیره تغییرات';
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -115,7 +118,10 @@ export const AddPageDialog = ({ open, onClose, onSave }) => {
             await onSave(formData);
             setFormData({ url: '', title: '', text: '', links: [] });
         } catch (err) {
-            setError('خطا در اضافه کردن صفحه');
+            console.error('Add page error:', err);
+            // نمایش پیام خطای دقیق از backend
+            const errorMessage = err.response?.data?.detail || err.message || 'خطا در اضافه کردن صفحه';
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }

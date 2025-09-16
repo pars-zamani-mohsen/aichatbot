@@ -212,7 +212,7 @@ const ResourceManager = ({ website }) => {
     const handleExport = async (format, exportType = 'full', maxTextLength = 1000) => {
         try {
             const response = await api.get(`/api/${website.id}/export`, {
-                params: { 
+                params: {
                     format,
                     export_type: exportType,
                     max_text_length: maxTextLength
@@ -220,7 +220,7 @@ const ResourceManager = ({ website }) => {
             });
 
             const suffix = exportType === 'excel_compatible' ? '_excel' : '_full';
-            
+
             if (format === 'csv') {
                 const blob = new Blob([response.data.data], { type: 'text/csv' });
                 const url = window.URL.createObjectURL(blob);
@@ -271,8 +271,10 @@ const ResourceManager = ({ website }) => {
             fetchPages();
             setError(null);
         } catch (err) {
-            setError('خطا در به‌روزرسانی صفحه');
             console.error('Update page error:', err);
+            // نمایش پیام خطای دقیق از backend
+            const errorMessage = err.response?.data?.detail || err.message || 'خطا در به‌روزرسانی صفحه';
+            setError(errorMessage);
         }
     };
 
@@ -283,8 +285,10 @@ const ResourceManager = ({ website }) => {
             fetchPages();
             setError(null);
         } catch (err) {
-            setError('خطا در اضافه کردن صفحه');
             console.error('Add page error:', err);
+            // نمایش پیام خطای دقیق از backend
+            const errorMessage = err.response?.data?.detail || err.message || 'خطا در اضافه کردن صفحه';
+            setError(errorMessage);
         }
     };
 
