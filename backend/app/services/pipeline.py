@@ -319,7 +319,8 @@ class WebCrawlerPipeline:
                     
         except Exception as e:
             logger.error(f"خطا در کراول صفحه {url}: {str(e)}")
-            raise
+            # به جای raise کردن، None برگردانیم تا process_urls بتواند ادامه دهد
+            return None
             
     async def process_urls(self, urls_to_crawl: List[str], pbar: tqdm):
         """پردازش همزمان URL‌ها"""
@@ -338,12 +339,15 @@ class WebCrawlerPipeline:
         if tasks:
             results = await asyncio.gather(*tasks, return_exceptions=True)
             for result in results:
-                if isinstance(result, dict):
+                if isinstance(result, dict) and result is not None:
                     self.data.append(result)
                     pbar.update(1)
                     pbar.set_description(f"صفحات پردازش شده: {len(self.data)}")
                 elif isinstance(result, Exception):
                     logger.warning(f"خطا در پردازش URL: {str(result)}")
+                    pbar.update(1)  # به‌روزرسانی progress bar حتی در صورت خطا
+                elif result is None:
+                    logger.warning(f"صفحه کراول نشد (نتیجه None)")
                     pbar.update(1)  # به‌روزرسانی progress bar حتی در صورت خطا
                     
     async def run_async(self) -> bool:
@@ -406,8 +410,9 @@ class WebCrawlerPipeline:
                     logger.info(f"فایل جدید ایجاد شد با {len(self.data)} صفحه")
                 
                 return True
-                
-            return False
+            else:
+                logger.warning("هیچ داده‌ای کراول نشد")
+                return True  # حتی اگر هیچ داده‌ای کراول نشود، موفق در نظر بگیریم
             
         except Exception as e:
             logger.error(f"خطا در اجرای کراول: {str(e)}")

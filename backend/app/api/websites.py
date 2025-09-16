@@ -116,6 +116,10 @@ def clean_dataframe_for_json(df):
     # کپی DataFrame
     df_clean = df.copy()
     
+    # اضافه کردن source_type اگر وجود ندارد
+    if 'source_type' not in df_clean.columns:
+        df_clean['source_type'] = 'website'  # پیش‌فرض برای صفحات قدیمی
+    
     # جایگزینی NaN با None
     df_clean = df_clean.replace({np.nan: None})
     
@@ -665,17 +669,21 @@ async def get_website_pages(
         
         # اعمال فیلتر و جستجو
         if query:
+            # Escape special regex characters to treat as literal string
+            import re
+            escaped_query = re.escape(query)
+            
             if filter_by == "title":
-                df = df[df['title'].str.contains(query, case=False, na=False)]
+                df = df[df['title'].str.contains(escaped_query, case=False, na=False, regex=True)]
             elif filter_by == "text":
-                df = df[df['text'].str.contains(query, case=False, na=False)]
+                df = df[df['text'].str.contains(escaped_query, case=False, na=False, regex=True)]
             elif filter_by == "url":
-                df = df[df['url'].str.contains(query, case=False, na=False)]
+                df = df[df['url'].str.contains(escaped_query, case=False, na=False, regex=True)]
             else:  # all
                 df = df[
-                    df['title'].str.contains(query, case=False, na=False) |
-                    df['text'].str.contains(query, case=False, na=False) |
-                    df['url'].str.contains(query, case=False, na=False)
+                    df['title'].str.contains(escaped_query, case=False, na=False, regex=True) |
+                    df['text'].str.contains(escaped_query, case=False, na=False, regex=True) |
+                    df['url'].str.contains(escaped_query, case=False, na=False, regex=True)
                 ]
         
         # مرتب‌سازی
