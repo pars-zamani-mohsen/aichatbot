@@ -1152,6 +1152,8 @@ async def upload_file(
     """آپلود و پردازش فایل برای اضافه کردن به پایگاه دانش"""
     try:
         logger.info(f"File upload request for website {website_id}, file: {file.filename}")
+        logger.info(f"File content type: {file.content_type}")
+        logger.info(f"File size: {file.size if hasattr(file, 'size') else 'unknown'}")
         
         # بررسی مالکیت وب‌سایت (جداسازی tenant)
         website = verify_website_ownership(website_id, current_user.id, db)
@@ -1260,14 +1262,16 @@ async def upload_file(
         if file_path.exists():
             file_path.unlink()
         
-        return {
+        from fastapi.responses import JSONResponse
+        
+        return JSONResponse(content={
             "website_id": website_id,
             "filename": file.filename,
             "message": "فایل با موفقیت پردازش و اضافه شد",
             "total_chunks": len(result['chunks']),
             "total_characters": result['metadata']['total_characters'],
             "file_type": result['metadata']['file_type']
-        }
+        })
         
     except HTTPException:
         raise

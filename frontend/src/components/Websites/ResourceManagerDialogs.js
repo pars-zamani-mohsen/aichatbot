@@ -397,10 +397,13 @@ export const FileUploadDialog = ({ open, onClose, onUpload, websiteId }) => {
                 });
             }, 200);
 
-            const response = await fetch(`/api/${websiteId}/upload`, {
+            // استفاده از API base URL
+            const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+            const response = await fetch(`${API_URL}/api/${websiteId}/upload`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    // Content-Type را تنظیم نکن - browser خودش multipart/form-data را تنظیم می‌کند
                 },
                 body: formData
             });
@@ -408,12 +411,34 @@ export const FileUploadDialog = ({ open, onClose, onUpload, websiteId }) => {
             clearInterval(progressInterval);
             setUploadProgress(100);
 
+            console.log('Upload response status:', response.status);
+            console.log('Upload response headers:', response.headers);
+            console.log('Upload response ok:', response.ok);
+
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'خطا در آپلود فایل');
+                let errorMessage = 'خطا در آپلود فایل';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.detail || errorMessage;
+                } catch (e) {
+                    // اگر response JSON نباشد، متن خام را استفاده کن
+                    const errorText = await response.text();
+                    errorMessage = errorText || errorMessage;
+                }
+                throw new Error(errorMessage);
             }
 
-            const result = await response.json();
+            let result;
+            try {
+                result = await response.json();
+            } catch (e) {
+                // اگر response JSON نباشد، یک object ساده بساز
+                const responseText = await response.text();
+                result = {
+                    message: responseText || 'فایل با موفقیت آپلود شد',
+                    filename: file.name
+                };
+            }
 
             // فراخوانی callback
             if (onUpload) {
