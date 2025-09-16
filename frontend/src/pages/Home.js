@@ -41,20 +41,20 @@ const Home = () => {
 
     switch (activeTab) {
       case 0:
+        return <WidgetManager website={selectedWebsite} />;
+      case 1:
+        return <SourcesManager website={selectedWebsite} />;
+      case 2:
+        return <RAGSettings website={selectedWebsite} />;
+      case 3:
+        return <ConversationLogs website={selectedWebsite} />;
+      case 4:
         return (
           <ChatWindow
             websiteId={selectedWebsite.id}
             websiteName={selectedWebsite.name || selectedWebsite.url}
           />
         );
-      case 1:
-        return <WidgetManager website={selectedWebsite} />;
-      case 2:
-        return <SourcesManager website={selectedWebsite} />;
-      case 3:
-        return <RAGSettings website={selectedWebsite} />;
-      case 4:
-        return <ConversationLogs website={selectedWebsite} />;
       default:
         return (
           <Box

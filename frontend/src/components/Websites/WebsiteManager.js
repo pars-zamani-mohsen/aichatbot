@@ -321,11 +321,11 @@ const WebsiteManager = ({ onSelectWebsite, selectedWebsite, activeTab, onTabChan
 
       {selectedWebsite && (
         <Tabs value={activeTab} onChange={(e, newValue) => onTabChange(newValue)}>
-          <Tab label="چت" />
           <Tab label="مدیریت ویجت" />
           <Tab label="مدیریت منابع" />
           <Tab label="تنظیمات RAG" />
           <Tab label="لاگ مکالمات" />
+          <Tab label="چت" />
         </Tabs>
       )}
 
