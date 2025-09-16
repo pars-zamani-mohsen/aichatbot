@@ -540,23 +540,13 @@ const SourcesManager = ({ website }) => {
         <Box sx={{ p: 3 }}>
             {/* Header */}
             <Box sx={{ mb: 4 }}>
-                <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                    <Box>
-                        <Typography variant="h4" color="text.primary" gutterBottom>
-                            منابع
-                        </Typography>
-                        <Typography variant="body1" color="text.secondary">
-                            اسناد یا لینک‌ها را برای افزایش دانش ربات هوش مصنوعی خود اضافه کنید
-                        </Typography>
-                    </Box>
-                    <Link
-                        href="#"
-                        color="text.secondary"
-                        underline="hover"
-                        sx={{ fontSize: '0.875rem' }}
-                    >
-                        نکات
-                    </Link>
+                <Box mb={2}>
+                    <Typography variant="h4" color="text.primary" gutterBottom>
+                        منابع
+                    </Typography>
+                    <Typography variant="body1" color="text.secondary">
+                        اسناد یا لینک‌ها را برای افزایش دانش ربات هوش مصنوعی خود اضافه کنید
+                    </Typography>
                 </Box>
             </Box>
 
