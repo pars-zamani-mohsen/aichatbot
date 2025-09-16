@@ -84,8 +84,21 @@ class WebCrawlerPipeline:
         """بررسی معتبر بودن URL"""
         try:
             result = urlparse(url)
-            return all([result.scheme, result.netloc])
-        except:
+            # بررسی اینکه URL دارای scheme و netloc باشد
+            if not all([result.scheme, result.netloc]):
+                return False
+            
+            # بررسی اینکه domain با domain اصلی مطابقت داشته باشد
+            if result.netloc != self.domain:
+                return False
+                
+            # بررسی اینکه URL معتبر باشد
+            if result.scheme not in ['http', 'https']:
+                return False
+                
+            return True
+        except Exception as e:
+            logger.warning(f"خطا در بررسی URL {url}: {e}")
             return False
             
     def should_crawl(self, url: str) -> bool:
@@ -257,11 +270,23 @@ class WebCrawlerPipeline:
                     # استخراج لینک‌ها
                     links = []
                     for link in soup.find_all('a', href=True):
-                        href = link['href']
-                        absolute_url = urljoin(url, href)
-                        if self.is_valid_url(absolute_url):
+                        href = link['href'].strip()
+                        
+                        # نادیده گرفتن لینک‌های خالی یا fragment-only
+                        if not href or href.startswith('#'):
+                            continue
+                            
+                        # تبدیل URL نسبی به مطلق
+                        try:
+                            absolute_url = urljoin(url, href)
+                            
+                            # بررسی معتبر بودن URL
+                            if not self.is_valid_url(absolute_url):
+                                continue
+                                
                             # حذف fragment (#) از URL
                             clean_url = absolute_url.split('#')[0]
+                            
                             # حذف پارامترهای اضافی
                             if '?' in clean_url:
                                 base_url = clean_url.split('?')[0]
@@ -275,7 +300,14 @@ class WebCrawlerPipeline:
                                     clean_url = f"{base_url}?{'&'.join(important_params)}"
                                 else:
                                     clean_url = base_url
-                            links.append(clean_url)
+                            
+                            # اضافه کردن به لیست اگر تکراری نباشد
+                            if clean_url not in links:
+                                links.append(clean_url)
+                                
+                        except Exception as e:
+                            logger.warning(f"خطا در پردازش لینک {href}: {e}")
+                            continue
                             
                     return {
                         'url': url,
@@ -292,6 +324,12 @@ class WebCrawlerPipeline:
         """پردازش همزمان URL‌ها"""
         tasks = []
         for url in urls_to_crawl:
+            # بررسی معتبر بودن URL قبل از اضافه کردن به tasks
+            if not self.is_valid_url(url):
+                logger.warning(f"URL نامعتبر نادیده گرفته شد: {url}")
+                pbar.update(1)
+                continue
+                
             if self.should_crawl(url):
                 self.visited_urls.add(url)
                 tasks.append(self.crawl_page(url))
