@@ -152,18 +152,23 @@ class RAGService:
     def add_document(self, text: str, metadata: dict = None):
         """اضافه کردن سند جدید به collection"""
         try:
+            import uuid
+            
             # تولید امبدینگ
             embedding = self.embedding_model.encode(text).tolist()
+            
+            # تولید ID منحصر به فرد
+            document_id = str(uuid.uuid4())
             
             # اضافه کردن به collection
             self.collection.add(
                 documents=[text],
                 embeddings=[embedding],
                 metadatas=[metadata or {}],
-                ids=[str(len(self.collection.get()['ids']))]
+                ids=[document_id]
             )
             
-            logger.info(f"سند جدید با موفقیت اضافه شد")
+            logger.info(f"سند جدید با ID {document_id} با موفقیت اضافه شد")
             return True
             
         except Exception as e:
