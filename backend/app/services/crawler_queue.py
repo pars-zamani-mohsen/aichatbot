@@ -148,6 +148,9 @@ class CrawlerQueue:
                 'respect_robots': True
             })
             
+            # اضافه کردن URL به لیست force crawl (برای آپدیت)
+            crawler.add_force_crawl_url(task.url)
+            
             # اجرای کراولینگ به صورت async
             import asyncio
             if not asyncio.run(crawler.run_async()):

@@ -39,6 +39,7 @@ class WebCrawlerPipeline:
         self.output_dir = self.base_dir / "processed_data" / self.domain
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.session = None
+        self.force_crawl_urls: Set[str] = set()  # URL هایی که باید force کراول شوند
         
         # تنظیمات کراولینگ
         self.crawl_settings = crawl_settings or {}
@@ -73,6 +74,11 @@ class WebCrawlerPipeline:
                 logger.info(f"بارگذاری {len(existing_urls)} URL موجود از CSV")
             except Exception as e:
                 logger.warning(f"خطا در بارگذاری URL های موجود: {e}")
+    
+    def add_force_crawl_url(self, url: str):
+        """اضافه کردن URL به لیست force crawl"""
+        self.force_crawl_urls.add(url)
+        logger.info(f"URL {url} به لیست force crawl اضافه شد")
         
     def is_valid_url(self, url: str) -> bool:
         """بررسی معتبر بودن URL"""
@@ -96,15 +102,15 @@ class WebCrawlerPipeline:
             return False
         
         # بررسی اینکه آیا URL قبلاً کراول شده یا نه
-        csv_path = self.output_dir / "processed_data.csv"
-        if csv_path.exists():
-            try:
-                df = pd.read_csv(csv_path)
-                if url in df['url'].values:
-                    logger.info(f"URL {url} قبلاً کراول شده است، نادیده گرفته می‌شود")
-                    return False
-            except Exception as e:
-                logger.warning(f"خطا در خواندن CSV برای بررسی URL: {e}")
+        # اگر URL در لیست force_crawl_urls است، اجازه کراولینگ بده
+        if url in self.force_crawl_urls:
+            logger.info(f"URL {url} در لیست force crawl است، کراول می‌شود")
+            return True
+        
+        # اگر URL قبلاً کراول شده، نادیده بگیر
+        if url in self.visited_urls:
+            logger.info(f"URL {url} قبلاً کراول شده است، نادیده گرفته می‌شود")
+            return False
             
         # حذف URL‌های با پسوندهای خاص
         excluded_extensions = [
