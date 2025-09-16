@@ -97,10 +97,6 @@ def get_client_ip(request: Request) -> str:
     # IP مستقیم
     return request.client.host
 
-@router.options("/chat")
-async def widget_chat_options():
-    """OPTIONS endpoint برای CORS"""
-    return {"message": "OK"}
 
 @router.get("/config")
 async def get_widget_config(

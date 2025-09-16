@@ -163,6 +163,7 @@ class CrawlerQueue:
             
             # تکمیل موفق
             website.status = "ready"
+            website.collection_name = task.domain  # تنظیم collection_name
             website.crawl_info = {
                 'total_pages': len(crawler.data),
                 'crawled_at': datetime.now().isoformat()

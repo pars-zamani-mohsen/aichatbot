@@ -11,6 +11,7 @@ from .middleware.debug_middleware import debug_middleware
 from .middleware.rate_limiter import rate_limit_middleware
 from .middleware.security_middleware import security_middleware
 from .middleware.auth_middleware import auth_middleware
+from .middleware.widget_cors_middleware import widget_cors_middleware
 from .services.crawler_queue import crawler_queue
 from .core.logging_config import setup_logging
 import logging
@@ -41,7 +42,8 @@ app.add_middleware(
 )
 
 # اضافه کردن میدلورها به ترتیب صحیح
-app.middleware("http")(security_middleware)  # اول security headers
+app.middleware("http")(widget_cors_middleware)  # اول CORS برای widget
+app.middleware("http")(security_middleware)  # دوم security headers
 app.middleware("http")(maintenance_middleware)
 app.middleware("http")(debug_middleware)
 app.middleware("http")(error_handler)
