@@ -22,7 +22,7 @@ import {
 } from '@mui/material';
 import {
     Save,
-    Refresh,
+    // Refresh, // حذف شده - دکمه بازگردانی حذف شده
     Security,
     Email,
     Storage,
@@ -233,13 +233,14 @@ const SystemSettings = () => {
                     </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button
+                    {/* دکمه بازگردانی حذف شده */}
+                    {/* <Button
                         variant="outlined"
                         startIcon={<Refresh />}
                         onClick={handleReset}
                     >
                         بازگردانی
-                    </Button>
+                    </Button> */}
                     <Button
                         variant="contained"
                         startIcon={<Save />}

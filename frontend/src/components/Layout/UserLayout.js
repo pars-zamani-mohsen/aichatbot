@@ -31,8 +31,8 @@ import {
     AccountCircle,
     Person,
     Logout,
-    DarkMode,
-    LightMode,
+    // DarkMode,  // حذف شده - دکمه تغییر تم مخفی است
+    // LightMode, // حذف شده - دکمه تغییر تم مخفی است
     History
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -45,7 +45,7 @@ const drawerWidth = 260;
 const UserLayout = ({ children }) => {
     const [mobileOpen, setMobileOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
-    const [darkMode, setDarkMode] = useState(false);
+    // const [darkMode, setDarkMode] = useState(false); // حذف شده - دکمه تغییر تم مخفی است
     const [siteName, setSiteName] = useState('RAG Chatbot System');
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -191,9 +191,10 @@ const UserLayout = ({ children }) => {
                     </Box>
 
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <IconButton color="inherit" onClick={() => setDarkMode(!darkMode)}>
+                        {/* دکمه تغییر تم مخفی شده - کار نمی‌کند */}
+                        {/* <IconButton color="inherit" onClick={() => setDarkMode(!darkMode)}>
                             {darkMode ? <LightMode /> : <DarkMode />}
-                        </IconButton>
+                        </IconButton> */}
 
                         <NotificationBell />
 
