@@ -227,19 +227,19 @@ class SystemSettingsService:
         try:
             return {
                 "chat": {
-                    "requests": int(cls.get_setting(db, "rate_limit_chat_requests", 20)),
+                    "requests": int(cls.get_setting(db, "rate_limit_chat_requests", 100)),  # افزایش از 20 به 100
                     "window": int(cls.get_setting(db, "rate_limit_chat_window", 60))
                 },
                 "crawl": {
-                    "requests": int(cls.get_setting(db, "rate_limit_crawl_requests", 5)),
+                    "requests": int(cls.get_setting(db, "rate_limit_crawl_requests", 10)),  # افزایش از 5 به 10
                     "window": int(cls.get_setting(db, "rate_limit_crawl_window", 300))
                 },
                 "api": {
-                    "requests": int(cls.get_setting(db, "rate_limit_api_requests", 100)),
+                    "requests": int(cls.get_setting(db, "rate_limit_api_requests", 200)),  # افزایش از 100 به 200
                     "window": int(cls.get_setting(db, "rate_limit_api_window", 60))
                 },
                 "widget": {
-                    "requests": int(cls.get_setting(db, "rate_limit_widget_requests", 50)),
+                    "requests": int(cls.get_setting(db, "rate_limit_widget_requests", 100)),  # افزایش از 50 به 100
                     "window": int(cls.get_setting(db, "rate_limit_widget_window", 60))
                 }
             }
@@ -247,18 +247,18 @@ class SystemSettingsService:
             logger.error(f"Error converting rate limit settings to int: {str(e)}")
             # If conversion fails, return default values
             return {
-                "chat": {"requests": 20, "window": 60},
-                "crawl": {"requests": 5, "window": 300},
-                "api": {"requests": 100, "window": 60},
-                "widget": {"requests": 50, "window": 60}
+                "chat": {"requests": 100, "window": 60},  # افزایش از 20 به 100
+                "crawl": {"requests": 10, "window": 300},  # افزایش از 5 به 10
+                "api": {"requests": 200, "window": 60},   # افزایش از 100 به 200
+                "widget": {"requests": 100, "window": 60}  # افزایش از 50 به 100
             }
         except Exception as e:
             logger.error(f"Error getting rate limit settings: {str(e)}")
             return {
-                "chat": {"requests": 20, "window": 60},
-                "crawl": {"requests": 5, "window": 300},
-                "api": {"requests": 100, "window": 60},
-                "widget": {"requests": 50, "window": 60}
+                "chat": {"requests": 100, "window": 60},  # افزایش از 20 به 100
+                "crawl": {"requests": 10, "window": 300},  # افزایش از 5 به 10
+                "api": {"requests": 200, "window": 60},   # افزایش از 100 به 200
+                "widget": {"requests": 100, "window": 60}  # افزایش از 50 به 100
             }
     
     @classmethod

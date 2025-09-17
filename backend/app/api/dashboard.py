@@ -11,7 +11,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from ..services.timezone_manager import TimezoneManager
-from ..middleware.rate_limiter import rate_limiter
+from ..middleware.rate_limiter import rate_limiter, reset_user_rate_limits
 import os
 
 from ..database.database import get_db
@@ -1586,3 +1586,31 @@ async def get_chatbot_manager_status(
     except Exception as e:
         logger.error(f"Error getting chatbot manager status: {str(e)}")
         raise HTTPException(status_code=500, detail="خطا در دریافت وضعیت chatbot manager")
+
+@router.post("/reset-rate-limits")
+async def reset_rate_limits(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """ریست کردن rate limits برای کاربر فعلی"""
+    try:
+        # فقط ادمین‌ها می‌توانند rate limits را ریست کنند
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="دسترسی غیرمجاز")
+        
+        # دریافت IP کاربر
+        client_ip = request.client.host
+        
+        # ریست کردن rate limits
+        reset_user_rate_limits(current_user.id, client_ip)
+        
+        return {
+            "message": "Rate limits با موفقیت ریست شد",
+            "user_id": current_user.id,
+            "client_ip": client_ip
+        }
+        
+    except Exception as e:
+        logger.error(f"Error resetting rate limits: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطا در ریست کردن rate limits")

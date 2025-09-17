@@ -33,20 +33,20 @@ class RateLimiter:
                 else:
                     # مقادیر پیش‌فرض اگر دیتابیس در دسترس نباشد
                     self._limits = {
-                        "chat": {"requests": 20, "window": 60},
-                        "crawl": {"requests": 5, "window": 300},
-                        "api": {"requests": 100, "window": 60},
-                        "widget": {"requests": 50, "window": 60}
+                        "chat": {"requests": 100, "window": 60},  # افزایش حد مجاز برای chat
+                        "crawl": {"requests": 10, "window": 300},  # افزایش حد مجاز برای crawl
+                        "api": {"requests": 200, "window": 60},   # افزایش حد مجاز برای API
+                        "widget": {"requests": 100, "window": 60}  # افزایش حد مجاز برای widget
                     }
                 self._last_update = current_time
             except Exception as e:
                 logger.error(f"Error getting rate limit settings: {str(e)}")
                 # استفاده از مقادیر پیش‌فرض
                 self._limits = {
-                    "chat": {"requests": 20, "window": 60},
-                    "crawl": {"requests": 5, "window": 300},
-                    "api": {"requests": 100, "window": 60},
-                    "widget": {"requests": 50, "window": 60}
+                    "chat": {"requests": 100, "window": 60},  # افزایش حد مجاز برای chat
+                    "crawl": {"requests": 10, "window": 300},  # افزایش حد مجاز برای crawl
+                    "api": {"requests": 200, "window": 60},   # افزایش حد مجاز برای API
+                    "widget": {"requests": 100, "window": 60}  # افزایش حد مجاز برای widget
                 }
         
         return self._limits
@@ -108,15 +108,22 @@ rate_limiter = RateLimiter()
 
 async def rate_limit_middleware(request: Request, call_next):
     """Middleware برای Rate Limiting"""
+    
+    # نادیده گرفتن درخواست‌های OPTIONS (preflight requests)
+    if request.method == "OPTIONS":
+        return await call_next(request)
+    
     # تعیین نوع درخواست
     path = request.url.path
-    if "/api/chats" in path:
+    if "/api/chats" in path and request.method == "POST":
+        # فقط درخواست‌های POST برای chat محدودیت سخت‌تر دارند
         limit_type = "chat"
     elif "/api/websites/crawl" in path:
         limit_type = "crawl"
     elif "/api/widget" in path:
         limit_type = "widget"
     else:
+        # درخواست‌های GET برای chat و سایر API‌ها محدودیت کمتر دارند
         limit_type = "api"
     
     # دریافت کلید (IP یا User ID)
@@ -162,3 +169,17 @@ async def rate_limit_middleware(request: Request, call_next):
     response.headers["X-RateLimit-Reset"] = str(int(limits["reset_time"]))
     
     return response
+
+# تابع کمکی برای ریست کردن rate limits از API
+def reset_user_rate_limits(user_id: int = None, client_ip: str = None):
+    """ریست کردن rate limits برای کاربر خاص یا IP خاص"""
+    if user_id and client_ip:
+        key = f"{user_id}_{client_ip}"
+        rate_limiter.reset_limits(key)
+        logger.info(f"Rate limits reset for user {user_id} from IP {client_ip}")
+    elif client_ip:
+        rate_limiter.reset_limits(client_ip)
+        logger.info(f"Rate limits reset for IP {client_ip}")
+    else:
+        rate_limiter.reset_limits()
+        logger.info("All rate limits reset")

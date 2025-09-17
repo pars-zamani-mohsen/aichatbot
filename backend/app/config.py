@@ -78,11 +78,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     
     # تنظیمات Rate Limiting
-    RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
+    RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "200"))  # افزایش حد مجاز
     RATE_LIMIT_PER_HOUR: int = int(os.getenv("RATE_LIMIT_PER_HOUR", "1000"))
-    RATE_LIMIT_CHAT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_CHAT_PER_MINUTE", "10"))
-    RATE_LIMIT_CRAWL_PER_HOUR: int = int(os.getenv("RATE_LIMIT_CRAWL_PER_HOUR", "10"))
-    RATE_LIMIT_WIDGET_PER_HOUR: int = int(os.getenv("RATE_LIMIT_WIDGET_PER_HOUR", "50"))
+    RATE_LIMIT_CHAT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_CHAT_PER_MINUTE", "100"))  # افزایش حد مجاز
+    RATE_LIMIT_CRAWL_PER_HOUR: int = int(os.getenv("RATE_LIMIT_CRAWL_PER_HOUR", "20"))  # افزایش حد مجاز
+    RATE_LIMIT_WIDGET_PER_HOUR: int = int(os.getenv("RATE_LIMIT_WIDGET_PER_HOUR", "100"))  # افزایش حد مجاز
     
     # تنظیمات File Upload Security
     MAX_FILE_SIZE: int = int(os.getenv("MAX_FILE_SIZE", "10485760"))  # 10MB
