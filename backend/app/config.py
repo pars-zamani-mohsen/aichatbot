@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 
 # بارگذاری متغیرهای محیطی
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
 class Settings(BaseSettings):
     # تنظیمات دیتابیس
@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_WIDGET_PER_HOUR: int = int(os.getenv("RATE_LIMIT_WIDGET_PER_HOUR", "100"))  # افزایش حد مجاز
     
     # تنظیمات File Upload Security
-    MAX_FILE_SIZE: int = int(os.getenv("MAX_FILE_SIZE", "10485760"))  # 10MB
+    MAX_FILE_SIZE: str = os.getenv("MAX_FILE_SIZE", "50MB")
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", "uploads")
     
     @property
@@ -133,7 +133,6 @@ class Settings(BaseSettings):
     LOG_FORMAT: str = "%(asctime)s - %(levelname)s - %(message)s"
     
     class Config:
-        env_file = ".env"
         case_sensitive = True
         extra = "ignore"  # نادیده گرفتن فیلدهای اضافی
 

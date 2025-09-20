@@ -7,7 +7,7 @@ from pathlib import Path
 import logging
 from typing import List, Dict, Any, Set
 import json
-from sentence_transformers import SentenceTransformer
+# from sentence_transformers import SentenceTransformer
 import numpy as np
 from tqdm import tqdm
 import time
@@ -19,7 +19,7 @@ import chromadb
 from app.config import settings
 
 # بارگذاری متغیرهای محیطی
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '..', '.env'))
 
 logger = logging.getLogger(__name__)
 
@@ -474,7 +474,7 @@ class KnowledgeBasePipeline:
                 client.delete_collection(self.collection_name)
                 if settings.DEBUG_MODE:
                     logger.info(f"کالکشن قبلی {self.collection_name} حذف شد")
-            except:
+            except Exception:
                 pass
             
             # ایجاد کالکشن جدید

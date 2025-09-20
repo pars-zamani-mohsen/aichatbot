@@ -47,8 +47,8 @@ GRANT ALL PRIVILEGES ON DATABASE ai_db TO ai_user;
 
 ### مرحله 3: تنظیم Environment Variables
 ```bash
-cd /var/www/html/ai/backend
-cp ../env.example .env
+cd /var/www/html/ai
+cp env.example .env
 nano .env
 ```
 

@@ -258,8 +258,8 @@ BACKUP_DIR="/var/backups/ai-chatbot"
 DATE=\$(date +%Y%m%d_%H%M%S)
 
 # خواندن تنظیمات از .env (حذف کامنت‌ها و خطوط خالی)
-if [[ -f "backend/.env" ]]; then
-    export \$(grep -v '^#' backend/.env | grep -v '^$' | xargs)
+if [[ -f ".env" ]]; then
+    export \$(grep -v '^#' .env | grep -v '^$' | xargs)
 fi
 
 # ایجاد backup directory
@@ -339,12 +339,12 @@ show_final_info() {
     echo
     echo "⚠️  نکات مهم:"
     echo "   1. فایل .env در backend ایجاد شده است"
-    echo "   2. API keys را در backend/.env تنظیم کنید"
+    echo "   2. API keys را در .env تنظیم کنید"
     echo "   3. Domain name را در nginx تنظیم کنید"
     echo "   4. SSL certificate نصب کنید"
     echo
     echo "🔧 تنظیمات بعدی:"
-    echo "   📝 ویرایش فایل .env: nano backend/.env"
+    echo "   📝 ویرایش فایل .env: nano .env"
     echo "   🔑 اضافه کردن API keys:"
     echo "      - OPENAI_API_KEY=your_openai_key"
     echo "      - GEMINI_API_KEY=your_gemini_key"
@@ -356,22 +356,22 @@ show_final_info() {
 load_env_config() {
     log_info "خواندن تنظیمات از فایل .env..."
     
-    if [[ -f "backend/.env" ]]; then
+    if [[ -f ".env" ]]; then
         # خواندن متغیرهای محیطی از فایل .env (حذف کامنت‌ها و خطوط خالی)
-        export $(grep -v '^#' backend/.env | grep -v '^$' | xargs)
-        log_success "تنظیمات از backend/.env خوانده شد"
+        export $(grep -v '^#' .env | grep -v '^$' | xargs)
+        log_success "تنظیمات از .env خوانده شد"
     else
-        log_warning "فایل backend/.env یافت نشد"
+        log_warning "فایل .env یافت نشد"
         
         # چک کردن وجود env.example
         if [[ -f "env.example" ]]; then
             log_info "ایجاد فایل .env از env.example..."
-            cp env.example backend/.env
-            log_success "فایل backend/.env ایجاد شد"
+            cp env.example .env
+            log_success "فایل .env ایجاد شد"
             
             # خواندن تنظیمات جدید (حذف کامنت‌ها و خطوط خالی)
-            export $(grep -v '^#' backend/.env | grep -v '^$' | xargs)
-            log_success "تنظیمات از backend/.env خوانده شد"
+            export $(grep -v '^#' .env | grep -v '^$' | xargs)
+            log_success "تنظیمات از .env خوانده شد"
         else
             log_warning "فایل env.example یافت نشد، استفاده از مقادیر پیش‌فرض"
             # مقادیر پیش‌فرض

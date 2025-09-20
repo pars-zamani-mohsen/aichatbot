@@ -35,6 +35,15 @@ curl -X GET http://localhost:5000/api/websites/{ID} -H "Authorization: Bearer {T
 curl -X POST "http://localhost:5000/api/chat" -H "Authorization: Bearer {TOKEN}" -H "Content-Type: application/json" -d '{"website_id": 34, "message": "لطفاً در مورد خدمات مهاجرت به کانادا توضیح دهید", "use_rag": true, "use_llm": true}'
 
 
+docker:
+Frontend: http://localhost:3001
+Backend API: http://localhost:5000
+Nginx Proxy: http://localhost:8380
+Database: localhost:5445
+Redis: localhost:6397
+ChromaDB: localhost:8802
+
+
 
 ******************************************************************************
 ----------------------------------ai_prompt--------------------------------------------

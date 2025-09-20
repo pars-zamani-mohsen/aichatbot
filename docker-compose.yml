@@ -1,40 +1,161 @@
 version: '3.8'
 
 services:
-  app:
-    build: ./backend
-    ports:
-      - "7000:8000"<
-    volumes:
-      - ./backend:/app
-      - ./data:/app/data
-    environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/rag_chatbot
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - OLLAMA_API_URL=http://ollama:11434
-    depends_on:
-      - db
-      - ollama
-
+  # PostgreSQL Database
   db:
-    image: postgres:13
-    ports:
-      - "5432:5432"
+    image: postgres:15-alpine
+    container_name: ai_postgres
+    restart: unless-stopped
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=rag_chatbot
+      - POSTGRES_USER=${POSTGRES_USER:-ai_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-ai_password}
+      - POSTGRES_DB=${POSTGRES_DB:-ai_chatbot}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5445:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ai_user} -d ${POSTGRES_DB:-ai_chatbot}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: ai_redis
+    restart: unless-stopped
+    ports:
+      - "6397:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: ai_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ai_data:/app/data
+      - ai_logs:/app/logs
+      - ai_uploads:/app/uploads
+      - ai_knowledge:/app/knowledge_base
+      - ai_chroma:/app/chroma_db
+    ports:
+      - "5000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    container_name: ai_frontend
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: ai_nginx
+    restart: unless-stopped
+    ports:
+      - "8380:80"
+      - "8443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Ollama for local LLM (optional)
   ollama:
     image: ollama/ollama:latest
+    container_name: ai_ollama
+    restart: unless-stopped
     ports:
-      - "11434:11434"
+      - "11435:11434"
     volumes:
       - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:11434/api/tags" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ChromaDB for vector storage
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: ai_chromadb
+    restart: unless-stopped
+    ports:
+      - "8802:8000"
+    volumes:
+      - chromadb_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_data:
-  ollama_data: 
+    driver: local
+  redis_data:
+    driver: local
+  ollama_data:
+    driver: local
+  chromadb_data:
+    driver: local
+  ai_data:
+    driver: local
+  ai_logs:
+    driver: local
+  ai_uploads:
+    driver: local
+  ai_knowledge:
+    driver: local
+  ai_chroma:
+    driver: local
+
+networks:
+  default:
+    name: ai_network
