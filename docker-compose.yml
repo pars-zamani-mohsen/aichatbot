@@ -1,5 +1,10 @@
 version: '3.8'
 
+# Enable BuildKit for faster builds
+x-buildkit: &buildkit
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
 services:
   # PostgreSQL Database
   db:
@@ -41,6 +46,8 @@ services:
     build:
       context: .
       dockerfile: docker/backend/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     container_name: ai_backend
     restart: unless-stopped
     env_file:
@@ -101,22 +108,22 @@ services:
       timeout: 10s
       retries: 3
 
-  # Ollama for local LLM (optional)
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ai_ollama
-    restart: unless-stopped
-    ports:
-      - "11435:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    environment:
-      - OLLAMA_HOST=0.0.0.0
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:11434/api/tags" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # Ollama for local LLM (optional) - DISABLED
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: ai_ollama
+  #   restart: unless-stopped
+  #   ports:
+  #     - "11435:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   environment:
+  #     - OLLAMA_HOST=0.0.0.0
+  #   healthcheck:
+  #     test: [ "CMD", "curl", "-f", "http://localhost:11434/api/tags" ]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   # ChromaDB for vector storage
   chromadb:
@@ -141,8 +148,8 @@ volumes:
     driver: local
   redis_data:
     driver: local
-  ollama_data:
-    driver: local
+  # ollama_data:
+  #   driver: local
   chromadb_data:
     driver: local
   ai_data:

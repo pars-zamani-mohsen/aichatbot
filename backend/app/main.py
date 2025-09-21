@@ -77,4 +77,4 @@ async def shutdown_event():
     """رویداد پایان برنامه"""
     logger.info("🛑 پایان برنامه...")
     # توقف crawler queue
-    crawler_queue.stop() 
+    crawler_queue.stop() # Test comment

@@ -1,7 +1,6 @@
 # Git
 .git
 .gitignore
-.gitattributes
 
 # Documentation
 README.md
@@ -9,90 +8,72 @@ docs/
 *.md
 
 # Environment files
-.env*
-env.*
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# Virtual environments
-venv/
-env/
-ENV/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
+.env
+.env.*
+!env.example
 
 # Logs
-*.log
 logs/
+*.log
 
 # Temporary files
 temp/
 tmp/
 *.tmp
 
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
 # Node modules (for frontend)
 node_modules/
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
 
 # Build artifacts
 build/
 dist/
+*.egg-info/
 
-# Docker
+# Test files
+tests/
+test_*
+*_test.py
+
+# Coverage reports
+.coverage
+htmlcov/
+
+# Docker files (avoid recursive copying)
 Dockerfile*
 docker-compose*.yml
 .dockerignore
 
-# Database
-*.db
-*.sqlite3
-
-# ChromaDB
-chroma_db/
-knowledge_base/
-
-# Uploads
-uploads/
-processed_data/
-
-# SSL certificates
-ssl/
-*.pem
-*.key
-*.crt
-
 # Backup files
 *.bak
 *.backup
+*.sql
+
+# Uploads and processed data (will be mounted as volumes)
+uploads/
+processed_data/
+knowledge_base/
+chroma_db/

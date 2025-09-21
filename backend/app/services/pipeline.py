@@ -7,7 +7,7 @@ from pathlib import Path
 import logging
 from typing import List, Dict, Any, Set
 import json
-# from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer
 import numpy as np
 from tqdm import tqdm
 import time

@@ -47,6 +47,7 @@ coloredlogs==15.0.1
 
 # Task Queue
 celery==5.3.4
+redis==5.0.1
 
 # Retry mechanism
 tenacity==8.2.3
