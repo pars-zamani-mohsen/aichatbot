@@ -73,7 +73,7 @@ class RAGChatbotGemini:
 
         # ایجاد کلاینت ChromaDB و دریافت کالکشن
         # مسیر دیتابیس باید در پوشه knowledge_base/domain باشد
-        db_path = Path("/var/www/html/ai/backend/knowledge_base") / collection_name
+        db_path = Path("/app/knowledge_base") / collection_name
         logger.info(f"استفاده از مسیر دیتابیس: {db_path}")
         
         if not db_path.exists():

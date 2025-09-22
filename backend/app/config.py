@@ -34,12 +34,12 @@ class Settings(BaseSettings):
     # تنظیمات کراولر
     MAX_PAGES: int = int(os.getenv("MAX_PAGES", "100"))
     MAX_DEPTH: int = int(os.getenv("MAX_DEPTH", "3"))
-    CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1000"))
+    CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "500"))
     CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "200"))
     
     # تنظیمات جستجو
     COLLECTION_NAME: str = os.getenv("COLLECTION_NAME", "documents")
-    KNOWLEDGE_BASE_DIR: str = os.getenv("KNOWLEDGE_BASE_DIR", "/var/www/html/ai/backend/knowledge_base")
+    KNOWLEDGE_BASE_DIR: str = os.getenv("KNOWLEDGE_BASE_DIR", "/app/knowledge_base")
     
     # تنظیمات CORS
     @property

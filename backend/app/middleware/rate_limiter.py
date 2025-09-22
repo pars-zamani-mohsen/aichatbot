@@ -157,7 +157,7 @@ async def rate_limit_middleware(request: Request, call_next):
         # اضافه کردن CORS headers
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, x-token-length, X-Token-Length, x-token-preview, X-Token-Preview"
         response.headers["Access-Control-Allow-Credentials"] = "true"
         
         return response

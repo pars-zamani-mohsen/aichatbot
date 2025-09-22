@@ -12,7 +12,7 @@ async def widget_cors_middleware(request: Request, call_next):
         response = Response()
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, x-token-length, X-Token-Length, x-token-preview, X-Token-Preview"
         response.headers["Access-Control-Max-Age"] = "86400"
         response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
@@ -24,7 +24,7 @@ async def widget_cors_middleware(request: Request, call_next):
     if "/api/widget/" in request.url.path:
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, x-token-length, X-Token-Length, x-token-preview, X-Token-Preview"
         response.headers["Access-Control-Allow-Credentials"] = "true"
     
     return response
