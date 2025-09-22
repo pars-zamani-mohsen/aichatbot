@@ -34,7 +34,7 @@ class RateLimiter:
                     # مقادیر پیش‌فرض اگر دیتابیس در دسترس نباشد
                     self._limits = {
                         "chat": {"requests": 100, "window": 60},  # افزایش حد مجاز برای chat
-                        "crawl": {"requests": 10, "window": 300},  # افزایش حد مجاز برای crawl
+                        "crawl": {"requests": 50, "window": 300},  # افزایش حد مجاز برای crawl
                         "api": {"requests": 200, "window": 60},   # افزایش حد مجاز برای API
                         "widget": {"requests": 100, "window": 60}  # افزایش حد مجاز برای widget
                     }
@@ -44,7 +44,7 @@ class RateLimiter:
                 # استفاده از مقادیر پیش‌فرض
                 self._limits = {
                     "chat": {"requests": 100, "window": 60},  # افزایش حد مجاز برای chat
-                    "crawl": {"requests": 10, "window": 300},  # افزایش حد مجاز برای crawl
+                    "crawl": {"requests": 50, "window": 300},  # افزایش حد مجاز برای crawl
                     "api": {"requests": 200, "window": 60},   # افزایش حد مجاز برای API
                     "widget": {"requests": 100, "window": 60}  # افزایش حد مجاز برای widget
                 }

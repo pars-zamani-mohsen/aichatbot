@@ -45,6 +45,18 @@ def create_admin_user():
         print(f"⚠️ خطا در ایجاد کاربر مدیر: {e}")
         return False
 
+def seed_system_settings():
+    """ایجاد تنظیمات پیش‌فرض سیستم"""
+    print("🌱 در حال seeding تنظیمات سیستم...")
+    
+    try:
+        from seed_system_settings import seed_system_settings
+        seed_system_settings()
+        return True
+    except Exception as e:
+        print(f"⚠️ خطا در seeding تنظیمات: {e}")
+        return False
+
 def main():
     """تابع اصلی"""
     print("🚀 شروع اولیه‌سازی سیستم...")
@@ -57,6 +69,9 @@ def main():
     
     # ایجاد کاربر مدیر
     create_admin_user()
+    
+    # seeding تنظیمات سیستم
+    seed_system_settings()
     
     print("🎉 اولیه‌سازی سیستم با موفقیت انجام شد!")
 

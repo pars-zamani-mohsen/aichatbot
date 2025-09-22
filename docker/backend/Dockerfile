@@ -27,7 +27,7 @@ COPY backend/requirements.txt requirements.txt
 
 # Install PyTorch CPU version first (smaller download)
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir --timeout 3600 torch==2.0.1+cpu --index-url https://download.pytorch.org/whl/cpu
+    pip install --no-cache-dir --timeout 3600 torch==2.2.0+cpu --index-url https://download.pytorch.org/whl/cpu
 
 # Install other Python dependencies with BuildKit cache mount
 RUN --mount=type=cache,target=/root/.cache/pip \
@@ -59,6 +59,7 @@ RUN mkdir -p /var/log/supervisor \
 RUN chmod +x /app/run.py
 RUN chmod +x /app/create_admin_user.py
 RUN chmod +x /app/docker_init.py
+RUN chmod +x /app/seed_system_settings.py
 
 # Expose port
 EXPOSE 8000
