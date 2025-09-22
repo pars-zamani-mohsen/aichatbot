@@ -77,12 +77,14 @@ class RAGChatbot:
         db_path = Path("/app/knowledge_base") / collection_name
         logger.info(f"استفاده از مسیر دیتابیس: {db_path}")
         
-        if not db_path.exists():
-            logger.error(f"مسیر دیتابیس {db_path} وجود ندارد")
-            raise ValueError(f"مسیر دیتابیس {db_path} وجود ندارد")
-            
-        self.db_client = chromadb.PersistentClient(path=str(db_path))
-        self.collection = self.db_client.get_collection(name=collection_name)
+        # استفاده از ChromaDB container
+        try:
+            self.db_client = chromadb.HttpClient(host="chromadb", port=8000)
+            logger.info("Connected to ChromaDB container")
+            self.collection = self.db_client.get_collection(name=collection_name)
+        except Exception as e:
+            logger.error(f"Failed to connect to ChromaDB container: {e}")
+            raise Exception(f"ChromaDB container connection failed: {e}")
         
         # ایجاد موتور جستجو
         self.searcher = HybridSearcher(
@@ -193,10 +195,11 @@ class RAGChatbot:
             sources = []
             for text in relevant_texts:
                 if text['metadata']:
+                    content = str(text['text'])
                     sources.append({
                         'title': text['metadata'].get('title', ''),
                         'url': text['metadata'].get('url', ''),
-                        'content': text['text'][:200] + '...' if len(text['text']) > 200 else text['text']
+                        'content': content[:200] + '...' if len(content) > 200 else content
                     })
             
             # به‌روزرسانی تاریخچه چت

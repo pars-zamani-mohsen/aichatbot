@@ -466,8 +466,13 @@ class KnowledgeBasePipeline:
             # ایجاد پوشه ChromaDB برای سایت
             self.chroma_dir.mkdir(parents=True, exist_ok=True)
             
-            # ایجاد کلاینت ChromaDB
-            client = chromadb.PersistentClient(path=str(self.chroma_dir))
+            # ایجاد کلاینت ChromaDB - استفاده از container
+            try:
+                client = chromadb.HttpClient(host="chromadb", port=8000)
+                logger.info("Connected to ChromaDB container")
+            except Exception as e:
+                logger.error(f"Failed to connect to ChromaDB container: {e}")
+                raise Exception(f"ChromaDB container connection failed: {e}")
             
             # حذف کالکشن قبلی با همین نام (اگر وجود داشت)
             try:

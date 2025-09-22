@@ -266,7 +266,7 @@ fi
 mkdir -p \$BACKUP_DIR
 
 # Backup database با استفاده از تنظیمات .env
-pg_dump \${POSTGRES_DB:-ai_db} > \$BACKUP_DIR/db_backup_\$DATE.sql
+pg_dump \${POSTGRES_DB:-ai_chatbot} > \$BACKUP_DIR/db_backup_\$DATE.sql
 
 # Backup code
 tar -czf \$BACKUP_DIR/code_backup_\$DATE.tar.gz /var/www/html/ai
@@ -377,7 +377,7 @@ load_env_config() {
             # مقادیر پیش‌فرض
             export POSTGRES_USER="ai_user"
             export POSTGRES_PASSWORD="ai_password"
-            export POSTGRES_DB="ai_db"
+            export POSTGRES_DB="ai_chatbot"
             export POSTGRES_HOST="localhost"
             export POSTGRES_PORT="5432"
         fi

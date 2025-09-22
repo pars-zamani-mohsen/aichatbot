@@ -76,12 +76,14 @@ class RAGChatbotGemini:
         db_path = Path("/app/knowledge_base") / collection_name
         logger.info(f"استفاده از مسیر دیتابیس: {db_path}")
         
-        if not db_path.exists():
-            logger.error(f"مسیر دیتابیس {db_path} وجود ندارد")
-            raise ValueError(f"مسیر دیتابیس {db_path} وجود ندارد")
-            
-        self.db_client = chromadb.PersistentClient(path=str(db_path))
-        self.collection = self.db_client.get_collection(name=collection_name)
+        # استفاده از ChromaDB container
+        try:
+            self.db_client = chromadb.HttpClient(host="chromadb", port=8000)
+            logger.info("Connected to ChromaDB container")
+            self.collection = self.db_client.get_collection(name=collection_name)
+        except Exception as e:
+            logger.error(f"Failed to connect to ChromaDB container: {e}")
+            raise Exception(f"ChromaDB container connection failed: {e}")
         
         # ایجاد موتور جستجو
         self.searcher = HybridSearcher(

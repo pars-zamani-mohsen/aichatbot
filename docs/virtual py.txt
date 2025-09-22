@@ -2,7 +2,7 @@ sudo chown -R $USER:$USER ai/* && chmod 777 -R ai/*
 
 cd /var/www/html/ai/backend
 source venv/bin/activate
-pg_dump -h localhost -U ai_user -d ai_db > backup_$(date +%Y%m%d_%H%M%S).sql
+pg_dump -h localhost -U ai_user -d ai_chatbot > backup_$(date +%Y%m%d_%H%M%S).sql
 
 #جدید (newChatbotPanel)
 cd /var/www/html/ai/backend
@@ -49,16 +49,8 @@ ChromaDB: localhost:8802
 ----------------------------------ai_prompt--------------------------------------------
 ******************************************************************************
 لطفا برو پروژه من رو کامل بخون و یک بررسی کامل انجام بده
-توی این مسیر اجرا میشه
-cd /var/www/html/ai/backend
-و محیط من با این فعال میشه
-source venv/bin/activate
-و سرور رو روی این اجرا میکنم
-uvicorn app.main:app --reload --host 0.0.0.0 --port 5000
-فرانت هم توی این مسیر هست
-cd /var/www/html/ai/frontend
-و با این اجرا میکنم
-npm start
+توی این داکر اجرا میشه ai_backend
+فرانت هم توی این مسیر هست ai_frontend
 
 کامل بررسی کن و آماده شو برای اینکه تسک های جدید رو روی این انجام بدیم
 هر موقع ازت خواستم هم تغییرات رو کامیت کن

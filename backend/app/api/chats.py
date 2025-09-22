@@ -120,7 +120,7 @@ async def create_chat(
         # دریافت تنظیمات RAG از وب‌سایت
         rag_settings = website.rag_settings or {}
         default_k = rag_settings.get('k', 5)
-        max_response_length = rag_settings.get('max_response_length', 500)
+        max_response_length = rag_settings.get('max_response_length', 1000)  # افزایش از 500 به 1000
         default_temperature = rag_settings.get('temperature', 0.7)
         default_language = rag_settings.get('language', 'fa')
         

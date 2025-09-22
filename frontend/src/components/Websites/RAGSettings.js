@@ -14,14 +14,10 @@ import {
   Slider,
   Switch,
   FormControlLabel,
-  Divider,
-  Card,
-  CardContent,
   Grid
 } from '@mui/material';
 import {
   Settings as SettingsIcon,
-  PlayArrow as TestIcon,
   Save as SaveIcon
 } from '@mui/icons-material';
 import api from '../../services/api';
@@ -31,11 +27,8 @@ const RAGSettings = ({ website }) => {
   const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [testQuery, setTestQuery] = useState('');
-  const [testResult, setTestResult] = useState(null);
   const [systemSettings, setSystemSettings] = useState({});
 
   useEffect(() => {
@@ -116,27 +109,6 @@ const RAGSettings = ({ website }) => {
       console.error('Save RAG settings error:', err);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleTestQuery = async () => {
-    if (!testQuery.trim()) {
-      setError('لطفاً پرسش خود را وارد کنید');
-      return;
-    }
-
-    try {
-      setTesting(true);
-      const response = await api.post(`/api/${website.id}/test-rag`, {
-        query: testQuery
-      });
-      setTestResult(response.data);
-      setError(null);
-    } catch (err) {
-      setError('خطا در تست پرسش');
-      console.error('Test RAG error:', err);
-    } finally {
-      setTesting(false);
     }
   };
 
@@ -312,60 +284,6 @@ const RAGSettings = ({ website }) => {
                   {saving ? 'در حال ذخیره...' : 'ذخیره تنظیمات'}
                 </Button>
               </Box>
-            </Paper>
-          </Grid>
-
-          {/* تست RAG */}
-          <Grid item xs={12}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                تست RAG
-              </Typography>
-
-              <Box display="flex" gap={2} sx={{ mb: 2 }}>
-                <TextField
-                  fullWidth
-                  label="پرسش تست"
-                  value={testQuery}
-                  onChange={(e) => setTestQuery(e.target.value)}
-                  placeholder="پرسش خود را اینجا بنویسید..."
-                />
-                <Button
-                  variant="contained"
-                  startIcon={testing ? <CircularProgress size={20} /> : <TestIcon />}
-                  onClick={handleTestQuery}
-                  disabled={testing || !testQuery.trim()}
-                >
-                  تست
-                </Button>
-              </Box>
-
-              {testResult && (
-                <Card sx={{ mt: 2 }}>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom>
-                      پاسخ:
-                    </Typography>
-                    <Typography paragraph>
-                      {testResult.response}
-                    </Typography>
-
-                    {testResult.sources && testResult.sources.length > 0 && (
-                      <>
-                        <Divider sx={{ my: 2 }} />
-                        <Typography variant="h6" gutterBottom>
-                          منابع:
-                        </Typography>
-                        {testResult.sources.map((source, index) => (
-                          <Typography key={index} variant="body2" color="text.secondary">
-                            {index + 1}. {source}
-                          </Typography>
-                        ))}
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
             </Paper>
           </Grid>
         </Grid>

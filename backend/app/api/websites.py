@@ -303,19 +303,17 @@ async def delete_website(
         except Exception as file_error:
             logger.warning(f"خطا در حذف فایل‌های وب‌سایت: {file_error}")
         
-        # حذف collection از ChromaDB
+        # حذف collection از ChromaDB container
         try:
-            from ..services.rag import RAGService
-            rag_service = RAGService()
-            if hasattr(rag_service, 'collection') and rag_service.collection:
-                # حذف collection اگر وجود دارد
-                import chromadb
-                client = chromadb.PersistentClient(path=rag_service.vector_db_path)
-                try:
-                    client.delete_collection(name=website.collection_name or f"website_{website_id}")
-                    logger.info(f"ChromaDB collection {website.collection_name} deleted successfully")
-                except Exception as chroma_error:
-                    logger.warning(f"خطا در حذف ChromaDB collection: {chroma_error}")
+            import chromadb
+            client = chromadb.HttpClient(host="chromadb", port=8000)
+            collection_name = website.collection_name or website.domain or f"website_{website_id}"
+            
+            try:
+                client.delete_collection(name=collection_name)
+                logger.info(f"ChromaDB collection {collection_name} deleted successfully from container")
+            except Exception as chroma_error:
+                logger.warning(f"خطا در حذف ChromaDB collection: {chroma_error}")
         except Exception as rag_error:
             logger.warning(f"خطا در حذف RAG data: {rag_error}")
         

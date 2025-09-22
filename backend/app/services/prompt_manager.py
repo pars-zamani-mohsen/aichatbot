@@ -180,11 +180,27 @@ class PromptManager:
 
 لطفاً به کاربر اطلاع دهید که اطلاعاتی در مورد این موضوع در دسترس نیست و از او بخواهید سوال دیگری بپرسد."""
 
-            # ایجاد متن‌های مرتبط
-            context = "\n\n".join([
-                f"متن {i+1}:\n{text['text']}\nمنبع: {text['metadata'].get('url', 'نامشخص')}"
-                for i, text in enumerate(relevant_texts)
-            ])
+            # ایجاد متن‌های مرتبط با محدودیت طول
+            context_parts = []
+            total_length = 0
+            max_context_length = 8000  # محدودیت طول context
+            
+            for i, text in enumerate(relevant_texts):
+                text_content = text['text']
+                # محدود کردن طول هر متن به 1500 کاراکتر
+                if len(text_content) > 1500:
+                    text_content = text_content[:1500] + "..."
+                
+                context_part = f"متن {i+1}:\n{text_content}\nمنبع: {text['metadata'].get('url', 'نامشخص')}"
+                
+                # بررسی طول کل context
+                if total_length + len(context_part) > max_context_length:
+                    break
+                    
+                context_parts.append(context_part)
+                total_length += len(context_part)
+            
+            context = "\n\n".join(context_parts)
 
             # ایجاد پرامپت بر اساس نوع سوال
             if query_type == 'procedural':

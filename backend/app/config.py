@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # تنظیمات دیتابیس
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "ai_user")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "ai_password")
-    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "ai_db")
+    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "ai_chatbot")
     POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "localhost")
     POSTGRES_PORT: str = os.getenv("POSTGRES_PORT", "5432")
     DATABASE_URL: str = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"

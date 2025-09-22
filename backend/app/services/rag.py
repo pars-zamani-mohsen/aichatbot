@@ -17,7 +17,14 @@ class RAGService:
         # تنظیمات ChromaDB
         db_path = Path(settings.KNOWLEDGE_BASE_DIR) / collection_name
         logger.info(f"استفاده از مسیر دیتابیس: {db_path}")
-        self.chroma_client = chromadb.PersistentClient(path=str(db_path))
+        
+        # استفاده از ChromaDB container
+        try:
+            self.chroma_client = chromadb.HttpClient(host="chromadb", port=8000)
+            logger.info("Connected to ChromaDB container")
+        except Exception as e:
+            logger.error(f"Failed to connect to ChromaDB container: {e}")
+            raise Exception(f"ChromaDB container connection failed: {e}")
         
         # ایجاد یا دریافت collection
         try:

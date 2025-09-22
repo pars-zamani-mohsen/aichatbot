@@ -72,10 +72,15 @@ class EmbeddingService:
             try:
                 if settings.DEBUG_MODE:
                     logger.info("Setting up ChromaDB...")
-                EmbeddingService._client = Client(Settings(
-                    persist_directory=str(self.db_directory),
-                    anonymized_telemetry=False
-                ))
+                
+                # استفاده از ChromaDB container
+                try:
+                    from chromadb import HttpClient
+                    EmbeddingService._client = HttpClient(host="chromadb", port=8000)
+                    logger.info("Connected to ChromaDB container")
+                except Exception as e:
+                    logger.error(f"Failed to connect to ChromaDB container: {e}")
+                    raise Exception(f"ChromaDB container connection failed: {e}")
                 
                 # تنظیم تابع embedding
                 self.embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
