@@ -12,6 +12,10 @@ RUN npm ci --only=production
 # Copy source code
 COPY frontend/ .
 
+# Set environment variables for build
+ARG REACT_APP_API_URL
+ARG REACT_APP_FRONTEND_URL
+
 # Build the app
 RUN npm run build
 

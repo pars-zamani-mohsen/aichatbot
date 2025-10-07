@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// استفاده از متغیرهای محیطی که از config.py → .env → docker-compose.yml آمده‌اند
+// استفاده از nginx proxy برای CORS
+const API_URL = process.env.REACT_APP_API_URL || 'http://172.18.3.98:8380';
 
 const api = axios.create({
   baseURL: API_URL,

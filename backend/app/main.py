@@ -9,7 +9,7 @@ from .middleware import error_handler, logging_middleware
 from .middleware.maintenance_middleware import maintenance_middleware
 from .middleware.debug_middleware import debug_middleware
 from .middleware.rate_limiter import rate_limit_middleware
-from .middleware.security_middleware import security_middleware
+# from .middleware.security_middleware import security_middleware  # موقتاً غیرفعال
 from .middleware.auth_middleware import auth_middleware
 from .middleware.widget_cors_middleware import widget_cors_middleware
 from .services.crawler_queue import crawler_queue
@@ -30,26 +30,67 @@ app = FastAPI(
 )
 
 # بهبود CORS Configuration
-cors_origins = settings.CORS_ORIGINS
+import os
+from .config import settings
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*", "x-token-length", "X-Token-Length", "x-token-preview", "X-Token-Preview"],
-    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
-)
+# استفاده از تنظیمات از config.py
+server_ip = settings.SERVER_IP
+frontend_port = settings.FRONTEND_PORT
+backend_port = settings.BACKEND_PORT
 
-# اضافه کردن میدلورها به ترتیب صحیح
-app.middleware("http")(widget_cors_middleware)  # اول CORS برای widget
-app.middleware("http")(security_middleware)  # دوم security headers
-app.middleware("http")(maintenance_middleware)
-app.middleware("http")(debug_middleware)
-app.middleware("http")(error_handler)
-app.middleware("http")(logging_middleware)
-# app.middleware("http")(auth_middleware)  # بررسی احراز هویت - موقتاً غیرفعال
-app.middleware("http")(rate_limit_middleware)  # آخر rate limiting
+# CORS origins بر اساس IP اصلی
+cors_origins = [
+    f'http://{server_ip}:{frontend_port}',
+    f'http://{server_ip}:3000',
+    f'http://localhost:{frontend_port}',
+    'http://localhost:3000',
+    f'http://{server_ip}:{backend_port}',  # اضافه کردن backend port
+    'http://localhost:5000',  # برای development
+    '*'  # موقتاً برای تست
+]
+
+print(f"🌐 CORS Origins: {cors_origins}")
+print(f"🔧 Server IP: {server_ip}")
+print(f"🔧 Frontend Port: {frontend_port}")
+print(f"🔧 Backend Port: {backend_port}")
+
+# CORS Middleware سفارشی
+from fastapi import Request
+from fastapi.responses import Response
+
+@app.middleware("http")
+async def custom_cors_middleware(request: Request, call_next):
+    """CORS middleware سفارشی"""
+    response = await call_next(request)
+    
+    # اضافه کردن CORS headers
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "false"
+    
+    return response
+
+# CORS Middleware اصلی را غیرفعال می‌کنیم
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=False,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+#     expose_headers=["*"],
+# )
+
+# اضافه کردن میدلورها - فقط CORS برای تست
+# همه middleware های دیگر را موقتاً غیرفعال می‌کنیم
+# app.middleware("http")(logging_middleware)
+# app.middleware("http")(error_handler)
+# app.middleware("http")(debug_middleware)
+# app.middleware("http")(maintenance_middleware)
+# app.middleware("http")(auth_middleware)
+# app.middleware("http")(rate_limit_middleware)
+# app.middleware("http")(security_middleware)
+# app.middleware("http")(widget_cors_middleware)
 
 # اضافه کردن روترها
 app.include_router(auth.router, prefix="/api", tags=["auth"])

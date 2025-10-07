@@ -19,7 +19,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     ports:
-      - "5445:5432"
+      - "${DATABASE_PORT:-5445}:5432"
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ai_user} -d ${POSTGRES_DB:-ai_chatbot}" ]
       interval: 10s
@@ -32,7 +32,7 @@ services:
     container_name: ai_redis
     restart: unless-stopped
     ports:
-      - "6397:6379"
+      - "${REDIS_PORT:-6397}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -53,8 +53,11 @@ services:
     env_file:
       - .env
     environment:
-      - DEBUG=true
-      - CORS_ORIGINS=http://localhost:3001,http://localhost:3000,*
+      - DEBUG=${DEBUG:-false}
+      - SERVER_IP=${SERVER_IP}
+      - BACKEND_PORT=${BACKEND_PORT}
+      - FRONTEND_PORT=${FRONTEND_PORT}
+      - CORS_ORIGINS=${CORS_ORIGINS}
     volumes:
       - ai_data:/app/data
       - ai_logs:/app/logs
@@ -62,7 +65,7 @@ services:
       - ai_knowledge:/app/knowledge_base
       - ai_chroma:/app/chroma_db
     ports:
-      - "5000:8000"
+      - "${BACKEND_PORT:-5000}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -81,10 +84,18 @@ services:
     build:
       context: .
       dockerfile: docker/frontend/Dockerfile
+      args:
+        - REACT_APP_API_URL=http://${SERVER_IP}:${NGINX_HTTP_PORT:-8380}
+        - REACT_APP_FRONTEND_URL=http://${SERVER_IP}:${FRONTEND_PORT:-3001}
     container_name: ai_frontend
     restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - REACT_APP_API_URL=http://${SERVER_IP}:${NGINX_HTTP_PORT:-8380}
+      - REACT_APP_FRONTEND_URL=http://${SERVER_IP}:${FRONTEND_PORT:-3001}
     ports:
-      - "3001:80"
+      - "${FRONTEND_PORT:-3001}:80"
     depends_on:
       - backend
     healthcheck:
@@ -99,8 +110,8 @@ services:
     container_name: ai_nginx
     restart: unless-stopped
     ports:
-      - "8380:80"
-      - "8443:443"
+      - "${NGINX_HTTP_PORT:-8380}:80"
+      - "${NGINX_HTTPS_PORT:-8443}:443"
     volumes:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
@@ -136,7 +147,7 @@ services:
     container_name: ai_chromadb
     restart: unless-stopped
     ports:
-      - "8802:8000"
+      - "${CHROMA_PORT:-8802}:8000"
     volumes:
       - chromadb_data:/chroma/chroma
     environment:

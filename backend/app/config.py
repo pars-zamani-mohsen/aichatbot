@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+# from pydantic_settings import BaseSettings
 from typing import List, Optional
 import os
 from dotenv import load_dotenv
@@ -6,7 +6,20 @@ from dotenv import load_dotenv
 # بارگذاری متغیرهای محیطی
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
 
-class Settings(BaseSettings):
+class Settings:
+    # تنظیمات شبکه مرکزی
+    SERVER_IP = os.getenv("SERVER_IP", "localhost")
+    
+    # تنظیمات پورت‌ها
+    BACKEND_PORT = os.getenv("BACKEND_PORT", "5000")
+    FRONTEND_PORT = os.getenv("FRONTEND_PORT", "3001")
+    DATABASE_PORT = os.getenv("DATABASE_PORT", "5432")
+    REDIS_PORT = os.getenv("REDIS_PORT", "6379")
+    CHROMA_PORT = os.getenv("CHROMA_PORT", "8000")
+    
+    # تنظیمات CORS
+    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "")
+    
     # تنظیمات دیتابیس
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "ai_user")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "ai_password")
@@ -43,21 +56,19 @@ class Settings(BaseSettings):
     
     # تنظیمات CORS
     @property
-    def CORS_ORIGINS(self) -> List[str]:
-        """CORS origins بر اساس محیط"""
-        cors_origins = os.getenv("CORS_ORIGINS", "")
-        
-        if not cors_origins:
-            # اگر CORS_ORIGINS تنظیم نشده، بر اساس محیط تصمیم‌گیری
-            if self.DEBUG_MODE:
-                # Development: اجازه همه origins
-                return ["*"]
-            else:
-                # Production: فقط origins مشخص شده
-                return []
+    def CORS_ORIGINS_LIST(self) -> List[str]:
+        """CORS origins بر اساس SERVER_IP و CORS_ORIGINS"""
+        if not self.CORS_ORIGINS:
+            # اگر CORS_ORIGINS تنظیم نشده، از SERVER_IP و پورت‌ها استفاده کن
+            return [
+                f"http://{self.SERVER_IP}:{self.FRONTEND_PORT}",
+                f"http://{self.SERVER_IP}:3000",
+                f"http://localhost:{self.FRONTEND_PORT}",
+                "http://localhost:3000"
+            ]
         
         # تبدیل string به list
-        origins = [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
+        origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
         
         # در development، اگر origins خالی است، اجازه همه
         if self.DEBUG_MODE and not origins:
@@ -66,10 +77,16 @@ class Settings(BaseSettings):
         return origins
     
     # تنظیمات API URL
-    API_BASE_URL: str = os.getenv("API_BASE_URL", "http://localhost:5000")
+    @property
+    def API_BASE_URL(self) -> str:
+        """API Base URL بر اساس SERVER_IP و BACKEND_PORT"""
+        return os.getenv("API_BASE_URL", f"http://{self.SERVER_IP}:{self.BACKEND_PORT}")
     
     # تنظیمات Redis
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    @property
+    def REDIS_URL(self) -> str:
+        """Redis URL بر اساس REDIS_PORT"""
+        return os.getenv("REDIS_URL", f"redis://localhost:{self.REDIS_PORT}/0")
     
     # تنظیمات امنیتی
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
@@ -121,7 +138,10 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     
     # تنظیمات فرانت‌اند
-    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    @property
+    def FRONTEND_URL(self) -> str:
+        """Frontend URL بر اساس SERVER_IP و FRONTEND_PORT"""
+        return os.getenv("FRONTEND_URL", f"http://{self.SERVER_IP}:{self.FRONTEND_PORT}")
     
     # تنظیمات لاگ
     @property
@@ -132,8 +152,9 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     LOG_FORMAT: str = "%(asctime)s - %(levelname)s - %(message)s"
     
-    class Config:
-        case_sensitive = True
-        extra = "ignore"  # نادیده گرفتن فیلدهای اضافی
+    # class Config:
+    #     case_sensitive = True
+    #     extra = "ignore"  # نادیده گرفتن فیلدهای اضافی
+    #     env_file = ".env"
 
 settings = Settings() 
