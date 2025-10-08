@@ -29,17 +29,12 @@ const NotificationBell = () => {
   // اضافه کردن fallback برای recentNotifications
   const safeNotifications = Array.isArray(recentNotifications) ? recentNotifications : [];
 
-  // Debug logs
-  console.log('🔔 NotificationBell - recentNotifications:', recentNotifications);
-  console.log('🔔 NotificationBell - safeNotifications:', safeNotifications);
-  console.log('🔔 NotificationBell - Array.isArray(recentNotifications):', Array.isArray(recentNotifications));
 
   const [anchorEl, setAnchorEl] = useState(null);
 
   // علامت‌گذاری به عنوان خوانده شده
   const handleMarkAsRead = async (notificationId) => {
     try {
-      console.log(`User ${currentUserId} trying to mark notification ${notificationId} as read`);
       await markAsRead(notificationId);
     } catch (err) {
       console.error('Error marking notification as read:', err);

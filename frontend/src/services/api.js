@@ -17,28 +17,15 @@ api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
 
-    // Debug: بررسی token
+    // اضافه کردن token به درخواست
     if (token) {
       // بررسی فرمت token
       if (token.startsWith('Bearer ')) {
         // اگر قبلاً Bearer اضافه شده، آن را حذف کن
         config.headers.Authorization = token;
-        console.log(`🔐 Token (with Bearer) added to request: ${config.url}`);
       } else {
         // اضافه کردن Bearer
         config.headers.Authorization = `Bearer ${token}`;
-        console.log(`🔐 Token (Bearer added) to request: ${config.url}`);
-      }
-      console.log(`   Token length: ${token.length}, Preview: ${token.substring(0, 30)}...`);
-
-      // اضافه کردن header اضافی برای debug
-      config.headers['X-Token-Length'] = token.length;
-      config.headers['X-Token-Preview'] = token.substring(0, 20);
-    } else {
-      console.warn(`⚠️ No token found for request: ${config.url}`);
-      // بررسی اینکه آیا درخواست نیاز به احراز هویت دارد
-      if (config.url && config.url.includes('/api/')) {
-        console.warn(`   This is an API request that requires authentication`);
       }
     }
 
@@ -47,14 +34,6 @@ api.interceptors.request.use(
       config.headers['Content-Type'] = 'application/json';
     }
 
-    // Debug: نمایش headers نهایی
-    console.log(`📋 Final headers for ${config.url}:`, {
-      'Authorization': config.headers.Authorization ? 'SET' : 'NOT SET',
-      'Content-Type': config.headers['Content-Type'],
-      'Method': config.method,
-      'X-Token-Length': config.headers['X-Token-Length'] || 'N/A',
-      'X-Token-Preview': config.headers['X-Token-Preview'] || 'N/A'
-    });
 
     return config;
   },
@@ -99,7 +78,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // بررسی اینکه آیا در صفحه login هستیم یا نه
       const isOnLoginPage = window.location.pathname === '/login' || window.location.pathname === '/';
-      
+
       // پاک کردن تمام اطلاعات کاربر
       localStorage.removeItem('token');
       localStorage.removeItem('refresh_token');
@@ -155,21 +134,10 @@ export const auth = {
     // ذخیره توکن و اطلاعات کاربر
     const { access_token, refresh_token, user } = response.data;
 
-    // Debug: بررسی token قبل از ذخیره
-    console.log('🔐 Login successful, token details:');
-    console.log('  - Token length:', access_token ? access_token.length : 'NULL');
-    console.log('  - Token preview:', access_token ? `${access_token.substring(0, 50)}...` : 'NULL');
-    console.log('  - User:', user ? user.email : 'NULL');
-
     // ذخیره در localStorage
     localStorage.setItem('token', access_token);
     localStorage.setItem('refresh_token', refresh_token);
     localStorage.setItem('userInfo', JSON.stringify(user));
-
-    // تأیید ذخیره
-    const savedToken = localStorage.getItem('token');
-    console.log('💾 Token saved to localStorage:', savedToken ? 'SUCCESS' : 'FAILED');
-    console.log('  - Saved token length:', savedToken ? savedToken.length : 'NULL');
 
     return response.data;
   },
