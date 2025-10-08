@@ -97,18 +97,24 @@ api.interceptors.response.use(
 
     // اگر خطای 401 (Unauthorized) باشد، کاربر را logout کن
     if (error.response?.status === 401) {
+      // بررسی اینکه آیا در صفحه login هستیم یا نه
+      const isOnLoginPage = window.location.pathname === '/login' || window.location.pathname === '/';
+      
       // پاک کردن تمام اطلاعات کاربر
       localStorage.removeItem('token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('userInfo');
 
-      // ارسال event برای logout خودکار
-      window.dispatchEvent(new CustomEvent('forceLogout', {
-        detail: { reason: 'token_expired' }
-      }));
+      // اگر در صفحه login نیستیم، logout کنیم
+      if (!isOnLoginPage) {
+        // ارسال event برای logout خودکار
+        window.dispatchEvent(new CustomEvent('forceLogout', {
+          detail: { reason: 'token_expired' }
+        }));
 
-      // redirect به صفحه login
-      window.location.href = '/login';
+        // redirect به صفحه login
+        window.location.href = '/login';
+      }
 
       // reject کردن خطا
       return Promise.reject(new Error('Authentication failed. Please login again.'));
