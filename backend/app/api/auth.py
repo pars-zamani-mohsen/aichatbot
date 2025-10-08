@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -21,6 +22,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+@router.options("/{path:path}")
+async def options_handler(path: str):
+    """Handle OPTIONS requests for all auth routes"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+            "Access-Control-Max-Age": "86400"
+        }
+    )
 
 # تنظیمات رمزنگاری - پشتیبانی از bcrypt و Argon2
 pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")

@@ -1,5 +1,6 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from .database.database import engine
 from .database import models
@@ -58,28 +59,15 @@ print(f"🔧 Backend Port: {backend_port}")
 from fastapi import Request
 from fastapi.responses import Response
 
-@app.middleware("http")
-async def custom_cors_middleware(request: Request, call_next):
-    """CORS middleware سفارشی"""
-    response = await call_next(request)
-    
-    # اضافه کردن CORS headers
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "false"
-    
-    return response
-
-# CORS Middleware اصلی را غیرفعال می‌کنیم
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=False,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-#     expose_headers=["*"],
-# )
+# CORS Middleware - FastAPI مسئول CORS است
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
 
 # اضافه کردن میدلورها - فقط CORS برای تست
 # همه middleware های دیگر را موقتاً غیرفعال می‌کنیم
@@ -101,6 +89,19 @@ app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"]
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 app.include_router(email_archive.router, prefix="/api", tags=["email_archive"])
 app.include_router(performance.router, prefix="/api", tags=["performance"])
+
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    """Handle OPTIONS requests for all routes"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+            "Access-Control-Max-Age": "86400"
+        }
+    )
 
 @app.get("/")
 async def root():

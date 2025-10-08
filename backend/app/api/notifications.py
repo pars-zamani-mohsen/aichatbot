@@ -5,6 +5,7 @@ API endpoints برای مدیریت اعلان‌ها
 
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from ..database.database import get_db
@@ -18,6 +19,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+@router.options("/{path:path}")
+async def options_handler(path: str):
+    """Handle OPTIONS requests for all notification routes"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+            "Access-Control-Max-Age": "86400"
+        }
+    )
 
 @router.get("/", response_model=List[schemas.Notification])
 async def get_notifications(

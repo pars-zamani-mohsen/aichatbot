@@ -98,6 +98,8 @@ def get_client_ip(request: Request) -> str:
     return request.client.host
 
 
+# OPTIONS handler حذف شد - Nginx مسئول CORS است
+
 @router.get("/config")
 async def get_widget_config(
     site_id: int,
@@ -159,6 +161,8 @@ async def get_widget_config(
     except Exception as e:
         logger.error(f"خطا در دریافت تنظیمات ویجت: {str(e)}")
         raise HTTPException(status_code=500, detail="خطای داخلی سرور")
+
+# OPTIONS handler حذف شد - Nginx مسئول CORS است
 
 @router.post("/chat")
 async def widget_chat(
@@ -296,6 +300,8 @@ async def widget_chat(
     except Exception as e:
         logger.error(f"خطا در پردازش چت ویجت: {str(e)}")
         raise HTTPException(status_code=500, detail="خطای داخلی سرور")
+
+# OPTIONS handler حذف شد - Nginx مسئول CORS است
 
 @router.get("/snippet/{site_id}")
 async def get_widget_snippet(

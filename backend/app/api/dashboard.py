@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_, cast, Date
 from typing import List, Dict, Any
@@ -24,6 +25,19 @@ from fastapi import Request
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+@router.options("/{path:path}")
+async def options_handler(path: str):
+    """Handle OPTIONS requests for all dashboard routes"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+            "Access-Control-Max-Age": "86400"
+        }
+    )
 
 @router.get("/stats")
 async def get_dashboard_stats(
