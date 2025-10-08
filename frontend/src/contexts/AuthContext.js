@@ -14,21 +14,41 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // تابع کمکی برای پاک کردن localStorage
+    const clearCorruptedData = (reason = 'corrupted_data') => {
+        console.warn(`Clearing localStorage due to: ${reason}`);
+        localStorage.removeItem('userInfo');
+        localStorage.removeItem('token');
+        localStorage.removeItem('refresh_token');
+        setUser(null);
+    };
+
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (token) {
             try {
                 const userInfoStr = localStorage.getItem('userInfo');
-                if (userInfoStr) {
-                    const userInfo = JSON.parse(userInfoStr);
-                    setUser(userInfo);
+                if (userInfoStr && userInfoStr.trim() !== '') {
+                    // بررسی اینکه آیا رشته خالی یا null نیست
+                    if (userInfoStr === 'null' || userInfoStr === 'undefined') {
+                        clearCorruptedData('null_or_undefined_userInfo');
+                    } else {
+                        const userInfo = JSON.parse(userInfoStr);
+                        // بررسی اینکه آیا userInfo یک object معتبر است
+                        if (userInfo && typeof userInfo === 'object') {
+                            setUser(userInfo);
+                        } else {
+                            clearCorruptedData('invalid_userInfo_object');
+                        }
+                    }
+                } else {
+                    // اگر userInfo وجود ندارد، token را هم پاک کن
+                    clearCorruptedData('missing_userInfo');
                 }
             } catch (error) {
                 console.error('Error parsing userInfo from localStorage:', error);
-                // پاک کردن داده‌های خراب
-                localStorage.removeItem('userInfo');
-                localStorage.removeItem('token');
-                localStorage.removeItem('refresh_token');
+                console.log('Corrupted userInfo string:', localStorage.getItem('userInfo'));
+                clearCorruptedData('json_parse_error');
             }
         }
         setLoading(false);
@@ -56,9 +76,7 @@ export const AuthProvider = ({ children }) => {
 
     const logout = () => {
         setUser(null);
-        localStorage.removeItem('token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('userInfo');
+        clearCorruptedData('manual_logout');
     };
 
     const value = {
