@@ -186,7 +186,6 @@ class RAGChatbot:
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=self.max_tokens,
                 temperature=self.temperature,
                 timeout=120  # افزایش timeout به 2 دقیقه
             ).choices[0].message.content

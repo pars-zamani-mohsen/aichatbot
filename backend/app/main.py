@@ -13,6 +13,7 @@ from .middleware.rate_limiter import rate_limit_middleware
 # from .middleware.security_middleware import security_middleware  # موقتاً غیرفعال
 from .middleware.auth_middleware import auth_middleware
 from .middleware.widget_cors_middleware import widget_cors_middleware
+from .middleware.options_middleware import options_middleware
 from .services.crawler_queue import crawler_queue
 from .core.logging_config import setup_logging
 import logging
@@ -59,6 +60,9 @@ print(f"🔧 Backend Port: {backend_port}")
 from fastapi import Request
 from fastapi.responses import Response
 
+# اضافه کردن میدلورها - OPTIONS middleware موقتاً غیرفعال
+# app.middleware("http")(options_middleware)
+
 # CORS Middleware - FastAPI مسئول CORS است
 app.add_middleware(
     CORSMiddleware,
@@ -68,9 +72,7 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
-
-# اضافه کردن میدلورها - فقط CORS برای تست
-# همه middleware های دیگر را موقتاً غیرفعال می‌کنیم
+# سایر middleware ها موقتاً غیرفعال
 # app.middleware("http")(logging_middleware)
 # app.middleware("http")(error_handler)
 # app.middleware("http")(debug_middleware)
@@ -78,7 +80,8 @@ app.add_middleware(
 # app.middleware("http")(auth_middleware)
 # app.middleware("http")(rate_limit_middleware)
 # app.middleware("http")(security_middleware)
-# app.middleware("http")(widget_cors_middleware)
+
+# OPTIONS handlers توسط middleware handle می‌شوند
 
 # اضافه کردن روترها
 app.include_router(auth.router, prefix="/api", tags=["auth"])
@@ -90,18 +93,7 @@ app.include_router(notifications.router, prefix="/api/notifications", tags=["not
 app.include_router(email_archive.router, prefix="/api", tags=["email_archive"])
 app.include_router(performance.router, prefix="/api", tags=["performance"])
 
-@app.options("/{path:path}")
-async def options_handler(path: str):
-    """Handle OPTIONS requests for all routes"""
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
-            "Access-Control-Max-Age": "86400"
-        }
-    )
+# OPTIONS handlers حذف شدند - از middleware استفاده می‌کنیم
 
 @app.get("/")
 async def root():

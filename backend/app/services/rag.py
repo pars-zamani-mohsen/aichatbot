@@ -132,7 +132,7 @@ class RAGService:
             
             # دریافت پاسخ از مدل
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=settings.OPENAI_MODEL_NAME,
                 messages=messages,
                 temperature=self.temperature,
                 max_tokens=min(self.max_response_length * 2, 4000)  # حداکثر 4000 توکن

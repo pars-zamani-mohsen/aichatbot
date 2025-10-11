@@ -1,30 +1,37 @@
-from fastapi import Request
-from fastapi.responses import Response
+from fastapi import Request, Response
+from fastapi.responses import JSONResponse
 import logging
 
 logger = logging.getLogger(__name__)
 
 async def widget_cors_middleware(request: Request, call_next):
-    """Middleware مخصوص CORS برای widget API"""
+    """Middleware سفارشی برای CORS ویجت"""
     
-    # اگر درخواست OPTIONS است، مستقیماً پاسخ CORS بده
-    if request.method == "OPTIONS" and "/api/widget/" in request.url.path:
-        response = Response()
+    # بررسی اینکه آیا درخواست مربوط به widget است
+    if request.url.path.startswith("/api/widget/"):
+        
+        # Handle OPTIONS requests
+        if request.method == "OPTIONS":
+            return Response(
+                status_code=200,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+                    "Access-Control-Max-Age": "86400",
+                    "Content-Length": "0"
+                }
+            )
+        
+        # پردازش درخواست اصلی
+        response = await call_next(request)
+        
+        # اضافه کردن CORS headers به response
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, x-token-length, X-Token-Length, x-token-preview, X-Token-Preview"
-        response.headers["Access-Control-Max-Age"] = "86400"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
+        
         return response
     
-    # برای سایر درخواست‌ها، ادامه بده
-    response = await call_next(request)
-    
-    # اضافه کردن CORS headers به همه پاسخ‌های widget API
-    if "/api/widget/" in request.url.path:
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, x-token-length, X-Token-Length, x-token-preview, X-Token-Preview"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-    
-    return response
+    # برای سایر درخواست‌ها، بدون تغییر عبور دهید
+    return await call_next(request)

@@ -19,6 +19,159 @@ import re
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+@router.api_route("/chat", methods=["OPTIONS", "POST"])
+async def chat_endpoint(request: Request, db: Session = Depends(get_db)):
+    """Handle both OPTIONS and POST requests for chat endpoint"""
+    if request.method == "OPTIONS":
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+                "Access-Control-Max-Age": "86400"
+            }
+        )
+    
+    # برای POST requests، کد اصلی را اجرا کن
+    return await widget_chat(request, db)
+
+async def widget_chat(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """پردازش چت ویجت"""
+    try:
+        # دریافت داده‌های درخواست
+        body = await request.json()
+        site_id = body.get("site_id")
+        key = body.get("key")
+        message = body.get("message")
+        conversation_id = body.get("conversation_id")
+        meta = body.get("meta", {})
+        
+        # Validation
+        if not all([site_id, key, message]):
+            raise HTTPException(status_code=400, detail="داده‌های ناقص")
+        
+        if not isinstance(site_id, int) or site_id <= 0:
+            raise HTTPException(status_code=400, detail="شناسه سایت نامعتبر")
+        
+        if not validate_input_length(message, max_length=1000):
+            raise HTTPException(status_code=400, detail="پیام خیلی طولانی است")
+        
+        # Sanitize inputs
+        message = sanitize_html(message)
+        key = sanitize_sql_input(key)
+        
+        # بررسی rate limit
+        client_ip = get_client_ip(request)
+        if not check_rate_limit(client_ip, site_id, limit=50, window=3600):
+            raise HTTPException(status_code=429, detail="محدودیت نرخ درخواست")
+        
+        # بررسی سوءاستفاده
+        user_agent = meta.get("user_agent", "")
+        if not check_abuse(client_ip, user_agent, message):
+            raise HTTPException(status_code=400, detail="درخواست نامعتبر")
+        
+        # تأیید کلید
+        if not verify_widget_key(site_id, key, db):
+            raise HTTPException(status_code=401, detail="کلید نامعتبر")
+        
+        # دریافت اطلاعات وب‌سایت
+        website = db.query(models.Website).filter(
+            models.Website.id == site_id,
+            models.Website.status == "ready"
+        ).first()
+        
+        if not website:
+            raise HTTPException(status_code=404, detail="وب‌سایت یافت نشد")
+        
+        # ادامه پردازش چت...
+        try:
+            # دریافت collection_name از website
+            collection_name = website.collection_name
+            if not collection_name:
+                raise HTTPException(status_code=400, detail="کالکشن برای این وب‌سایت ایجاد نشده است")
+            
+            # دریافت تنظیمات RAG از وب‌سایت
+            rag_settings = website.rag_settings or {}
+            chatbot_type = rag_settings.get('chatbot_type', 'openai')
+            
+            # استفاده از ChatbotFactory برای ایجاد چت‌بات
+            chatbot = ChatbotFactory.create_chatbot(
+                chatbot_type=chatbot_type,
+                collection_name=collection_name,
+                max_tokens=rag_settings.get('max_response_length', 500) * 2,
+                temperature=rag_settings.get('temperature', 0.7),
+                db=db
+            )
+            
+            # ارسال پرسش به چت‌بات
+            response = chatbot.ask(message)
+            
+            # بررسی ساختار پاسخ
+            if not isinstance(response, dict) or 'answer' not in response:
+                raise HTTPException(status_code=500, detail="پاسخ چت‌بات در فرمت نامعتبر است")
+            
+            # ایجاد یا دریافت چت موجود
+            if conversation_id:
+                # استفاده از چت موجود
+                chat = db.query(models.Chat).filter(
+                    models.Chat.id == conversation_id,
+                    models.Chat.website_id == site_id
+                ).first()
+                if not chat:
+                    raise HTTPException(status_code=404, detail="چت یافت نشد")
+            else:
+                # ایجاد چت جدید
+                session_id = f"widget_{site_id}_{int(time.time())}"
+                chat = models.Chat(
+                    website_id=site_id,
+                    session_id=session_id
+                )
+                db.add(chat)
+                db.commit()
+                db.refresh(chat)
+                conversation_id = chat.id
+            
+            # ذخیره پیام کاربر
+            user_message = models.Message(
+                chat_id=conversation_id,
+                role="user",
+                content=message
+            )
+            db.add(user_message)
+            
+            # ذخیره پاسخ چت‌بات
+            assistant_message = models.Message(
+                chat_id=conversation_id,
+                role="assistant",
+                content=response["answer"],
+                sources=response.get("sources", [])
+            )
+            db.add(assistant_message)
+            
+            db.commit()
+            
+            # بازگرداندن پاسخ
+            return {
+                "conversation_id": conversation_id,
+                "answer": response["answer"],
+                "sources": response.get("sources", []),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"خطا در پردازش چت: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"خطا در پردازش چت: {str(e)}")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"خطا در پردازش چت ویجت: {str(e)}")
+        raise HTTPException(status_code=500, detail="خطای داخلی سرور")
+
 # Rate limiting storage (در production باید از Redis استفاده شود)
 rate_limit_storage = {}
 
@@ -164,7 +317,6 @@ async def get_widget_config(
 
 # OPTIONS handler حذف شد - Nginx مسئول CORS است
 
-@router.post("/chat")
 async def widget_chat(
     request: Request,
     db: Session = Depends(get_db)

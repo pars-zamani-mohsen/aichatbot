@@ -64,6 +64,7 @@ services:
       - ai_uploads:/app/uploads
       - ai_knowledge:/app/knowledge_base
       - ai_chroma:/app/chroma_db
+      - ai_processed_data:/app/processed_data
     ports:
       - "${BACKEND_PORT:-5000}:8000"
     depends_on:
@@ -178,6 +179,8 @@ volumes:
   ai_knowledge:
     driver: local
   ai_chroma:
+    driver: local
+  ai_processed_data:
     driver: local
 
 networks:
