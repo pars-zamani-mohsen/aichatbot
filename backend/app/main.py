@@ -72,6 +72,7 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+#TODO: active middlewares
 # سایر middleware ها موقتاً غیرفعال
 # app.middleware("http")(logging_middleware)
 # app.middleware("http")(error_handler)
